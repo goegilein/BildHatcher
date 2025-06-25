@@ -29,6 +29,7 @@ if __name__ == "__main__":
     gui.image_item = QtWidgets.QGraphicsPixmapItem()
     gui.image_scene.addItem(gui.image_item)
     
+    
     gui.show()
         
     data_handler= DataHandling.DataHandler(gui)
