@@ -1,0 +1,336 @@
+from PyQt6 import QtWidgets, QtCore
+from PyQt6.QtWidgets import QFileDialog
+import numpy as np
+import datetime
+from HelperClasses import ProcessBlock, HatchData
+import PostProcessing
+import copy
+
+class Parser:
+    def __init__(self, data_handler, gui):
+        self.data_handler = data_handler
+        self.post_processor = PostProcessing.PostProcessor()
+        self.gui = gui
+        self.hatch_data = HatchData(None, None)
+        self.laser_mode = ""
+        self.feedrate_default = 6000
+
+        # Initialize GUI elements from the preloaded PyQt6 GUI
+        self.post_processing_combobox = gui.post_processing_combobox
+        self.white_threshold_parsing_spinbox = gui.white_threshold_parsing_spinbox
+        self.laser_mode_combobox = gui.laser_mode_combobox
+        self.min_power_spinbox = gui.min_power_spinbox
+        self.max_power_spinbox = gui.max_power_spinbox
+        self.power_format_combobox = gui.power_format_combobox
+        self.min_speed_spinbox = gui.min_speed_spinbox
+        self.max_speed_spinbox = gui.max_speed_spinbox
+        self.speed_format_combobox = gui.speed_format_combobox
+        self.offset_x_spinbox = gui.offset_x_spinbox
+        self.offset_y_spinbox = gui.offset_y_spinbox
+        self.offset_z_spinbox = gui.offset_z_spinbox
+        self.iterations_spinbox = gui.iterations_spinbox
+        self.export_format_combobox = gui.export_format_combobox
+        self.export_button = gui.export_button
+        self.add_process_block_button = gui.add_process_block_button
+        self.remove_process_block_button = gui.remove_process_block_button
+        self.process_listWidget = gui.process_listWidget
+
+        # Set default values for spinboxes and comboboxes
+        self.post_processing_combobox.addItems(["None", "Maximize Lines", "Constant Drive", "Over Drive"])
+        self.laser_mode_combobox.addItems([ "constant","variable"])
+        self.power_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
+        self.speed_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
+        self.export_format_combobox.addItems([".gcode", ".txt"])
+
+        self.white_threshold_parsing_spinbox.setValue(255)
+        self.min_power_spinbox.setValue(0)
+        self.max_power_spinbox.setValue(100)
+        self.min_speed_spinbox.setValue(0)
+        self.max_speed_spinbox.setValue(80)
+        self.offset_x_spinbox.setValue(0)
+        self.offset_y_spinbox.setValue(0)
+        self.offset_z_spinbox.setValue(0)
+        self.iterations_spinbox.setValue(1)
+
+        # Connect signals to methods
+        self.export_button.clicked.connect(self.export_data)
+        self.add_process_block_button.clicked.connect(lambda: self.add_process_block(self.iterations_spinbox.value()))
+        self.remove_process_block_button.clicked.connect(self.remove_selected_process_block)
+
+    def generate_gcode_header(self):
+        gcode_commands=[]
+        # Get the current date and time
+        current_datetime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Initialize G-code with header
+        gcode_commands.append("; Header")
+        gcode_commands.append("; G-code generated from hatch_lines")
+        gcode_commands.append(f"; Created: {current_datetime}")
+        gcode_commands.append("")
+        gcode_commands.append("; Presets")
+        gcode_commands.append("")
+        gcode_commands.append("G90 ; Use absolute coordinates")
+        gcode_commands.append("G21 ; Set units to millimeters")
+        #gcode_commands.append("M4 P0 ; set Laser to variable Mode")#TO BE TESTED. This is Skywriting equivalent
+        #gcode_commands.append("M3 P0 ; set laser to constant Mode")#TO BE TESTED
+        gcode_commands.append("M8 ; Turn on Air assis")# M9 will turn it off
+        gcode_commands.append("M2000 W1 P100 ; Artisan Setting to turn on Enclosure lights 100%")
+        gcode_commands.append("M2000 W2 P100 ; Artisan Setting to turn on Enclosure fan (100%)")
+        gcode_commands.append("M2000 L23 P0 ; Artisan 40W laser. 0 enters half power Mode") #TO BE TESTED! should be better for marking
+        gcode_commands.append("")
+        gcode_commands.append(f"G0 F{self.feedrate_default} ; set default feedrate for laser off moves")
+        gcode_commands.append(f"G1 F{self.feedrate_default} ; set default feedrate for laser on moves")
+        gcode_commands.append("")
+
+        return gcode_commands
+
+    def generate_gcode_footer(self):
+        gcode_commands=[]
+        gcode_commands.append("; Footer")
+        gcode_commands.append("M5 ; Turn off laser")
+        gcode_commands.append("M9 ; Turn off Air assist")
+        gcode_commands.append("M2000 W2 P0 ; Artisan Setting to turn off Enclosure fan (0%)")
+        gcode_commands.append("M2000 L23 P1 ; Artisan 40W laser. 1 exits half power Moade")
+        gcode_commands.append("; End of G-code")
+
+        return gcode_commands
+
+    def generate_gcode(self,process_block=None):
+        gcode_commands = []
+
+        if process_block.laser_mode == "variable":
+            gcode_commands.append("M4 P0 ; set Laser to variable Mode")#TO BE TESTED.
+        elif process_block.laser_mode == "constant":
+            gcode_commands.append("M3 P0 ; set laser to constant Mode")#TO BE TESTED
+        else:
+            print("Error: Laser Mode not recognized")
+        gcode_commands.append("")
+        gcode_commands.append(";start of Pattern")
+        gcode_commands.append("")
+
+        x_prev=None
+        y_prev=None
+        z_prev=None
+        pwr_prev=[]
+        feedG1_prev=0
+        feedG0_prev=0
+        prev_gcode_command=""
+
+        hatch_data = self.post_processor.process_data(process_block)
+        for counter, hatch_lines in enumerate(hatch_data):
+            for polyline in hatch_lines:
+                for point in polyline:
+
+                    move_type = point.move_type
+                    x = point.x
+                    y = point.y
+                    z = point.z
+                    feed = point.speed*60 #feed is in mm/min while speed is in mm/s
+                    pwr_P = point.pwr
+                    pwr_S = pwr_P/100*255 #pwr_S is in 8bit format (0-255)
+
+                    
+
+                    if move_type == 0:
+                        # Rapid move (G0)
+                        # if not prev_gcode_command=="G0":
+                        #     gcode_commands.append("M05")
+                        gcode_command="G0"
+                        if x != x_prev: gcode_command += f" X{x:.3f}"
+                        if y != y_prev: gcode_command += f" Y{y:.3f}"
+                        if z != z_prev: gcode_command += f" Z{z:.3f}"
+                        if feed != feedG0_prev or prev_gcode_command=="G1": gcode_command += f" F{feed}"
+                        #gcode_command += f" F{feed}"
+                        
+                        
+                        gcode_commands.append(gcode_command)
+
+                        #update previous values
+                        pwr_prev=0
+                        feedG0_prev=feed
+                        prev_gcode_command="G0"
+                    else:
+                        # Linear move with processing (G1)
+                        # if not prev_gcode_command=="G1":
+                        #     gcode_commands.append(f"M03 P{pwr_P} S{pwr_S}")
+
+                        gcode_command="G1"
+                        if x != x_prev: gcode_command += f" X{x:.3f}"
+                        if y != y_prev: gcode_command += f" Y{y:.3f}"
+                        if z != z_prev: gcode_command += f" Z{z:.3f}"
+                        if pwr_S != pwr_prev or prev_gcode_command=="G0": gcode_command += f" P{pwr_P} S{pwr_S}" #P input is a NECESSITY for Artisan's Marlin!
+                        if feed != feedG1_prev or prev_gcode_command=="G0": gcode_command += f" F{feed}"
+                        #gcode_command += f" F{feed}"
+
+                        gcode_commands.append(gcode_command)
+
+                        #update previous values
+                        feedG1_prev=feed
+                        pwr_prev=pwr_S
+                        prev_gcode_command="G1"
+                    # Update previous values that are identical for both move types
+                    x_prev=x
+                    y_prev=y
+                    z_prev=z
+                    
+
+            gcode_commands.append("")  # Add empty line between clusters    
+        gcode_commands.append("; End of Pattern")
+        gcode_commands.append("")
+        return(gcode_commands)
+
+    def format_code(self):
+        header = self.generate_gcode_header()
+        footer = self.generate_gcode_footer()
+        full_gcode = header 
+        for index in range(self.process_listWidget.count()):
+            list_item = self.process_listWidget.item(index)  # Get the item at the given index
+            process_block = list_item.data(QtCore.Qt.ItemDataRole.UserRole)  # Retrieve the stored ProcessBlock object
+            full_gcode += self.generate_gcode(process_block)
+        full_gcode += footer
+        return "\n".join(full_gcode)
+
+    def save_gcode(self):
+        # Open a save file dialog
+        savepath, _ = QFileDialog.getSaveFileName(
+            #parent=self.gui,
+            caption="Save G-code File",
+            filter="G-code files (*.nc);;All files (*.*)",
+            directory="",
+            #selectedFilter="*.nc"
+        )
+        if savepath:
+            with open(savepath, 'w') as file:
+                file.write(self.format_code())
+
+    def add_process_block(self,iterations=1):
+        '''Creates a process block from the active hatch data and puts it into the processListWidget'''
+        post_processing = self.post_processing_combobox.currentText()
+        laser_mode = self.laser_mode_combobox.currentText()
+        offset = [
+            self.offset_x_spinbox.value(),
+            self.offset_y_spinbox.value(),
+            self.offset_z_spinbox.value()
+        ]
+
+        self.get_handler_data()
+        hatch_data = []
+        for _ in range(iterations):
+            hatch_data += self.set_speed_and_pwr(self.hatch_data.data)
+        process_block = ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset)
+        list_item = QtWidgets.QListWidgetItem(f"{iterations}x {self.hatch_data.type}")
+        list_item.setData(QtCore.Qt.ItemDataRole.UserRole, process_block)  # Store the process block in the item's data
+        self.process_listWidget.addItem(list_item)
+
+    def remove_selected_process_block(self):
+        '''Removes the selected process block from the QListWidget'''
+        selected_items = self.process_listWidget.selectedItems()
+        if not selected_items:
+            return  # No item selected
+
+        for item in selected_items:
+            self.process_listWidget.takeItem(self.process_listWidget.row(item))  # Remove the selected item
+            
+    def save_txt(self):
+        folder = QFileDialog.getExistingDirectory(caption="Select Folder")
+        if not folder:
+            return
+        
+        idx_code=[]
+        for index in range(self.process_listWidget.count()):
+            list_item = self.process_listWidget.item(index)  # Get the item at the given index
+            process_block = list_item.data(QtCore.Qt.ItemDataRole.UserRole)  # Retrieve the stored ProcessBlock object
+
+            block_path=folder + "/"+ 'temp' + f"_block-{index+1}.txt"
+            txt_commands=self.generate_txt_code(process_block)
+            with open(block_path, 'w') as file:
+                file.write(txt_commands)
+            
+            idx_code.append(f"0 0 0 " + "temp" + f"_cluster-{index+1}.txt"+ f" {index+1}")
+        #save the idx_code to file here
+        idx_path=folder + "/"+ "temp" + "_INDEX.txt"
+        idx_code="\n".join(idx_code)
+        with open(idx_path, 'w') as file:
+                file.write(idx_code)
+    
+    def generate_txt_code(self,process_block):
+        txt_commands=[]
+        for cluster in process_block.data:
+            for polyline in cluster:
+                for point in polyline:
+                    txt_commands.append(f"{point.x:.3f} {point.y:.3f} {point.z:.3f} {np.abs(point.move_type-1)}")
+        return "\n".join(txt_commands)
+    
+    def export_data(self):
+        format = self.export_format_combobox.currentText()
+        if format == ".gcode":
+            self.save_gcode()
+        elif format == ".txt":
+            self.save_txt()
+        print("finished exporting")
+
+    def set_speed_and_pwr(self,hatch_data):
+        #work on a deepcopy of the raw data to avoid pointing issues
+        data = copy.deepcopy(hatch_data)
+
+        for counter, hatch_lines in enumerate(data):
+
+            # Get first point for color of the entire cluster
+            first_point = hatch_lines[0][0]
+
+            # Check for white threshold. If the color is too bright, remove the data
+            if (first_point.r+first_point.g+first_point.b)/3>self.white_threshold_parsing_spinbox.value():
+                data[counter]=[] 
+                continue
+
+            # Get Power limits
+            min_pwr = self.min_power_spinbox.value()
+            max_pwr = self.max_power_spinbox.value()
+            power_mode = self.power_format_combobox.currentText()
+            pwr_struc_num = self.gui.structnum_pwr_spinbox.value()
+
+            # Get Speed limits
+            min_speed = self.min_speed_spinbox.value()
+            max_speed = self.max_speed_spinbox.value()
+            speed_mode = self.speed_format_combobox.currentText()
+            speed_struc_num = self.gui.structnum_speed_spinbox.value()
+
+            #power settings
+            if power_mode=="constant (max. Val.)":
+                pwr = max_pwr
+            elif power_mode=="color-scaled":
+                pwr=int(max_pwr-(max_pwr-min_pwr)*sum([first_point.r,first_point.g,first_point.b])/765)
+            elif power_mode=="test_structure":
+                if pwr_struc_num>1:
+                    pwr=int(min_pwr+(max_pwr-min_pwr)*np.floor(counter/speed_struc_num)/(pwr_struc_num-1))
+                else:
+                    pwr=max_pwr
+            else:
+                print("error: PowerMode not recognized")
+
+            #speed/feedrate settings
+            if speed_mode=="constant (max. Val.)":
+                speed = max_speed
+            elif speed_mode=="color-scaled":
+                speed=int(min_speed+(max_speed-min_speed)*sum([first_point.r,first_point.g,first_point.b])/765)
+            elif speed_mode=="test_structure":
+                if speed_struc_num>1:
+                    speed=int((min_speed+(max_speed-min_speed)*(counter%speed_struc_num/(speed_struc_num-1))))
+                else:    
+                    speed=max_speed
+            else:
+                print("error: SpeedMode not recognized")
+
+            #set data in every point
+            for polyline in hatch_lines:
+                for point in polyline:
+                    point.speed=speed
+                    point.pwr=pwr
+        
+        return data
+
+    def get_handler_data(self):
+        self.hatch_data = self.data_handler.hatch_data
+
+
+
