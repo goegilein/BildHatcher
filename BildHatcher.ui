@@ -550,7 +550,7 @@ QTabBar::tab:hover {
     <item row="0" column="1">
      <widget class="QTabWidget" name="control_tabWidget">
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="image_controls_tab">
        <attribute name="title">
@@ -1861,17 +1861,23 @@ QTabBar::tab:hover {
           </property>
           <layout class="QGridLayout" name="gridLayout_19">
            <item row="1" column="1">
-            <widget class="QSpinBox" name="spinBox">
+            <widget class="QSpinBox" name="automatic_white_threshold_spinBox">
              <property name="alignment">
               <set>Qt::AlignCenter</set>
              </property>
              <property name="buttonSymbols">
               <enum>QAbstractSpinBox::NoButtons</enum>
              </property>
+             <property name="maximum">
+              <number>255</number>
+             </property>
+             <property name="value">
+              <number>254</number>
+             </property>
             </widget>
            </item>
            <item row="0" column="1">
-            <widget class="QComboBox" name="comboBox"/>
+            <widget class="QComboBox" name="automatic_post_processing_comboBox"/>
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_9">

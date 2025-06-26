@@ -179,15 +179,19 @@ class Parser:
         gcode_commands.append("")
         return(gcode_commands)
 
-    def format_code(self):
+    def format_gcode(self, process_block=None):
         header = self.generate_gcode_header()
         footer = self.generate_gcode_footer()
         full_gcode = header 
-        for index in range(self.process_listWidget.count()):
-            list_item = self.process_listWidget.item(index)  # Get the item at the given index
-            process_block = list_item.data(QtCore.Qt.ItemDataRole.UserRole)  # Retrieve the stored ProcessBlock object
+        if process_block is not None:
             full_gcode += self.generate_gcode(process_block)
-        full_gcode += footer
+            full_gcode += footer
+        else:
+            for index in range(self.process_listWidget.count()):
+                list_item = self.process_listWidget.item(index)  # Get the item at the given index
+                process_block = list_item.data(QtCore.Qt.ItemDataRole.UserRole)  # Retrieve the stored ProcessBlock object
+                full_gcode += self.generate_gcode(process_block)
+            full_gcode += footer
         return "\n".join(full_gcode)
 
     def save_gcode(self):
@@ -201,7 +205,34 @@ class Parser:
         )
         if savepath:
             with open(savepath, 'w') as file:
-                file.write(self.format_code())
+                file.write(self.format_gcode())
+    
+    def automatic_gcode(self, inputs):
+        # Open a save file dialog
+        savepath, _ = QFileDialog.getSaveFileName(
+            #parent=self.gui,
+            caption="Save G-code File",
+            filter="G-code files (*.nc);;All files (*.*)",
+            directory="",
+            #selectedFilter="*.nc"
+        )
+        if not savepath:
+            return
+
+        post_processing = input.post_processing
+        laser_mode = input.laser_mode
+        db_color_palette = input.db_color_palette
+        offset = [0,0,0]
+
+        self.get_handler_data()
+        hatch_data += self.set_speed_and_pwr(hatch_data=self.hatch_data.data,
+                                             white_threshold=255, 
+                                             mode="automatic", 
+                                             db_color_palette=db_color_palette)
+        process_block = ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset)
+
+        with open(savepath, 'w') as file:
+                file.write(self.format_gcode(process_block=process_block))
 
     def add_process_block(self,iterations=1):
         '''Creates a process block from the active hatch data and puts it into the processListWidget'''
@@ -216,7 +247,9 @@ class Parser:
         self.get_handler_data()
         hatch_data = []
         for _ in range(iterations):
-            hatch_data += self.set_speed_and_pwr(self.hatch_data.data)
+            hatch_data += self.set_speed_and_pwr(self.hatch_data.data, 
+                                                white_threshold=self.white_threshold_parsing_spinbox.value(), 
+                                                mode="manual")
         process_block = ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset)
         list_item = QtWidgets.QListWidgetItem(f"{iterations}x {self.hatch_data.type}")
         list_item.setData(QtCore.Qt.ItemDataRole.UserRole, process_block)  # Store the process block in the item's data
@@ -269,7 +302,7 @@ class Parser:
             self.save_txt()
         print("finished exporting")
 
-    def set_speed_and_pwr(self,hatch_data):
+    def set_speed_and_pwr(self,hatch_data, white_threshold, mode ="manual", db_color_palette=None):
         #work on a deepcopy of the raw data to avoid pointing issues
         data = copy.deepcopy(hatch_data)
 
@@ -277,23 +310,28 @@ class Parser:
 
             # Get first point for color of the entire cluster
             first_point = hatch_lines[0][0]
+            color = [first_point.r, first_point.g, first_point.b]
 
             # Check for white threshold. If the color is too bright, remove the data
-            if (first_point.r+first_point.g+first_point.b)/3>self.white_threshold_parsing_spinbox.value():
+            if sum(color)/3>white_threshold:
                 data[counter]=[] 
                 continue
+            
+            if mode == "manual":
+                # Get Power limits
+                min_pwr = self.min_power_spinbox.value()
+                max_pwr = self.max_power_spinbox.value()
+                power_mode = self.power_format_combobox.currentText()
+                pwr_struc_num = self.gui.structnum_pwr_spinbox.value()
 
-            # Get Power limits
-            min_pwr = self.min_power_spinbox.value()
-            max_pwr = self.max_power_spinbox.value()
-            power_mode = self.power_format_combobox.currentText()
-            pwr_struc_num = self.gui.structnum_pwr_spinbox.value()
-
-            # Get Speed limits
-            min_speed = self.min_speed_spinbox.value()
-            max_speed = self.max_speed_spinbox.value()
-            speed_mode = self.speed_format_combobox.currentText()
-            speed_struc_num = self.gui.structnum_speed_spinbox.value()
+                # Get Speed limits
+                min_speed = self.min_speed_spinbox.value()
+                max_speed = self.max_speed_spinbox.value()
+                speed_mode = self.speed_format_combobox.currentText()
+                speed_struc_num = self.gui.structnum_speed_spinbox.value()
+            elif mode == "automatic":
+                power_mode = "db_based"
+                speed_mode = "db_based"
 
             #power settings
             if power_mode=="constant (max. Val.)":
@@ -305,6 +343,9 @@ class Parser:
                     pwr=int(min_pwr+(max_pwr-min_pwr)*np.floor(counter/speed_struc_num)/(pwr_struc_num-1))
                 else:
                     pwr=max_pwr
+            elif power_mode=="db_based":
+                bestfit_color = db_color_palette.find_paramset_by_color(color)
+                pwr = bestfit_color['power']
             else:
                 print("error: PowerMode not recognized")
 
@@ -318,6 +359,9 @@ class Parser:
                     speed=int((min_speed+(max_speed-min_speed)*(counter%speed_struc_num/(speed_struc_num-1))))
                 else:    
                     speed=max_speed
+            elif speed_mode=="db_based":
+                bestfit_color = db_color_palette.find_paramset_by_color(color)
+                speed = bestfit_color['speed']
             else:
                 print("error: SpeedMode not recognized")
 
