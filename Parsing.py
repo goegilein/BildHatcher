@@ -75,7 +75,7 @@ class Parser:
         #gcode_commands.append("M3 P0 ; set laser to constant Mode")#TO BE TESTED
         gcode_commands.append("M8 ; Turn on Air assis")# M9 will turn it off
         gcode_commands.append("M2000 W1 P100 ; Artisan Setting to turn on Enclosure lights 100%")
-        gcode_commands.append("M2000 W2 P100 ; Artisan Setting to turn on Enclosure fan (100%)")
+        #gcode_commands.append("M2000 W2 P100 ; Artisan Setting to turn on Enclosure fan (100%)")
         gcode_commands.append("M2000 L23 P0 ; Artisan 40W laser. 0 enters half power Mode") #TO BE TESTED! should be better for marking
         gcode_commands.append("")
         gcode_commands.append(f"G0 F{self.feedrate_default} ; set default feedrate for laser off moves")
@@ -220,6 +220,7 @@ class Parser:
             return
 
         self.get_handler_data()
+
         hatch_data = self.set_speed_and_pwr(hatch_data=self.hatch_data.data,
                                              white_threshold=white_threshold, 
                                              mode="automatic", 

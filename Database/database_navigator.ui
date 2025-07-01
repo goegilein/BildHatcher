@@ -62,33 +62,219 @@ padding : 2px;
 }</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
+   <item row="2" column="0">
+    <widget class="QGroupBox" name="palette_group">
+     <property name="title">
+      <string>Color Palette</string>
+     </property>
+     <layout class="QGridLayout" name="palette_layout">
+      <item row="0" column="2">
+       <widget class="QGroupBox" name="editor_group">
+        <property name="title">
+         <string>Parameter Settings</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_2">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_color_name">
+           <property name="text">
+            <string>Color Name:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="16" column="0">
+          <widget class="QPushButton" name="save_params_btn">
+           <property name="text">
+            <string>Save Parameter Changes</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="label_hatch">
+           <property name="text">
+            <string>Hatch Distance (mm):</string>
+           </property>
+          </widget>
+         </item>
+         <item row="9" column="0">
+          <widget class="QLabel" name="label_power">
+           <property name="text">
+            <string>Laser Power (%):</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0" colspan="2">
+          <layout class="QHBoxLayout" name="color_layout">
+           <item>
+            <widget class="QPushButton" name="color_rgb_btn">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="color_rgb_label">
+             <property name="text">
+              <string>N/A</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_color_rgb">
+           <property name="text">
+            <string>Color RGB:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="0">
+          <widget class="QLabel" name="label_hatch_pattern">
+           <property name="text">
+            <string>Hatch Pattern:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="0" colspan="2">
+          <widget class="QDoubleSpinBox" name="hatch_dist_spinbox">
+           <property name="buttonSymbols">
+            <enum>QAbstractSpinBox::NoButtons</enum>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="maximum">
+            <double>1000.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="11" column="0">
+          <widget class="QDoubleSpinBox" name="laser_power_spinbox">
+           <property name="buttonSymbols">
+            <enum>QAbstractSpinBox::NoButtons</enum>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <double>100.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>10.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="0">
+          <widget class="QComboBox" name="hatch_pattern_combo"/>
+         </item>
+         <item row="1" column="0" colspan="2">
+          <widget class="QLineEdit" name="color_name_edit"/>
+         </item>
+         <item row="7" column="1">
+          <widget class="QLabel" name="label_hatch_angle">
+           <property name="text">
+            <string>Hatch Angle (°):</string>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="1">
+          <widget class="QSpinBox" name="hatch_angle_spinbox">
+           <property name="buttonSymbols">
+            <enum>QAbstractSpinBox::NoButtons</enum>
+           </property>
+           <property name="maximum">
+            <number>179</number>
+           </property>
+           <property name="value">
+            <number>90</number>
+           </property>
+          </widget>
+         </item>
+         <item row="11" column="1">
+          <widget class="QDoubleSpinBox" name="speed_spinbox">
+           <property name="alignment">
+            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+           </property>
+           <property name="buttonSymbols">
+            <enum>QAbstractSpinBox::NoButtons</enum>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="maximum">
+            <double>400.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>10.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="9" column="1">
+          <widget class="QLabel" name="label_speed">
+           <property name="text">
+            <string>Speed (mm/min):</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="0" column="0" rowspan="2">
+       <layout class="QGridLayout" name="color_grid_layout"/>
+      </item>
+      <item row="0" column="1">
+       <layout class="QVBoxLayout" name="color_button_layout">
+        <item>
+         <widget class="QPushButton" name="add_color_btn">
+          <property name="text">
+           <string>Add</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="remove_color_btn">
+          <property name="text">
+           <string>Remove</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="2" column="0">
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QDialogButtonBox" name="selection_button_box">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
    <item row="0" column="0">
     <widget class="QGroupBox" name="nav_group">
      <property name="title">
       <string>Database Selection</string>
      </property>
      <layout class="QGridLayout" name="nav_layout">
+      <item row="0" column="1">
+       <widget class="QComboBox" name="laser_combo"/>
+      </item>
       <item row="0" column="0">
        <widget class="QLabel" name="label_laser">
         <property name="text">
          <string>Laser:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QComboBox" name="laser_combo"/>
-      </item>
-      <item row="0" column="2">
-       <widget class="QPushButton" name="add_laser_btn">
-        <property name="text">
-         <string>+</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="3">
-       <widget class="QPushButton" name="edit_laser_btn">
-        <property name="text">
-         <string>Edit</string>
         </property>
        </widget>
       </item>
@@ -99,6 +285,13 @@ padding : 2px;
         </property>
        </widget>
       </item>
+      <item row="0" column="2">
+       <widget class="QPushButton" name="add_laser_btn">
+        <property name="text">
+         <string>+</string>
+        </property>
+       </widget>
+      </item>
       <item row="1" column="0">
        <widget class="QLabel" name="label_material">
         <property name="text">
@@ -106,8 +299,12 @@ padding : 2px;
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
-       <widget class="QComboBox" name="material_combo"/>
+      <item row="0" column="3">
+       <widget class="QPushButton" name="edit_laser_btn">
+        <property name="text">
+         <string>Edit</string>
+        </property>
+       </widget>
       </item>
       <item row="1" column="2">
        <widget class="QPushButton" name="add_material_btn">
@@ -115,6 +312,9 @@ padding : 2px;
          <string>+</string>
         </property>
        </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="material_combo"/>
       </item>
       <item row="1" column="3">
        <widget class="QPushButton" name="edit_material_btn">
@@ -161,207 +361,54 @@ padding : 2px;
         </property>
        </widget>
       </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="1" column="0">
-    <widget class="QGroupBox" name="palette_group">
-     <property name="title">
-      <string>Color Palette</string>
-     </property>
-     <layout class="QGridLayout" name="palette_layout">
-      <item row="0" column="2">
-       <widget class="QGroupBox" name="editor_group">
-        <property name="title">
-         <string>Parameter Settings</string>
+      <item row="3" column="0">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>Post Processing</string>
         </property>
-        <layout class="QFormLayout" name="editor_layout">
-         <item row="0" column="0">
-          <widget class="QLabel" name="label_color_name">
-           <property name="text">
-            <string>Color Name:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QLineEdit" name="color_name_edit"/>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="label_color_rgb">
-           <property name="text">
-            <string>Color RGB:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <layout class="QHBoxLayout" name="color_layout">
-           <item>
-            <widget class="QPushButton" name="color_rgb_btn">
-             <property name="text">
-              <string/>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="color_rgb_label">
-             <property name="text">
-              <string>N/A</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="label_hatch">
-           <property name="text">
-            <string>Hatch Distance (mm):</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="QDoubleSpinBox" name="hatch_dist_spinbox">
-           <property name="buttonSymbols">
-            <enum>QAbstractSpinBox::NoButtons</enum>
-           </property>
-           <property name="decimals">
-            <number>2</number>
-           </property>
-           <property name="maximum">
-            <double>1000.000000000000000</double>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QLabel" name="label_hatch_pattern">
-           <property name="text">
-            <string>Hatch Pattern:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="1">
-          <widget class="QComboBox" name="hatch_pattern_combo"/>
-         </item>
-         <item row="4" column="0">
-          <widget class="QLabel" name="label_hatch_angle">
-           <property name="text">
-            <string>Hatch Angle (°):</string>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="1">
-          <widget class="QSpinBox" name="hatch_angle_spinbox">
-           <property name="buttonSymbols">
-            <enum>QAbstractSpinBox::NoButtons</enum>
-           </property>
-           <property name="maximum">
-            <number>179</number>
-           </property>
-           <property name="value">
-            <number>90</number>
-           </property>
-          </widget>
-         </item>
-         <item row="5" column="0">
-          <widget class="QLabel" name="label_power">
-           <property name="text">
-            <string>Laser Power (%):</string>
-           </property>
-          </widget>
-         </item>
-         <item row="5" column="1">
-          <widget class="QDoubleSpinBox" name="laser_power_spinbox">
-           <property name="buttonSymbols">
-            <enum>QAbstractSpinBox::NoButtons</enum>
-           </property>
-           <property name="decimals">
-            <number>1</number>
-           </property>
-           <property name="maximum">
-            <double>100.000000000000000</double>
-           </property>
-           <property name="value">
-            <double>10.000000000000000</double>
-           </property>
-          </widget>
-         </item>
-         <item row="6" column="0">
-          <widget class="QLabel" name="label_speed">
-           <property name="text">
-            <string>Speed (mm/min):</string>
-           </property>
-          </widget>
-         </item>
-         <item row="6" column="1">
-          <widget class="QDoubleSpinBox" name="speed_spinbox">
-           <property name="alignment">
-            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-           </property>
-           <property name="buttonSymbols">
-            <enum>QAbstractSpinBox::NoButtons</enum>
-           </property>
-           <property name="decimals">
-            <number>0</number>
-           </property>
-           <property name="maximum">
-            <double>400.000000000000000</double>
-           </property>
-           <property name="value">
-            <double>10.000000000000000</double>
-           </property>
-          </widget>
-         </item>
-         <item row="7" column="0" colspan="2">
-          <widget class="QPushButton" name="save_params_btn">
-           <property name="text">
-            <string>Save Parameter Changes</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
        </widget>
       </item>
-      <item row="0" column="0" rowspan="2">
-       <layout class="QGridLayout" name="color_grid_layout"/>
+      <item row="4" column="0">
+       <widget class="QComboBox" name="postprocessing_combobox"/>
       </item>
-      <item row="0" column="1">
-       <layout class="QVBoxLayout" name="color_button_layout">
-        <item>
-         <widget class="QPushButton" name="add_color_btn">
-          <property name="text">
-           <string>Add</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="remove_color_btn">
-          <property name="text">
-           <string>Remove</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
+      <item row="3" column="1">
+       <widget class="QLabel" name="label_3">
+        <property name="text">
+         <string>Laser Mode</string>
+        </property>
+       </widget>
       </item>
-      <item row="2" column="0">
-       <spacer name="verticalSpacer">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
+      <item row="4" column="1">
+       <widget class="QComboBox" name="laser_mode_combobox"/>
+      </item>
+      <item row="3" column="2">
+       <widget class="QLabel" name="label_4">
+        <property name="text">
+         <string>Enclosure Fan</string>
         </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>20</width>
-          <height>40</height>
-         </size>
+       </widget>
+      </item>
+      <item row="4" column="2">
+       <widget class="QSpinBox" name="enclosure_fan_spinbox">
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::NoButtons</enum>
         </property>
-       </spacer>
+        <property name="maximum">
+         <number>100</number>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="3">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>air assist</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="3">
+       <widget class="QComboBox" name="air_assist_combobox"/>
       </item>
      </layout>
-    </widget>
-   </item>
-   <item row="2" column="0">
-    <widget class="QDialogButtonBox" name="selection_button_box">
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
     </widget>
    </item>
   </layout>
