@@ -124,4 +124,24 @@ class ProcessBlock:
         self.air_assit = air_assit
         self.enclosure_fan = enclosure_fan
         self.offset = offset
-        
+
+class DBColorPalette:
+    def __init__(self, color_palette):
+        self.color_palette = color_palette
+
+    def find_paramset_by_color(self, color):
+
+        if self.color_palette is None:
+            raise ValueError("No database values provided for automated hatch distance.")
+
+        min_rgb_diff = 3*255**2  # Maximum possible RGB difference
+        bestfit_color = None
+        for color_param in self.color_palette:
+            param_rgb = np.array([int(x) for x in color_param['color_rgb'].split(',')], dtype=np.int64)
+            if np.sum((param_rgb - color)**2) < min_rgb_diff:
+                min_rgb_diff = np.sum((param_rgb - color)**2)
+                bestfit_color = color_param
+
+        if bestfit_color is None:   
+            raise ValueError(f"No hatch distance value found for color {color}.")
+        return bestfit_color

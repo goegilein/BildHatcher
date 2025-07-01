@@ -117,11 +117,22 @@ class Hatcher:
         
         return sorted_colors_list
 
-    def create_hatching(self, mode="manual", database_params=None):
-        if mode == "automatic":
-            hatch_dist_mode = "automatic"
-        else:
+    def create_hatching(self, 
+                        hatch_dist_mode="manual",
+                        db_color_palette=None,
+                        hatch_pattern=None,
+                        cyl_rad_mm=None,
+                        hatch_mode=None,
+                        stepsize_mm=None,
+                        white_threshold=None):
+        
+        if hatch_dist_mode == "manual":
             hatch_dist_mode = self.hatch_dist_mode_combobox.currentText()
+            hatch_pattern = self.hatch_pattern_combobox.currentText()
+            cyl_rad_mm = self.cyl_rad_spinbox.value()  # Get cylinder radius from spinbox
+            hatch_mode = self.hatch_mode_combobox.currentText()  # Get hatch mode from combobox
+            stepsize_mm = self.hatch_precision_spinbox.value()
+            white_threshold = self.white_threshold_hatching_spinbox.value()
         try:
             self.get_handler_data()
             # Reset progress bar
@@ -129,10 +140,14 @@ class Hatcher:
             self.hatch_progress_label.setText("Hatch Progress: Hatching...")
             color_list = self.get_sorted_unique_colors(self.image_matrix)
             hatch_data = self.hatch_clusters(
-                hatch_pattern=self.hatch_pattern_combobox.currentText(),
                 color_list=color_list,
+                hatch_pattern=hatch_pattern,
                 hatch_dist_mode=hatch_dist_mode,
-                database_params=database_params
+                cyl_rad_mm=cyl_rad_mm,
+                hatch_mode=hatch_mode,
+                stepsize_mm=stepsize_mm,
+                white_threshold=white_threshold,
+                db_color_palette=db_color_palette
             )
             if hatch_data == 0:
                 return 0
@@ -149,10 +164,8 @@ class Hatcher:
         except Exception as e:
             print(f"Error hatching clusters: {e}")
 
-    def hatch_clusters(self, hatch_pattern="RandomMeander", color_list=None, hatch_dist_mode="ColorRanged", database_params=None):
+    def hatch_clusters(self, color_list=None, hatch_pattern="RandomMeander", hatch_dist_mode="ColorRanged", cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, white_threshold=255, db_color_palette=None):
         hatched_clusters = []
-        cyl_rad_mm = self.cyl_rad_spinbox.value()  # Get cylinder radius from spinbox
-        hatch_mode = self.hatch_mode_combobox.currentText()  # Get hatch mode from combobox
         cluster_counter = 0
         cyl_rad = cyl_rad_mm * self.pixel_per_mm
         image_matrix = np.flipud(self.image_matrix)
@@ -161,53 +174,38 @@ class Hatcher:
             # Ensure the sum of RGB values is within a safe range
             color = np.array(color, dtype=np.int64)
 
-            if sum(color)/3 > self.white_threshold_hatching_spinbox.value():
+            if sum(color)/3 > white_threshold:
                 # Skip colors that are too bright (white), and update the progress bar
                 cluster_counter += 1
                 self.hatch_progress_bar.setValue(int(np.ceil(cluster_counter / len(color_list) * 100)))
                 QtWidgets.QApplication.processEvents()  # Update the UI
                 continue
 
-
-            # Define Hatch Dist depending on chosen Hatch_Mode
-            h_min = self.hatch_dist_min_spinbox.value()  # Get minimum hatch distance
-            h_max = self.hatch_dist_max_spinbox.value()  # Get maximum hatch distance
-
             if hatch_dist_mode == "ColorRanged":
+                # Define Hatch Dist depending on chosen Hatch_Mode
+                h_min = self.hatch_dist_min_spinbox.value()  # Get minimum hatch distance
+                h_max = self.hatch_dist_max_spinbox.value()  # Get maximum hatch distance
                 hatch_distance = (h_min + sum(color) / 765 * (h_max - h_min))/1000
             elif hatch_dist_mode == "Fixed":
                 hatch_distance = h_min/1000
             elif hatch_dist_mode == "automatic":
-                if database_params is None:
-                    raise ValueError("No database values provided for automated hatch distance.")
-
-                min_rgb_diff = 3*255**2  # Maximum possible RGB difference
-                bestfit_param = None
-                for param in database_params:
-                    param_rgb = np.array([int(x) for x in param['color_rgb'].split(',')], dtype=np.int64)
-                    if np.sum((param_rgb - color)**2) < min_rgb_diff:
-                        min_rgb_diff = np.sum((param_rgb - color)**2)
-                        bestfit_param = param
-
-                if bestfit_param is None:   
-                    raise ValueError(f"No hatch distance value found for color {color}.")
-                # Use the best fit parameters from the database
-                hatch_distance = bestfit_param['hatch_distance']
-                hatch_pattern = bestfit_param['hatch_pattern']
+                bestfit_color = db_color_palette.find_paramset_by_color(color)
+                hatch_distance = bestfit_color['hatch_distance']
+                hatch_pattern = bestfit_color['hatch_pattern']
  
             else:
                 print("Hatch Distance Mode not recognized")
                 continue
 
 
-            step_size = self.hatch_precision_spinbox.value() * self.pixel_per_mm  # Step size in pixels
+            step_size = stepsize_mm * self.pixel_per_mm  # Step size in pixels
             hatch_distance = hatch_distance * self.pixel_per_mm  # Hatch distance in pixels
 
             progress_state = [cluster_counter, len(color_list)]
 
             if hatch_pattern in ["RandomMeander", "FixedMeander"]:
                 hatch_lines = self.hatch_meander(
-                    hatch_distance, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state
+                    hatch_pattern, hatch_distance, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state
                 )
                 if hatch_lines == 0:
                     return 0
@@ -215,10 +213,10 @@ class Hatcher:
                     hatched_clusters.append(hatch_lines)
             elif hatch_pattern == "CrossedMeander":
                 hatch_lines1 = self.hatch_meander(
-                    hatch_distance, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state, cross_angle=0
+                    hatch_pattern, hatch_distance, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state, cross_angle=0
                 )
                 hatch_lines2 = self.hatch_meander(
-                    hatch_distance, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state, cross_angle=90
+                    hatch_pattern, hatch_distance, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state, cross_angle=90
                 )
                 if hatch_lines1 == 0:
                     return 0
@@ -258,7 +256,7 @@ class Hatcher:
             QtWidgets.QApplication.processEvents()  # Update the UI
         return hatched_clusters
 
-    def hatch_meander(self, hatch_distance, step_size, image_matrix, pixel_per_mm, color, hatch_mode, cyl_rad, progress_state,cross_angle=None):
+    def hatch_meander(self, hatch_pattern, hatch_distance, step_size, image_matrix, pixel_per_mm, color, hatch_mode, cyl_rad, progress_state,cross_angle=None):
         hatch_lines_poly=[]
         hatch_line_dir=1
         hatch_x_finished=False
@@ -266,12 +264,12 @@ class Hatcher:
         
         # Choose slice angle based on user input
         theta = 0  # Default angle is 0 degrees
-        if self.hatch_pattern_combobox.currentText() == "FixedMeander":
+        if hatch_pattern == "FixedMeander":
             theta = self.hatch_angle_spinbox.value()  # Get hatch angle from spinbox
-        elif self.hatch_pattern_combobox.currentText() == "RandomMeander":
+        elif hatch_pattern == "RandomMeander":
             # Randomly choose theta between 0 and 179 degrees
             theta = np.floor(random.uniform(0, 180))
-        elif self.hatch_pattern_combobox.currentText() == "CrossedMeander":
+        elif hatch_pattern == "CrossedMeander":
             theta = self.hatch_angle_spinbox.value() + cross_angle
         theta = np.mod(theta, 180)  # Ensure theta is between 0 and 179 degrees
         theta_rad = np.radians(theta)  # Convert theta to radians
