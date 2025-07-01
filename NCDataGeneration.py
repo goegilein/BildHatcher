@@ -117,15 +117,16 @@ class Hatcher:
         
         return sorted_colors_list
 
-    def create_hatching(self, mode="manual", db_color_palette=None):
-        if mode == "automatic":
-            hatch_dist_mode = "automatic"
-            hatch_pattern = None
-            cyl_rad_mm = None
-            hatch_mode = None
-            stepsize_mm = 0.1
-            white_threshold = 254
-        else:
+    def create_hatching(self, 
+                        hatch_dist_mode="manual",
+                        db_color_palette=None,
+                        hatch_pattern=None,
+                        cyl_rad_mm=None,
+                        hatch_mode=None,
+                        stepsize_mm=None,
+                        white_threshold=None):
+        
+        if hatch_dist_mode == "manual":
             hatch_dist_mode = self.hatch_dist_mode_combobox.currentText()
             hatch_pattern = self.hatch_pattern_combobox.currentText()
             cyl_rad_mm = self.cyl_rad_spinbox.value()  # Get cylinder radius from spinbox

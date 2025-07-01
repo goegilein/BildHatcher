@@ -1860,6 +1860,13 @@ QTabBar::tab:hover {
            <string>G-Code Settings</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_19">
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_9">
+             <property name="text">
+              <string>White Threshold</string>
+             </property>
+            </widget>
+           </item>
            <item row="1" column="1">
             <widget class="QSpinBox" name="automatic_white_threshold_spinBox">
              <property name="alignment">
@@ -1879,13 +1886,6 @@ QTabBar::tab:hover {
            <item row="0" column="1">
             <widget class="QComboBox" name="automatic_post_processing_comboBox"/>
            </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="label_9">
-             <property name="text">
-              <string>White Threshold</string>
-             </property>
-            </widget>
-           </item>
            <item row="0" column="0">
             <widget class="QLabel" name="label_8">
              <property name="text">
@@ -1903,6 +1903,42 @@ QTabBar::tab:hover {
              </property>
              <property name="text">
               <string>Generate G-Code File</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_10">
+             <property name="text">
+              <string>Hatcb Mode</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_11">
+             <property name="text">
+              <string>Cylinder Radius</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QComboBox" name="automatic_hatch_mode_comboBox"/>
+           </item>
+           <item row="3" column="1">
+            <widget class="QDoubleSpinBox" name="automatic_cyl_rad_spinBox">
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="minimum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>100.000000000000000</double>
              </property>
             </widget>
            </item>

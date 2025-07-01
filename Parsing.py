@@ -207,7 +207,7 @@ class Parser:
             with open(savepath, 'w') as file:
                 file.write(self.format_gcode())
     
-    def automatic_gcode(self, inputs):
+    def automatic_gcode(self, post_processing, laser_mode, db_color_palette, white_threshold=255, offset = [0,0,0]):
         # Open a save file dialog
         savepath, _ = QFileDialog.getSaveFileName(
             #parent=self.gui,
@@ -219,14 +219,9 @@ class Parser:
         if not savepath:
             return
 
-        post_processing = input.post_processing
-        laser_mode = input.laser_mode
-        db_color_palette = input.db_color_palette
-        offset = [0,0,0]
-
         self.get_handler_data()
-        hatch_data += self.set_speed_and_pwr(hatch_data=self.hatch_data.data,
-                                             white_threshold=255, 
+        hatch_data = self.set_speed_and_pwr(hatch_data=self.hatch_data.data,
+                                             white_threshold=white_threshold, 
                                              mode="automatic", 
                                              db_color_palette=db_color_palette)
         process_block = ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset)
@@ -345,7 +340,7 @@ class Parser:
                     pwr=max_pwr
             elif power_mode=="db_based":
                 bestfit_color = db_color_palette.find_paramset_by_color(color)
-                pwr = bestfit_color['power']
+                pwr = bestfit_color['laser_power']
             else:
                 print("error: PowerMode not recognized")
 
