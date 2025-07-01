@@ -62,7 +62,6 @@ class DatabaseManager:
         """Checks the database schema and applies necessary updates."""
         print("Checking database schema for migrations...")
         
-        # --- MODIFIED: Migration logic now targets the material_types table ---
         self.cursor.execute("PRAGMA table_info(material_types)")
         columns = [row['name'] for row in self.cursor.fetchall()]
 
@@ -88,7 +87,6 @@ class DatabaseManager:
             self.cursor.execute("CREATE TABLE IF NOT EXISTS lasers (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE)")
             self.cursor.execute("CREATE TABLE IF NOT EXISTS materials (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE)")
             
-            # --- MODIFIED: material_types schema now includes the new properties ---
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS material_types (
                     id INTEGER PRIMARY KEY, 
@@ -104,7 +102,6 @@ class DatabaseManager:
 
             self.cursor.execute("CREATE TABLE IF NOT EXISTS color_palettes (id INTEGER PRIMARY KEY, laser_id INTEGER NOT NULL, material_type_id INTEGER NOT NULL, FOREIGN KEY (laser_id) REFERENCES lasers (id) ON DELETE CASCADE, FOREIGN KEY (material_type_id) REFERENCES material_types (id) ON DELETE CASCADE, UNIQUE (laser_id, material_type_id))")
             
-            # --- MODIFIED: parameters table is reverted to its previous state ---
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS parameters (
                     id INTEGER PRIMARY KEY, 
@@ -121,7 +118,6 @@ class DatabaseManager:
                 );""")
         print("Database schema is up to date.")
 
-    # --- MODIFIED: add/update material_type methods now handle the new properties ---
     def add_material_type(self, mat_id, name, post='None', mode='constant', fan=0, air='off'):
         try:
             with self.conn:
@@ -140,7 +136,6 @@ class DatabaseManager:
                 (post, mode, fan, air, type_id))
             return self.cursor.rowcount > 0
 
-    # These methods are now simpler again
     def add_parameter(self,p_id,name,rgb,hatch_dist,hatch_pattern,hatch_angle,power,speed):
         try:
             with self.conn:
@@ -153,7 +148,6 @@ class DatabaseManager:
             self.cursor.execute("""UPDATE parameters SET color_name=?, color_rgb=?, hatch_distance=?, hatch_pattern=?, hatch_angle=?, laser_power=?, speed=? WHERE id=?""", (name,rgb,hatch_dist,hatch_pattern,hatch_angle,power,speed,p_id))
             return self.cursor.rowcount>0
             
-    # ... other database methods are unchanged ...
     def add_laser(self, name):
         try:
             with self.conn:self.cursor.execute("INSERT INTO lasers(name) VALUES (?)",(name,));return self.cursor.lastrowid
@@ -203,16 +197,12 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
         self.selected_param_id = None
         self.mode = mode
         
-        # --- MODIFIED: Define and populate all combo boxes ---
         self.hatch_patterns = ["FixedMeander", "RandomMeander", "CrossedMeander", "Circular", "Spiral", "Radial"]
         self.hatch_pattern_combo.addItems(self.hatch_patterns)
-        
         self.post_processing_options = ["None", "Maximize Lines", "Constant Drive", "Over Drive"]
         self.postprocessing_combobox.addItems(self.post_processing_options)
-
         self.laser_mode_options = ["constant", "variable"]
         self.laser_mode_combobox.addItems(self.laser_mode_options)
-        
         self.air_assist_options = ["off", "on"]
         self.air_assist_combobox.addItems(self.air_assist_options)
 
@@ -221,6 +211,39 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
         self._populate_lasers()
         self._update_ui_state()
     
+    # --- FIXED: Re-added the missing population methods ---
+    def _populate_lasers(self):
+        current_id = self.laser_combo.currentData()
+        self.laser_combo.blockSignals(True)
+        self.laser_combo.clear(); self.laser_combo.addItem("-None-", None)
+        for laser in self.db_manager.get_lasers(): self.laser_combo.addItem(laser['name'], userData=laser['id'])
+        idx = self.laser_combo.findData(current_id)
+        self.laser_combo.setCurrentIndex(idx if idx != -1 else 0)
+        self.laser_combo.blockSignals(False)
+        self.laser_combo.currentIndexChanged.emit(self.laser_combo.currentIndex())
+
+    def _populate_materials(self):
+        current_id = self.material_combo.currentData()
+        self.material_combo.blockSignals(True)
+        self.material_combo.clear(); self.material_combo.addItem("-None-", None)
+        for material in self.db_manager.get_all_materials(): self.material_combo.addItem(material['name'], userData=material['id'])
+        idx = self.material_combo.findData(current_id)
+        self.material_combo.setCurrentIndex(idx if idx != -1 else 0)
+        self.material_combo.blockSignals(False)
+        self.material_combo.currentIndexChanged.emit(self.material_combo.currentIndex())
+
+    def _populate_types(self):
+        current_id = self.type_combo.currentData()
+        self.type_combo.blockSignals(True)
+        self.type_combo.clear(); self.type_combo.addItem("-None-", None)
+        material_id = self.material_combo.currentData()
+        if material_id is not None:
+            for t in self.db_manager.get_material_types_for_material(material_id): self.type_combo.addItem(t['name'], userData=t['id'])
+        idx = self.type_combo.findData(current_id)
+        self.type_combo.setCurrentIndex(idx if idx != -1 else 0)
+        self.type_combo.blockSignals(False)
+        self.type_combo.currentIndexChanged.emit(self.type_combo.currentIndex())
+
     def _clear_color_palette(self):
         while self.color_grid_layout.count():
             item = self.color_grid_layout.takeAt(0);
@@ -307,7 +330,6 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
         self.color_rgb_btn.clicked.connect(self._pick_color)
         self.save_params_btn.clicked.connect(self._save_parameters)
         self.selection_button_box.accepted.connect(self._on_selection_confirmed)
-        # --- NEW: Connect material property widgets to the auto-save method ---
         self.postprocessing_combobox.currentIndexChanged.connect(self._save_material_type_properties)
         self.laser_mode_combobox.currentIndexChanged.connect(self._save_material_type_properties)
         self.enclosure_fan_spinbox.editingFinished.connect(self._save_material_type_properties)
