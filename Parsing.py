@@ -73,9 +73,12 @@ class Parser:
         gcode_commands.append("G21 ; Set units to millimeters")
         #gcode_commands.append("M4 P0 ; set Laser to variable Mode")#TO BE TESTED. This is Skywriting equivalent
         #gcode_commands.append("M3 P0 ; set laser to constant Mode")#TO BE TESTED
-        gcode_commands.append("M8 ; Turn on Air assis")# M9 will turn it off
+        # if air_assist == "on":
+        #     gcode_commands.append("M8 ; Turn on Air assis")
+        # else:
+        #     gcode_commands.append("M9 ; Turn off Air assis")
         gcode_commands.append("M2000 W1 P100 ; Artisan Setting to turn on Enclosure lights 100%")
-        gcode_commands.append("M2000 W2 P100 ; Artisan Setting to turn on Enclosure fan (100%)")
+        # gcode_commands.append(f"M2000 W2 P{enclosure_fan} ; Artisan Setting to turn on Enclosure fan (100%)")
         gcode_commands.append("M2000 L23 P0 ; Artisan 40W laser. 0 enters half power Mode") #TO BE TESTED! should be better for marking
         gcode_commands.append("")
         gcode_commands.append(f"G0 F{self.feedrate_default} ; set default feedrate for laser off moves")
@@ -97,13 +100,27 @@ class Parser:
 
     def generate_gcode(self,process_block=None):
         gcode_commands = []
-
+        if process_block is None:
+            print("Error: No ProcessBlock provided for G-code generation")
+            return gcode_commands
+        
+        gcode_commands.append("")
+        gcode_commands.append(";start of new Prozessblock")
+        gcode_commands.append("")
+        #set laser mode
         if process_block.laser_mode == "variable":
-            gcode_commands.append("M4 P0 ; set Laser to variable Mode")#TO BE TESTED.
+            gcode_commands.append("M4 P0 ; set Laser to variable Mode")
         elif process_block.laser_mode == "constant":
-            gcode_commands.append("M3 P0 ; set laser to constant Mode")#TO BE TESTED
+            gcode_commands.append("M3 P0 ; set laser to constant Mode")
         else:
             print("Error: Laser Mode not recognized")
+        #set enclosure fan and air assist
+        gcode_commands.append(f"M2000 W2 P{process_block.enclosure_fan} ; Artisan Setting to turn on Enclosure fan (100%)")
+        if process_block.air_assist == "on":
+            gcode_commands.append("M8 ; Turn on Air assis")
+        else:
+            gcode_commands.append("M9 ; Turn off Air assis")
+
         gcode_commands.append("")
         gcode_commands.append(";start of Pattern")
         gcode_commands.append("")
@@ -117,6 +134,19 @@ class Parser:
         prev_gcode_command=""
 
         hatch_data = self.post_processor.process_data(process_block)
+
+        #process block header
+        gcode_commands.append(f"; Process Block: {process_block.post_processing} | Laser Mode: {process_block.laser_mode} | Air Assist: {process_block.air_assit} | Enclosure Fan: {process_block.enclosure_fan}%")
+        gcode_commands.append(f"; Offset: X={process_block.offset[0]} Y={process_block.offset[1]} Z={process_block.offset[2]}")
+        gcode_commands.append(f"; Number of clusters: {len(hatch_data)}")
+        gcode_commands.append(f"; Number of points: {sum(len(polyline) for cluster in hatch_data for polyline in cluster)}")
+        if process_block.air_assist == "on":
+            gcode_commands.append("M8 ; Turn on Air assis")
+        else:
+            gcode_commands.append("M9 ; Turn off Air assis")
+        gcode_commands.append(f"M2000 W2 P{process_block.enclosure_fan} ; Artisan Setting to turn on Enclosure fan (100%)")
+        gcode_commands.append("")
+
         for counter, hatch_lines in enumerate(hatch_data):
             for polyline in hatch_lines:
                 for point in polyline:
@@ -207,7 +237,7 @@ class Parser:
             with open(savepath, 'w') as file:
                 file.write(self.format_gcode())
     
-    def automatic_gcode(self, post_processing, laser_mode, db_color_palette, white_threshold=255, offset = [0,0,0]):
+    def automatic_gcode(self, db_color_palette, white_threshold=255, offset = [0,0,0]):
         # Open a save file dialog
         savepath, _ = QFileDialog.getSaveFileName(
             #parent=self.gui,
@@ -219,12 +249,26 @@ class Parser:
         if not savepath:
             return
 
+        post_processing = db_color_palette.post_processing
+        laser_mode = db_color_palette.laser_mode
+        enclosure_fan = db_color_palette.enclosure_fan
+        air_assist = db_color_palette.air_assist
+
         self.get_handler_data()
-        hatch_data = self.set_speed_and_pwr(hatch_data=self.hatch_data.data,
-                                             white_threshold=white_threshold, 
-                                             mode="automatic", 
-                                             db_color_palette=db_color_palette)
-        process_block = ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset)
+
+        hatch_data = self.set_speed_and_pwr(
+            hatch_data=self.hatch_data.data,
+            white_threshold=white_threshold, 
+            mode="automatic", 
+            db_color_palette=db_color_palette)
+        
+        process_block = ProcessBlock(
+            hatch_data,
+            post_processing=post_processing,
+            laser_mode=laser_mode,
+            air_assit=air_assist,
+            enclosure_fan=enclosure_fan,
+            offset=offset)
 
         with open(savepath, 'w') as file:
                 file.write(self.format_gcode(process_block=process_block))

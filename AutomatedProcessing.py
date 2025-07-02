@@ -35,7 +35,7 @@ class AutomatedProcessor:
         def on_profile_received(data):
             if data is not None:
                 ids = data['identifiers']
-                self.db_color_palette = DBColorPalette(data['parameters'])
+                self.db_color_palette = DBColorPalette(data['parameters'], data['settings'])
                 self.selected_laser_label.setText(f"<b> {ids['laser']['name']} </b>")
                 self.selected_material_label.setText(f"<b> {ids['material']['name']} </b>")
                 self.selected_material_type_label.setText(f"<b> {ids['material_type']['name']} </b>")
@@ -64,8 +64,6 @@ class AutomatedProcessor:
             white_threshold = self.automatic_white_threshold_spinBox.value())
         
         self.parser.automatic_gcode(
-            post_processing = self.automatic_post_processing_comboBox.currentText(),
-            laser_mode = 'constant',
             db_color_palette = self.db_color_palette,
             white_threshold = self.automatic_white_threshold_spinBox.value(),
             offset = [0,0,0]
