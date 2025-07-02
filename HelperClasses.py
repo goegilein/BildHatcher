@@ -117,7 +117,7 @@ class HatchCluster:
         self.hatch_precistion = hatch_precision
             
 class ProcessBlock:
-    def __init__(self, data, post_processing, laser_mode="constant",air_assit="on",enclosure_fan="on", offset = [0,0,0]):
+    def __init__(self, data, post_processing="None", laser_mode="constant",air_assit="off",enclosure_fan=100 , offset = [0,0,0]):
         self.data = data
         self.post_processing = post_processing
         self.laser_mode = laser_mode
@@ -126,8 +126,18 @@ class ProcessBlock:
         self.offset = offset
 
 class DBColorPalette:
-    def __init__(self, color_palette):
+    def __init__(self, color_palette, settings=None):
         self.color_palette = color_palette
+        if settings:
+            self.post_processing = settings.get('post_processing', 'None')
+            self.laser_mode = settings.get('laser_mode', 'constant')
+            self.enclosure_fan = settings.get('enclosure_fan', 0)
+            self.air_assist = settings.get('air_assist', 'off')
+        else:
+            self.post_processing = 'None'
+            self.laser_mode = 'variable'
+            self.enclosure_fan = 100
+            self.air_assist = 'off'
 
     def find_paramset_by_color(self, color):
 

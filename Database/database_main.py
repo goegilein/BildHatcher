@@ -60,7 +60,7 @@ class DatabaseManager:
 
     def _run_migrations(self):
         """Checks the database schema and applies necessary updates."""
-        print("Checking database schema for migrations...")
+        #print("Checking database schema for migrations...")
         
         self.cursor.execute("PRAGMA table_info(material_types)")
         columns = [row['name'] for row in self.cursor.fetchall()]
@@ -344,8 +344,9 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
         elif self.mode == NavigatorMode.SELECT_PROFILE:
             if self.current_palette_id is not None:
                 profile_identifiers = {'laser': {'id': self.laser_combo.currentData(), 'name': self.laser_combo.currentText()},'material': {'id': self.material_combo.currentData(), 'name': self.material_combo.currentText()},'material_type': {'id': self.type_combo.currentData(), 'name': self.type_combo.currentText()}}
+                profile_settings = {'post_processing': self.postprocessing_combobox.currentText(), 'laser_mode': self.laser_mode_combobox.currentText(), 'enclosure_fan': self.enclosure_fan_spinbox.value(), 'air_assist': self.air_assist_combobox.currentText()}
                 parameters_list = [dict(p) for p in self.db_manager.get_parameters(self.current_palette_id)]
-                payload = {"identifiers": profile_identifiers, "parameters": parameters_list}
+                payload = {"identifiers": profile_identifiers, "settings": profile_settings, "parameters": parameters_list}
                 self.profileSelected.emit(payload)
             else: QMessageBox.warning(self, "No Selection", "Please select a complete profile."); return 
         if isinstance(self.parent(), QDialog): self.parent().accept()
