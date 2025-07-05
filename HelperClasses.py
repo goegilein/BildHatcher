@@ -155,3 +155,8 @@ class DBColorPalette:
         if bestfit_color is None:   
             raise ValueError(f"No hatch distance value found for color {color}.")
         return bestfit_color
+    
+    def get_color_list(self):
+        if self.color_palette is None:
+            raise ValueError("No database values provided for automated hatch distance.")
+        return [np.array([int(x) for x in color_param['color_rgb'].split(',')], dtype=np.int64) for color_param in self.color_palette]

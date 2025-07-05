@@ -5,6 +5,7 @@ from sklearn.cluster import KMeans
 import numpy as np
 import collections
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
+from HelperClasses import DBColorPalette
 
 class ImageAdjuster:
     def __init__(self, data_handler, gui):
@@ -346,6 +347,13 @@ class ImageColorer(QtCore.QObject):
         self.contour_space_spinbox = gui.contour_space_spinbox
         self.contour_space_spinbox.setValue(1)
         self.contour_space_spinbox.valueChanged.connect(self.update_contours)
+
+        #Add button and labels for data base recoloring
+        self.recolor_from_database_button = gui.recolor_from_database_button
+        self.recolor_from_database_button.clicked.connect(self.recolor_color_from_db)
+        self.recolor_laser_label = gui.recolor_laser_label
+        self.recolor_material_label = gui.recolor_material_label
+        self.recolor_type_label = gui.recolor_type_label
 
         # Bind some hotkeys
         #self.gui.installEventFilter(self)
@@ -727,3 +735,53 @@ class ImageColorer(QtCore.QObject):
 
         self.masked_pixels_list.append(masked_pixels)
         self.data_handler.masked_pixels_list = self.masked_pixels_list.copy()
+
+    def recolor_color_from_db(self):
+        def on_profile_received(data):
+            if data is not None:
+                ids = data['identifiers']
+                self.db_color_palette = DBColorPalette(data['parameters'], data['settings'])
+                self.recolor_laser_label.setText(f"<b> {ids['laser']['name']} </b>")
+                self.recolor_material_label.setText(f"<b> {ids['material']['name']} </b>")
+                self.recolor_type_label.setText(f"<b> {ids['material_type']['name']} </b>")
+
+
+        dialog = QtWidgets.QDialog()
+        dialog.setWindowTitle("Select Profile")
+        layout = QtWidgets.QVBoxLayout(dialog)
+        navigator=DatabaseNavigatorWidget(NavigatorMode.SELECT_PROFILE,parent=dialog)
+        navigator.selection_button_box.rejected.connect(dialog.reject)
+        navigator.profileSelected.connect(on_profile_received)
+        layout.addWidget(navigator)
+        dialog.exec()
+
+        color_list = self.db_color_palette.get_color_list()
+        if not color_list:
+            print("No colors available in the database.")
+            return
+        
+        #recolor the entire image
+        image_matrix = self.data_handler.image_matrix.copy()
+        pixels = image_matrix.reshape(-1, 3)  # (num_pixels, 3)
+        palette = np.stack(color_list)        # (num_palette, 3)
+
+        # Compute squared distances: (num_pixels, num_palette)
+        dists = np.sum((pixels[:, None, :] - palette[None, :, :]) ** 2, axis=2)
+
+        # Find the index of the closest palette color for each pixel
+        closest = np.argmin(dists, axis=1)  # (num_pixels,)
+
+        # Map each pixel to its closest palette color
+        recolored_pixels = palette[closest]  # (num_pixels, 3)
+
+        # Reshape back to image
+        recolored_image = recolored_pixels.reshape(image_matrix.shape)
+        recolored_image = recolored_image.astype(np.uint8)
+        
+        # Update the data handler with the recolored image
+        self.masked_pixels_list = [[]]
+        self.data_handler.masked_pixels_list = self.masked_pixels_list.copy()
+        #self.data_handler.image_matrix = recolored_image
+        self.data_handler.image_matrix_adjusted = recolored_image
+
+        

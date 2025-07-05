@@ -190,7 +190,7 @@ class Hatcher:
                 hatch_distance = h_min/1000
             elif hatch_dist_mode == "automatic":
                 bestfit_color = db_color_palette.find_paramset_by_color(color)
-                hatch_distance = bestfit_color['hatch_distance']
+                hatch_distance = bestfit_color['hatch_distance']/1000
                 hatch_pattern = bestfit_color['hatch_pattern']
  
             else:

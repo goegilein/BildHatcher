@@ -550,7 +550,7 @@ QTabBar::tab:hover {
     <item row="0" column="1">
      <widget class="QTabWidget" name="control_tabWidget">
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="image_controls_tab">
        <attribute name="title">
@@ -786,23 +786,10 @@ QTabBar::tab:hover {
            <string>Color Image</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_13">
-           <item row="0" column="0" rowspan="2">
-            <widget class="QPushButton" name="toggle_draw_button">
+           <item row="3" column="1">
+            <widget class="QLabel" name="contour_thickness_label">
              <property name="text">
-              <string>Toggle Draw</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="1">
-            <widget class="QPushButton" name="replace_color_button">
-             <property name="text">
-              <string>Replace Color</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
+              <string>Contour Thickness (px)</string>
              </property>
             </widget>
            </item>
@@ -819,17 +806,20 @@ QTabBar::tab:hover {
              </property>
             </widget>
            </item>
-           <item row="3" column="1">
-            <widget class="QLabel" name="contour_thickness_label">
+           <item row="2" column="1">
+            <widget class="QPushButton" name="replace_color_button">
              <property name="text">
-              <string>Contour Thickness (px)</string>
+              <string>Replace Color</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
-           <item row="3" column="0" rowspan="2">
-            <widget class="QPushButton" name="draw_contour_button">
+           <item row="0" column="0" rowspan="2">
+            <widget class="QPushButton" name="toggle_draw_button">
              <property name="text">
-              <string>Draw Contours</string>
+              <string>Toggle Draw</string>
              </property>
              <property name="checkable">
               <bool>true</bool>
@@ -846,6 +836,16 @@ QTabBar::tab:hover {
              </property>
             </widget>
            </item>
+           <item row="3" column="0" rowspan="2">
+            <widget class="QPushButton" name="draw_contour_button">
+             <property name="text">
+              <string>Draw Contours</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
            <item row="3" column="2">
             <widget class="QLabel" name="contour_space_label">
              <property name="text">
@@ -853,10 +853,16 @@ QTabBar::tab:hover {
              </property>
             </widget>
            </item>
-           <item row="0" column="1">
-            <widget class="QLabel" name="pen_width_label">
-             <property name="text">
-              <string>Pen Width (px)</string>
+           <item row="4" column="2">
+            <widget class="QSpinBox" name="contour_space_spinbox">
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>100</number>
              </property>
             </widget>
            </item>
@@ -873,16 +879,10 @@ QTabBar::tab:hover {
              </property>
             </widget>
            </item>
-           <item row="4" column="2">
-            <widget class="QSpinBox" name="contour_space_spinbox">
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
-             <property name="minimum">
-              <number>0</number>
-             </property>
-             <property name="maximum">
-              <number>100</number>
+           <item row="0" column="1">
+            <widget class="QLabel" name="pen_width_label">
+             <property name="text">
+              <string>Pen Width (px)</string>
              </property>
             </widget>
            </item>
@@ -934,6 +934,79 @@ QTabBar::tab:hover {
                 </property>
                 <property name="alignment">
                  <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QPushButton" name="recolor_from_database_button">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Recolor from Database</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1" colspan="2">
+            <widget class="QGroupBox" name="groupBox_5">
+             <property name="title">
+              <string/>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_20">
+              <item row="0" column="0">
+               <widget class="QLabel" name="label_12">
+                <property name="text">
+                 <string>Laser</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="label_13">
+                <property name="text">
+                 <string>Material</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="label_14">
+                <property name="text">
+                 <string>Type</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="recolor_laser_label">
+                <property name="text">
+                 <string>-None-</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QLabel" name="recolor_material_label">
+                <property name="text">
+                 <string>-None-</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QLabel" name="recolor_type_label">
+                <property name="text">
+                 <string>-None-</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                 </property>
                </widget>
               </item>
@@ -1801,7 +1874,7 @@ QTabBar::tab:hover {
               <item row="2" column="0">
                <widget class="QLabel" name="label_7">
                 <property name="text">
-                 <string>Material Type:</string>
+                 <string>Type:</string>
                 </property>
                </widget>
               </item>
