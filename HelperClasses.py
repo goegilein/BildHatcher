@@ -117,11 +117,11 @@ class HatchCluster:
         self.hatch_precistion = hatch_precision
             
 class ProcessBlock:
-    def __init__(self, data, post_processing="None", laser_mode="constant",air_assit="off",enclosure_fan=100 , offset = [0,0,0]):
+    def __init__(self, data, post_processing="None", laser_mode="constant",air_assist="off",enclosure_fan=100 , offset = [0,0,0]):
         self.data = data
         self.post_processing = post_processing
         self.laser_mode = laser_mode
-        self.air_assit = air_assit
+        self.air_assist = air_assist
         self.enclosure_fan = enclosure_fan
         self.offset = offset
 

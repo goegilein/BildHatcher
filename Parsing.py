@@ -136,7 +136,7 @@ class Parser:
         hatch_data = self.post_processor.process_data(process_block)
 
         #process block header
-        gcode_commands.append(f"; Process Block: {process_block.post_processing} | Laser Mode: {process_block.laser_mode} | Air Assist: {process_block.air_assit} | Enclosure Fan: {process_block.enclosure_fan}%")
+        gcode_commands.append(f"; Process Block: {process_block.post_processing} | Laser Mode: {process_block.laser_mode} | Air Assist: {process_block.air_assist} | Enclosure Fan: {process_block.enclosure_fan}%")
         gcode_commands.append(f"; Offset: X={process_block.offset[0]} Y={process_block.offset[1]} Z={process_block.offset[2]}")
         gcode_commands.append(f"; Number of clusters: {len(hatch_data)}")
         gcode_commands.append(f"; Number of points: {sum(len(polyline) for cluster in hatch_data for polyline in cluster)}")
@@ -266,7 +266,7 @@ class Parser:
             hatch_data,
             post_processing=post_processing,
             laser_mode=laser_mode,
-            air_assit=air_assist,
+            air_assist=air_assist,
             enclosure_fan=enclosure_fan,
             offset=offset)
 

@@ -55,7 +55,7 @@ class AutomatedProcessor:
             QtWidgets.QMessageBox.warning(self.gui, "No Profile Selected", "Please select a material profile first.")
             return
         self.hatcher.create_hatching(
-            hatch_dist_mode="automatic",
+            mode="automatic",
             db_color_palette = self.db_color_palette,
             hatch_pattern = None,
             cyl_rad_mm = self.automatic_cyl_rad_spinBox.value(),
