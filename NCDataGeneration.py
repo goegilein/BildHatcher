@@ -49,7 +49,7 @@ class Hatcher:
         self.hatch_pattern_combobox.currentTextChanged.connect(self.update_angle_entry_state)
         self.hatch_dist_mode_combobox.currentTextChanged.connect(self.update_hatch_dist_mode_state)
         self.hatch_mode_combobox.currentTextChanged.connect(self.update_hatch_mode_state)
-        self.hatch_image_button.clicked.connect(self.create_hatching)
+        self.hatch_image_button.clicked.connect(lambda: self.create_hatching(mode = "manual"))
         self.create_contours_button.clicked.connect(self.create_contours)
 
         # Initialize the state of the UI based on default selections
@@ -161,8 +161,8 @@ class Hatcher:
                 self.hatch_data.data = hatch_data
                 self.hatch_data.type = f"Image: {self.hatch_pattern_combobox.currentText()} with {self.hatch_dist_mode_combobox.currentText()} Lines"
 
-            if self.hatch_mode_combobox.currentText() in ["CylEquidistX", "CylEquidistRad"]:
-                self.hatch_data.data = self.make_hatch_cylindrical(hatch_data)
+            if hatch_mode in ["CylEquidistX", "CylEquidistRad"]:
+                self.hatch_data.data = self.make_hatch_cylindrical(hatch_data, cyl_rad_mm)
                 addstring = f" and {self.hatch_mode_combobox.currentText()}"
                 self.hatch_data.type += addstring
             self.hatch_progress_label.setText("Hatch Progress: Finished!")
@@ -200,7 +200,7 @@ class Hatcher:
                     h_max = self.hatch_dist_max_spinbox.value()  # Get maximum hatch distance
                     hatch_distance = (h_min + sum(color) / 765 * (h_max - h_min))/1000
                 elif hatch_dist_mode == "Fixed":
-                    hatch_distance = h_min/1000
+                    hatch_distance = self.hatch_dist_min_spinbox.value()/1000
                 else:
                     print("Hatch Distance Mode not recognized")
                     continue
@@ -738,9 +738,9 @@ class Hatcher:
         return hatch_lines_poly
             
             
-    def make_hatch_cylindrical(self, hatched_clusters):
+    def make_hatch_cylindrical(self, hatched_clusters,cyl_rad_mm=100):
         hatched_clusters_cylindrical = []
-        radius = self.cyl_rad_spinbox.value()
+        radius = cyl_rad_mm
         for hatch_lines in hatched_clusters:
             hatch_lines_cylindrical = []
             for polyline in hatch_lines:

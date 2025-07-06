@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1335</width>
+    <width>1373</width>
     <height>962</height>
    </rect>
   </property>
@@ -333,13 +333,13 @@ QTabBar::tab:hover {
              <item row="1" column="2">
               <widget class="QCheckBox" name="monochrome_check">
                <property name="enabled">
-                <bool>false</bool>
+                <bool>true</bool>
                </property>
                <property name="text">
                 <string>monochrome</string>
                </property>
                <property name="checked">
-                <bool>true</bool>
+                <bool>false</bool>
                </property>
               </widget>
              </item>
@@ -682,29 +682,10 @@ QTabBar::tab:hover {
              </property>
             </widget>
            </item>
-           <item row="4" column="2">
-            <widget class="QSpinBox" name="simplify_colors_spinbox">
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
-             <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
-             </property>
-             <property name="minimum">
-              <number>1</number>
-             </property>
-             <property name="maximum">
-              <number>256</number>
-             </property>
-             <property name="value">
-              <number>256</number>
-             </property>
-            </widget>
-           </item>
            <item row="4" column="3">
-            <widget class="QPushButton" name="simplify_colors_button">
+            <widget class="QPushButton" name="convolute_image_button">
              <property name="text">
-              <string>simplify colors</string>
+              <string>convolute image</string>
              </property>
             </widget>
            </item>
@@ -736,7 +717,7 @@ QTabBar::tab:hover {
               <number>1000</number>
              </property>
              <property name="value">
-              <number>100</number>
+              <number>1</number>
              </property>
             </widget>
            </item>
@@ -752,7 +733,7 @@ QTabBar::tab:hover {
               <number>1000</number>
              </property>
              <property name="value">
-              <number>100</number>
+              <number>1</number>
              </property>
             </widget>
            </item>
@@ -1011,6 +992,13 @@ QTabBar::tab:hover {
                </widget>
               </item>
              </layout>
+            </widget>
+           </item>
+           <item row="5" column="3">
+            <widget class="QPushButton" name="clean_up_image_colors_button">
+             <property name="text">
+              <string>clean up image colors</string>
+             </property>
             </widget>
            </item>
           </layout>
@@ -2029,7 +2017,7 @@ QTabBar::tab:hover {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1335</width>
+     <width>1373</width>
      <height>21</height>
     </rect>
    </property>

@@ -12,6 +12,7 @@ class DataHandler:
         self.active_hatch_label = self.gui.active_hatch_label
         self.image_scene = gui.image_scene
         self.image_item = gui.image_item
+        self.image_changed_callback_list = []  # List to hold callbacks for image changes
 
         #values to handle
         self._hatch_data = HatchData(None, None)
@@ -20,13 +21,32 @@ class DataHandler:
         self.image_matrix = None
         self._image_matrix_adjusted = None  # Use underscore to indicate "private" variable
         self.image_matrix_original = None
+        self._image_matrix_original = None
         self.image_original = None
         self.contours = None
         self._contours=None
         self.contours_list=[]
         self.image_scaling=1
         self._masked_pixels_list=[]
-        
+
+    #create a watcher for the original image matrix. When the original image matrix is changed it means a new image was loaded.
+    @property
+    def image_matrix_original(self):
+        return self._image_matrix_original
+      
+    @image_matrix_original.setter
+    def image_matrix_original(self, new_value):
+        self._image_matrix_original = new_value
+        # call all callbacks in the list to notfiy the fucntions that the image has changed
+        for callback in self.image_changed_callback_list:
+            callback() 
+    
+    def add_image_changed_callback(self, callback):
+        """Add a callback to be called when the image changes."""
+        if callable(callback):
+            self.image_changed_callback_list.append(callback)
+        else:
+            raise ValueError("Callback must be callable")
 
     #create a watcher for image_matrix. When image_matrix is updated, display the image
     @property

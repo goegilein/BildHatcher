@@ -105,7 +105,7 @@ class Parser:
             return gcode_commands
         
         gcode_commands.append("")
-        gcode_commands.append(";start of new Prozessblock")
+        gcode_commands.append(";start of new Processblock")
         gcode_commands.append("")
         #set laser mode
         if process_block.laser_mode == "variable":
@@ -140,11 +140,6 @@ class Parser:
         gcode_commands.append(f"; Offset: X={process_block.offset[0]} Y={process_block.offset[1]} Z={process_block.offset[2]}")
         gcode_commands.append(f"; Number of clusters: {len(hatch_data)}")
         gcode_commands.append(f"; Number of points: {sum(len(polyline) for cluster in hatch_data for polyline in cluster)}")
-        if process_block.air_assist == "on":
-            gcode_commands.append("M8 ; Turn on Air assis")
-        else:
-            gcode_commands.append("M9 ; Turn off Air assis")
-        gcode_commands.append(f"M2000 W2 P{process_block.enclosure_fan} ; Artisan Setting to turn on Enclosure fan (100%)")
         gcode_commands.append("")
 
         for counter, hatch_lines in enumerate(hatch_data):
