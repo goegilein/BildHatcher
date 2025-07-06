@@ -12,26 +12,28 @@ class ImageAdjuster:
         self.data_handler = data_handler
         self.gui = gui
         self.image_matrix_base = None
+        self.image_matrix_original = None
         self.image_current = None
         self.inverted_colors = False
-        # self.black_white_colors = False
+        self.last_adjustment = "None"
         self.sharpness_old = 0
         self.brightness_old = 0
         self.contrast_old = 0
         self.masked_pixels_list = []
+        self.dont_update = False 
 
         # Color control variable and entry field
         self.color_count_label = gui.color_count_label
         self.color_count_spinbox = gui.color_count_spinbox
         self.color_count_spinbox.setValue(256)
-        self.color_count_spinbox.editingFinished.connect(self.update_current_image)
+        self.color_count_spinbox.editingFinished.connect(self.quantize_image_color)
 
         # Color quantization method
         self.quantize_method_label = gui.quantize_method_label
         self.quantize_method_combobox = gui.quantize_method_combobox
-        self.quantize_method_combobox.addItems(["MAXCOVERAGE", "FASTOCTREE", "MEDIANCUT", "GRAYSCALE"])
-        self.quantize_method_combobox.setCurrentText("MAXCOVERAGE")
-        self.quantize_method_combobox.currentTextChanged.connect(self.update_current_image)
+        self.quantize_method_combobox.addItems(["DEFAULT", "MAXCOVERAGE", "FASTOCTREE", "MEDIANCUT", "GRAYSCALE"])
+        self.quantize_method_combobox.setCurrentText("DEFAULT")
+        self.quantize_method_combobox.currentTextChanged.connect(self.quantize_image_color)
 
         # Invert color button
         self.invert_color_button = gui.invert_color_button
@@ -46,37 +48,34 @@ class ImageAdjuster:
         self.sharpness_slider = gui.sharpness_slider
         self.sharpness_slider.setRange(-10, 10)
         self.sharpness_slider.setValue(0)
-        self.sharpness_slider.valueChanged.connect(self.update_current_image)
+        self.sharpness_slider.valueChanged.connect(self.update_bright_cont_sharp)
 
         # Brightness Slider
         self.brightness_label = gui.brightness_label
         self.brightness_slider = gui.brightness_slider
         self.brightness_slider.setRange(-100, 100)
         self.brightness_slider.setValue(0)
-        self.brightness_slider.valueChanged.connect(self.update_current_image)
+        self.brightness_slider.valueChanged.connect(self.update_bright_cont_sharp)
 
         # Contrast Slider
         self.contrast_label = gui.contrast_label
         self.contrast_slider = gui.contrast_slider
         self.contrast_slider.setRange(-100, 100)
         self.contrast_slider.setValue(0)
-        self.contrast_slider.valueChanged.connect(self.update_current_image)
+        self.contrast_slider.valueChanged.connect(self.update_bright_cont_sharp)
 
         #simplyfying image button
-        self.simplify_image_button = gui.simplify_colors_button
-        self.simplify_colors_spinbox = gui.simplify_colors_spinbox
+        self.convolute_image_button = gui.convolute_image_button
         self.median_blur_spinbox = gui.median_blur_spinbox
         self.sigma_color_spinbox = gui.sigma_color_spinbox
         self.sigma_space_spinbox = gui.sigma_space_spinbox
-        self.simplify_image_button.clicked.connect(lambda: self.simplify_image(num_colors=self.simplify_colors_spinbox.value(),
-                                                                                 median_blur=self.median_blur_spinbox.value(),
-                                                                                 sigma_color=self.sigma_color_spinbox.value(),
-                                                                                 sigma_space=self.sigma_space_spinbox.value()))
-
-        #black white image button
-        # self.black_white_button = gui.black_white_button
-        # self.black_white_button.clicked.connect(self.set_black_white_colors)
-        # self.black_white_thresh_spinbox = gui.black_white_thresh_spinbox
+        self.convolute_image_button.clicked.connect(lambda: self.convolute_image(
+                                                                median_blur=self.median_blur_spinbox.value(),
+                                                                sigma_color=self.sigma_color_spinbox.value(),
+                                                                sigma_space=self.sigma_space_spinbox.value()))
+        
+        # Add a callback to reste all adjuments when a  new image is loaded
+        self.data_handler.add_image_changed_callback(self.restore_original_color)
 
     ## METHODS
 
@@ -98,25 +97,34 @@ class ImageAdjuster:
         self.image_current = Image.fromarray(self.image_matrix_base.copy())
 
         # Apply adjustments first
-        self.image_current = self.update_adjustments(self.image_current)
+        self.image_current = self.update_bright_cont_sharp()
 
         # Apply image quantization
-        self.image_current = self.quantize_image_color(self.image_current)
+        self.image_current = self.quantize_image_color()
 
         # Invert image colors if active
         if self.inverted_colors:
             self.image_current = Image.eval(self.image_current, lambda x: 255 - x)
         
-        # Convert to black and white if active
-        # if self.black_white_colors:
-        #     threshold = self.black_white_thresh_spinbox.value()
-        #     self.image_current = self.black_white_threshold(self.image_current, threshold)
-
         # Update image data in handler
         self.set_handler_data(np.array(self.image_current))
 
-    def update_adjustments(self, image):
+    def update_bright_cont_sharp(self):
         """Apply sharpening and brightness adjustments based on slider values."""
+
+        if self.dont_update:
+            return
+
+        #only get new image if last adjustment was not brightness
+        if self.last_adjustment == "brightness":
+            pass
+        else:
+            self.get_handler_data()
+        if self.image_matrix_base is None:
+            return
+        else:
+            image = Image.fromarray(self.image_matrix_base.copy())
+        
         try:
             # Apply sharpening/blurring
             sharpness_value = self.sharpness_slider.value()
@@ -139,111 +147,125 @@ class ImageAdjuster:
             image = enhancer_contrast.enhance(contrast_factor)
             self.contrast_old = contrast_value
 
-            return image
+            # Update the last adjustment type and return
+            self.last_adjustment = "brightness"
+            self.set_handler_data(np.array(image))
+
         except Exception as e:
             print(f"Error applying adjustments: {e}")
 
-    def quantize_image_color(self, image):
+    def quantize_image_color(self):
+
+        if self.dont_update:
+            return
+        
+        #only get new image if last adjustment was not brightness
+        try:
+            # Ensure the color count is a valid integer
+            num_colors = self.color_count_spinbox.value()
+            if num_colors > 256:
+                self.color_count_spinbox.setValue(256)
+            if num_colors <= 0:
+                return  # Invalid number of colors; do not proceed
+        except ValueError:
+            return  # Non-integer input; do not proceed
+        
+        if self.last_adjustment == "quantize":
+            pass
+        else:
+            self.get_handler_data()
+        if self.image_matrix_base is None:
+            return
+        else:
+            image = Image.fromarray(self.image_matrix_base.copy())
+        
         try:
             num_colors = self.color_count_spinbox.value()
             quantize_method = self.quantize_method_combobox.currentText()
-            if quantize_method == "GRAYSCALE":
+            if quantize_method == "DEFAULT":
+                image_matrix = np.array(image)
+                # Flatten the image into a list of pixels
+                pixels = image_matrix.reshape((-1, 3))
+                 # Cluster pixels into dominant colors
+                kmeans = KMeans(n_clusters=num_colors, random_state=42, n_init='auto')
+                kmeans.fit(pixels)
+                new_colors = kmeans.cluster_centers_.astype("uint8")
+                labels = kmeans.labels_
+
+                # Recreate the image using the new colors
+                simplified_image = new_colors[labels].reshape(image_matrix.shape)
+                image = Image.fromarray(simplified_image)
+
+            elif quantize_method == "GRAYSCALE":
                 image = image.convert('L')  # Convert to grayscale
                 image = image.quantize(colors=num_colors)  # Quantize to incremental grayscale values
                 image = image.convert('RGB')  # Convert back to RGB for display
+
             else:
                 quantize_method = getattr(Image, quantize_method)
                 if image.mode != 'RGB':
                     image = image.convert('RGB')
                 image = image.quantize(colors=num_colors, method=quantize_method)
                 image = image.convert('RGB')  # Convert back to RGB for display
-            return image
+
+            # Update the last adjustment type and return the quantized image
+            self.last_adjustment = "quantize"
+            self.set_handler_data(np.array(image))
+
         except Exception as e:
             print(f"Error changing color scheme: {e}")
     
-    def simplify_image(self, num_colors=2, median_blur=5, sigma_color=100, sigma_space=100):
+    def convolute_image(self, median_blur=5, sigma_color=100, sigma_space=100):
 
         """
-        Simplifies a detailed image by smoothing and reducing its color complexity.
-        
-        Parameters:
-            image_matrix: np.ndarray – RGB image (e.g. from PIL or OpenCV)
-            num_colors: int – number of dominant colors to reduce to
-
-
-        Returns:
-            PIL.Image.Image – simplified and smoothed image
+        Simplifies a detailed image by smoothing.
         """
-        self.get_handler_data()
+
+        if self.last_adjustment == "convoluted":
+            pass
+        else:
+            self.get_handler_data()
         if self.image_matrix_base is None:
             return
         else:
             image_matrix = self.image_matrix_base.copy()
+
+        # Show warning if median_blur is not odd
+        if median_blur % 2 == 0:
+            QtWidgets.QMessageBox.warning(
+                self.gui, "Invalid Median Blur Size",
+                "Median blur size must be an odd number. Change and try again."
+            )
+            return
+        
         # Ensure the input image is in the right format
         if image_matrix.shape[2] == 3 and image_matrix.dtype != np.uint8:
             image_matrix = image_matrix.astype(np.uint8)
-        img_rgb = image_matrix.copy()
 
         # Apply edge-preserving smoothing
-        smoothed = cv2.bilateralFilter(img_rgb, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
+        smoothed = cv2.bilateralFilter(image_matrix, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
 
         # Optional extra smoothing to reduce small pixel noise
         smoothed = cv2.medianBlur(smoothed, median_blur)
 
-        # Flatten the image into a list of pixels
-        pixels = smoothed.reshape((-1, 3))
-
-        # Cluster pixels into dominant colors
-        kmeans = KMeans(n_clusters=num_colors, random_state=42, n_init='auto')
-        kmeans.fit(pixels)
-        new_colors = kmeans.cluster_centers_.astype("uint8")
-        labels = kmeans.labels_
-
-        # Recreate the image using the new colors
-        simplified_image = new_colors[labels].reshape(img_rgb.shape)
-
         # Convert to PIL image for return
         #return Image.fromarray(simplified_image)
-        self.set_handler_data(simplified_image)
+        self.last_adjustment = "convoluted"
+        self.set_handler_data(smoothed)
 
     def invert_colors(self):
         try:
             self.inverted_colors = not self.inverted_colors
-            self.update_current_image()
+            self.image_current = Image.eval(self.image_current, lambda x: 255 - x)
+            self.last_adjustment = "invert"
+            #self.update_current_image()
         except Exception as e:
             print(f"Error inverting colors: {e}")
     
-    # def set_black_white_colors(self):
-    #     try:
-    #         self.black_white_colors = not self.black_white_colors 
-    #         self.update_current_image()
-    #     except Exception as e:
-    #         print(f"Error setting black white colors: {e}")
-    
-    # def black_white_threshold(self, img, threshold):
-    #     """
-    #     Convert self.image_matrix_base to a black and white image based on the sum of the RGB values.
-    #     Pixels with r+g+b < threshold become black, others become white.
-    #     Returns a PIL Image.
-    #     """
-    #     # if self.image_matrix_base is None:
-    #     #     return None
-    #     # img = self.image_matrix_base.copy()
-    #     # Ensure image is uint8 and 3-channel
-    #     img = np.array(img)
-    #     if img.dtype != np.uint8:
-    #         img = img.astype(np.uint8)
-    #     if img.ndim == 2:
-    #         img = np.stack([img]*3, axis=-1)
-    #     # Calculate sum across RGB channels
-    #     rgb_sum = img[..., 0] + img[..., 1] + img[..., 2]
-    #     bw = np.where(rgb_sum < threshold, 0, 255).astype(np.uint8)
-    #     # Stack to 3 channels for RGB
-    #     bw_img = np.stack([bw]*3, axis=-1)
-    #     return Image.fromarray(bw_img)
-
     def restore_original_color(self):
         try:
+            self.dont_update = True  # Prevents unnecessary updates during restoration
+
             # Reset sliders
             self.sharpness_slider.setValue(0)
             self.brightness_slider.setValue(0)
@@ -251,13 +273,21 @@ class ImageAdjuster:
 
             # Reset quantizer
             self.color_count_spinbox.setValue(256)
-            self.quantize_method_combobox.setCurrentText("MAXCOVERAGE")
+            self.quantize_method_combobox.setCurrentText("DEFAULT")
 
             # Reset invert colors
             self.inverted_colors = False
-            self.black_white_colors = False
 
-            self.update_current_image()
+            # Reset last adjustment tracker
+            self.last_adjustment = "restored"
+
+            original_image = self.data_handler.image_matrix_original.copy()
+
+            #self.update_current_image()
+            self.set_handler_data(original_image)
+
+            self.dont_update = False  # Prevents unnecessary updates during restoration
+
         except Exception as e:
             print(f"Error restoring original color: {e}")
 
@@ -265,7 +295,7 @@ class ImageAdjuster:
         self.data_handler.image_matrix_adjusted = image_matrix
 
     def get_handler_data(self):
-        self.image_matrix_base = self.data_handler.image_matrix_original.copy()
+        self.image_matrix_base = self.data_handler.image_matrix.copy()
 
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
@@ -354,6 +384,10 @@ class ImageColorer(QtCore.QObject):
         self.recolor_laser_label = gui.recolor_laser_label
         self.recolor_material_label = gui.recolor_material_label
         self.recolor_type_label = gui.recolor_type_label
+
+        #Add button to clean up image colors
+        self.clean_up_image_colors_button = gui.clean_up_image_colors_button
+        self.clean_up_image_colors_button.clicked.connect(self.clean_up_image_colors)
 
         # Bind some hotkeys
         #self.gui.installEventFilter(self)
@@ -783,5 +817,61 @@ class ImageColorer(QtCore.QObject):
         self.data_handler.masked_pixels_list = self.masked_pixels_list.copy()
         #self.data_handler.image_matrix = recolored_image
         self.data_handler.image_matrix_adjusted = recolored_image
+    
+    def clean_up_image_colors(self):
+        """
+        Cleans up the current image by separating it into color patches, applying median blur to each patch,
+        and recombining them, taking the darker color if a pixel is colored in multiple patches.
+        """
+        image_matrix = self.data_handler.image_matrix.copy()
+        if image_matrix is None:
+            return
+        # Find all unique colors (excluding white)
+        unique_colors = np.unique(image_matrix.reshape(-1, 3), axis=0)
+        
+        # Ask user if he wants to continue if more than 10 colors are present
+        if len(unique_colors) > 10:
+            reply = QtWidgets.QMessageBox.question(
+                self.gui, "Too many colors",
+                f"This image has {len(unique_colors)} different colors. "
+                "Do you want to continue cleaning up the image.\nIt might take very long if more than 10 colors are present?",
+                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+            )
+            if reply == QtWidgets.QMessageBox.StandardButton.No:
+                return
+        white = np.array([255, 255, 255], dtype=np.uint8)
+        color_patches = []
+        for color in unique_colors:
+            if np.all(color == white):
+                continue
+            # Create a mask for this color
+            mask = np.all(image_matrix == color, axis=-1)
+            patch = np.ones_like(image_matrix, dtype=np.uint8) * 255
+            patch[mask] = color
+            # Apply median blur to the patch
+            patch_blur = cv2.medianBlur(patch, 5)
+            color_patches.append(patch_blur)
+        if not color_patches:
+            return
+        # Recombine patches: for each pixel, take the darkest color (lowest sum)
+        combined = np.ones_like(image_matrix, dtype=np.uint8) * 255
+        for patch in color_patches:
+            # Where patch is not white, compare to current combined
+            mask = ~np.all(patch == 255, axis=-1)
+            # For those pixels, if patch is darker, use it
+            current = combined[mask]
+            candidate = patch[mask]
+            # Compare sum of RGB (lower is darker)
+            darker = np.sum(candidate, axis=-1) < np.sum(current, axis=-1)
+            # Update only where candidate is darker
+            indices = np.where(mask)
+            if len(indices[0]) > 0:
+                darker_indices = np.where(darker)[0]
+                for idx in darker_indices:
+                    combined[indices[0][idx], indices[1][idx]] = candidate[idx]
+        # Update the data handler with the cleaned image
+        self.data_handler.image_matrix_adjusted = combined
+        self.data_handler.image_matrix = combined
+        
 
         

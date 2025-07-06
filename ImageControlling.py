@@ -76,9 +76,18 @@ class BaseFunctions:
         file_path, _ = QFileDialog.getOpenFileName()
         if file_path:
             try:
-                self.image_original = Image.open(file_path)
-                self.image = Image.open(file_path)
+                # Open and convert image to RGB
+                self.image_original = Image.open(file_path).convert('RGB')
+                self.image = Image.open(file_path).convert('RGB')
                 self.image_matrix = np.array(self.image)
+                # Ensure image_matrix is (H, W, 3)
+                if self.image_matrix.ndim == 2:
+                    # Grayscale image, convert to RGB
+                    self.image_matrix = np.stack([self.image_matrix]*3, axis=-1)
+                elif self.image_matrix.shape[-1] != 3:
+                    # Remove alpha or extra channels
+                    self.image_matrix = self.image_matrix[..., :3]
+
                 self.dpi = 96  # Assuming 96 DPI if not specified
                 self.dpi = self.image.info.get('dpi', (self.dpi, self.dpi))[0]  # Get DPI from image or use default
                 self.pixel_per_mm = self.dpi / 25.4  # Update image
@@ -97,6 +106,9 @@ class BaseFunctions:
         item.setData(QtCore.Qt.ItemDataRole.UserRole, image_matrix)
         self.images_ListWidget.addItem(item)
         if set_selected:
+            # Clear all selections and select only the new item
+            self.images_ListWidget.clearSelection()
+            item.setSelected(True)
             self.images_ListWidget.setCurrentItem(item)
 
     def save_image(self):
@@ -181,6 +193,18 @@ class BaseFunctions:
         height, width, num_colors = current_image_matrix.shape
         clusters = defaultdict(lambda: np.ones((height, width, num_colors), dtype=np.uint8) * 255)
 
+        # Find all unique colors (excluding white) and disply a warning if there are too many colors
+        unique_colors = np.unique(current_image_matrix.reshape(-1, 3), axis=0)
+        if len(unique_colors) > 10:
+            reply = QtWidgets.QMessageBox.question(
+                self.gui, "Too many colors",
+                f"This image has {len(unique_colors)} different colors. "
+                "Do you want to continue cleaning up the image.\nIt might take very long if more than 10 colors are present?",
+                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+            )
+            if reply == QtWidgets.QMessageBox.StandardButton.No:
+                return
+
         # Find unique image colors
         for i in range(height):
             for j in range(width):
@@ -220,7 +244,7 @@ class BaseFunctions:
             return
 
         sel_image_item = self.images_ListWidget.selectedItems()
-        if not sel_image_item:
+        if not sel_image_item or len(sel_image_item) == 0 or len(sel_image_item) > 1:
             return
         self.changeing_image = True
         new_image = sel_image_item[0].data(QtCore.Qt.ItemDataRole.UserRole)
@@ -237,15 +261,32 @@ class BaseFunctions:
         combined_image = np.ones_like(selected_images[0].data(QtCore.Qt.ItemDataRole.UserRole), dtype=np.uint8) * 255
         avg_color = np.array([0, 0, 0])
 
-        # Loop through selected images and transfer non-white pixels to combined image. Track average color
+
         for image_item in selected_images:
-            image_matrix = image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-            white_mask = np.all(image_matrix == [255, 255, 255], axis=-1)
-            color_mask = ~white_mask
-            col, row = np.where(color_mask)
-            img_color = image_matrix[col[0], row[0], :]
-            avg_color = avg_color + img_color / len(selected_images)
-            combined_image[color_mask] = image_matrix[color_mask]
+            patch = image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+            # Where patch is not white, compare to current combined
+            mask = ~np.all(patch == 255, axis=-1)
+            # For those pixels, if patch is darker, use it
+            current = combined_image[mask]
+            candidate = patch[mask]
+            # Compare sum of RGB (lower is darker)
+            darker = np.sum(candidate, axis=-1) < np.sum(current, axis=-1)
+            # Update only where candidate is darker
+            indices = np.where(mask)
+            if len(indices[0]) > 0:
+                darker_indices = np.where(darker)[0]
+                for idx in darker_indices:
+                    combined_image[indices[0][idx], indices[1][idx]] = candidate[idx]
+
+        # # Loop through selected images and transfer non-white pixels to combined image. Track average color
+        # for image_item in selected_images:
+        #     image_matrix = image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        #     white_mask = np.all(image_matrix == [255, 255, 255], axis=-1)
+        #     color_mask = ~white_mask
+        #     col, row = np.where(color_mask)
+        #     img_color = image_matrix[col[0], row[0], :]
+        #     avg_color = avg_color + img_color / len(selected_images)
+        #     combined_image[color_mask] = image_matrix[color_mask]
 
         # Make the combined_image monochrome if checked (use avg_color)
         if self.monochrome_check.isChecked():
