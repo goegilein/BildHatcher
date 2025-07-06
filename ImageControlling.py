@@ -19,6 +19,7 @@ class BaseFunctions:
         self.pixel_per_mm = self.dpi / 25.4  # Image scaling in real space
         self.changeing_image = False
         self.updating_dimensions = False
+        self.active_image_item = None
 
         # Create File Menu
         self.menubar = gui.menubar
@@ -48,6 +49,10 @@ class BaseFunctions:
         self.add_image_button = gui.add_image_button
         self.add_image_button.clicked.connect(self.add_image)
 
+        # Keep changes button
+        self.keep_changes_button = gui.keep_changes_button
+        self.keep_changes_button.clicked.connect(self.keep_changes)
+
         # Remove image button
         self.remove_image_button = gui.remove_image_button
         self.remove_image_button.clicked.connect(self.remove_image)
@@ -62,7 +67,6 @@ class BaseFunctions:
 
         # Monochrome check box
         self.monochrome_check = gui.monochrome_check
-        self.monochrome_check.setChecked(True)
 
         # Add list to manage gCode_blocks
         #self.images_ListWidget = hc.CustomListManager(self.image_lister_frame, pos_row=2, pos_col=2, rowspan=4, colspan=3)
@@ -110,6 +114,7 @@ class BaseFunctions:
             self.images_ListWidget.clearSelection()
             item.setSelected(True)
             self.images_ListWidget.setCurrentItem(item)
+            self.active_image_item = item
 
     def save_image(self):
         file_path, _ = QFileDialog.getSaveFileName(
@@ -225,9 +230,13 @@ class BaseFunctions:
 
     def add_image(self):
         self.get_handler_data()
-        sel_image_item = self.images_ListWidget.selectedItems()[-1]
+        sel_image_item = self.active_image_item
         image_name = sel_image_item.text()
         self.add_listbox_item(self.image_matrix.copy(), image_name + "_edited", set_selected=True)
+
+    def keep_changes(self):
+        self.get_handler_data()
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, self.image_matrix.copy())
 
     def remove_image(self):
         selected_items = self.images_ListWidget.selectedItems()
@@ -244,7 +253,7 @@ class BaseFunctions:
             return
 
         sel_image_item = self.images_ListWidget.selectedItems()
-        if not sel_image_item or len(sel_image_item) == 0 or len(sel_image_item) > 1:
+        if not sel_image_item or len(sel_image_item) != 1:
             return
         self.changeing_image = True
         new_image = sel_image_item[0].data(QtCore.Qt.ItemDataRole.UserRole)
@@ -255,6 +264,7 @@ class BaseFunctions:
         self.data_handler.reset_edits()
         self.set_handler_data()
         self.changeing_image = False
+        self.active_image_item = sel_image_item[0]
 
     def combine_images(self):
         selected_images = self.images_ListWidget.selectedItems()
