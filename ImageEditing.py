@@ -6,6 +6,7 @@ import numpy as np
 import collections
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
 from HelperClasses import DBColorPalette
+import random
 
 class ImageAdjuster:
     def __init__(self, data_handler, gui):
@@ -304,6 +305,7 @@ import numpy as np
 import collections
 
 class ImageColorer(QtCore.QObject):
+    
     def __init__(self, data_handler, gui):
         super().__init__()  # Call the superclass constructor
         self.data_handler = data_handler
@@ -818,7 +820,7 @@ class ImageColorer(QtCore.QObject):
         #self.data_handler.image_matrix = recolored_image
         self.data_handler.image_matrix_adjusted = recolored_image
     
-    def clean_up_image_colors(self):
+    def clean_up_image_colors2(self):
         """
         Cleans up the current image by separating it into color patches, applying median blur to each patch,
         and recombining them, taking the darker color if a pixel is colored in multiple patches.
@@ -872,6 +874,59 @@ class ImageColorer(QtCore.QObject):
         # Update the data handler with the cleaned image
         self.data_handler.image_matrix_adjusted = combined
         self.data_handler.image_matrix = combined
+
+    def clean_up_image_colors(self):
+        """
+        Finds contours in the image, then for each contour pixel, sets its color to the most common color among its 1st and 2nd order neighbors.
+        If there are multiple most common colors, one is chosen at random.
+        Returns a new image matrix with smoothed contours.
+        """
         
+        image_matrix = self.data_handler.image_matrix.copy()
+        # Find contours using OpenCV (convert to grayscale first)
+        gray = cv2.cvtColor(image_matrix, cv2.COLOR_RGB2GRAY)
+        edges = cv2.Canny(gray, threshold1=50, threshold2=150)
+        # kernel = np.ones((3, 3), np.uint8)
+        # edges = cv2.dilate(edges, kernel, iterations=1)
+        
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+        # Copy image to modify
+        result = image_matrix.copy()
+        height, width = image_matrix.shape[:2]
+
+        # Helper to get neighbors (1st and 2nd order)
+        def get_neighbors(y, x):
+            neighbors = []
+            for dy in range(-2, 3):
+                for dx in range(-2, 3):
+                    if dy == 0 and dx == 0:
+                        continue
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < height and 0 <= nx < width:
+                        # Only consider 1st and 2nd order neighbors
+                        if abs(dy) == 2 or abs(dx) == 2 or abs(dy) == 1 or abs(dx) == 1:
+                            neighbors.append(tuple(result[ny, nx]))
+            return neighbors
+
+        for contour in contours:
+            for pt in contour:
+                y, x = pt[0][1], pt[0][0]
+                neighbors = get_neighbors(y, x)
+                if not neighbors:
+                    continue
+                # Count occurrences of each color
+                color_counts = {}
+                for color in neighbors:
+                    color_counts[color] = color_counts.get(color, 0) + 1
+                max_count = max(color_counts.values())
+                most_common_colors = [color for color, count in color_counts.items() if count == max_count]
+                # Pick one at random if tie
+                chosen_color = random.choice(most_common_colors)
+                result[y, x] = chosen_color
+
+        # Update the data handler with the cleaned image
+        self.data_handler.image_matrix_adjusted = result
+        self.data_handler.image_matrix = result
 
         
