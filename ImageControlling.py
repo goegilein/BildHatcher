@@ -237,6 +237,7 @@ class BaseFunctions:
     def keep_changes(self):
         self.get_handler_data()
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, self.image_matrix.copy())
+        self.set_handler_data()
 
     def remove_image(self):
         selected_items = self.images_ListWidget.selectedItems()
