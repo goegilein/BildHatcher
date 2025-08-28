@@ -389,7 +389,7 @@ class ImageColorer(QtCore.QObject):
 
         #Add button to clean up image colors
         self.clean_up_image_colors_button = gui.clean_up_image_colors_button
-        self.clean_up_image_colors_button.clicked.connect(self.clean_up_image_colors)
+        self.clean_up_image_colors_button.clicked.connect(self.clean_up_image_colors2)
 
         # Bind some hotkeys
         #self.gui.installEventFilter(self)
@@ -881,7 +881,7 @@ class ImageColorer(QtCore.QObject):
         If there are multiple most common colors, one is chosen at random.
         Returns a new image matrix with smoothed contours.
         """
-        
+        self.clean_up_image_colors2()
         image_matrix = self.data_handler.image_matrix.copy()
         # Find contours using OpenCV (convert to grayscale first)
         gray = cv2.cvtColor(image_matrix, cv2.COLOR_RGB2GRAY)
