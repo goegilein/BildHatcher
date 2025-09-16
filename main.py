@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 from PyQt6 import QtWidgets, uic, QtCore
 from PyQt6.QtCore import QLocale
 import ImageControlling
@@ -11,6 +12,7 @@ import DataHandling
 import ImageEditing
 import Settings
 import AutomatedProcessing
+import CustomUiElements
 
 
 if __name__ == "__main__":
@@ -21,7 +23,15 @@ if __name__ == "__main__":
     # Set the locale to use a dot as the decimal separator
     QLocale.setDefault(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
 
-    gui = uic.loadUi("BildHatcher.ui")
+    def resource_path(relative: str) -> Path:
+        # When frozen, data files are in sys._MEIPASS
+        if hasattr(sys, "_MEIPASS"):
+            return Path(sys._MEIPASS) / relative
+        # When running from source
+        return Path(__file__).resolve().parent / relative
+
+    ui_path = resource_path("BildHatcher.ui")
+    gui = uic.loadUi(ui_path)
     
     #create the image canvas. has do be done programmatically as there is no QtDesigner element for it
     gui.image_scene = QtWidgets.QGraphicsScene()
