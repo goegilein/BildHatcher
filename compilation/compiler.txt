@@ -1,0 +1,5 @@
+####with version
+pyinstaller --onefile --windowed --name BildHatcher --version-file compilation/version.txt --add-data "BildHatcher.ui;." --add-data "Database/laser_database.db;Database" main.py
+
+###without version
+pyinstaller --onefile --windowed --name BildHatcher --add-data "BildHatcher.ui;." --add-data "Database/laser_database.db;Database" main.py

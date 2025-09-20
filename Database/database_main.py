@@ -1,6 +1,7 @@
 import sys
 import os
 import sqlite3
+import shutil
 from enum import Enum
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QInputDialog, QMessageBox,
@@ -45,7 +46,10 @@ class DatabaseManager:
         
         db_folder_path = os.path.join(script_dir, db_subfolder)
         os.makedirs(db_folder_path, exist_ok=True)
-        self.db_file = os.path.join(db_folder_path, db_filename)
+        #self.db_file = os.path.join(db_folder_path, db_filename)
+        #---------USE--------------
+        self.db_file = self.get_writable_db_path(db_filename)
+        ######## this allows to use the db in compiled app as well, as it uses a writable location
         
         db_exists=os.path.exists(self.db_file)
         self.conn=sqlite3.connect(self.db_file)
@@ -57,6 +61,17 @@ class DatabaseManager:
             self.create_schema()
         else:
             self._run_migrations()
+    
+    def get_writable_db_path(self, db_filename="laser_database.db"):
+        # Use user's Documents/BildHatcher for writable database
+        writable_dir = os.path.join(os.path.expanduser("~"), "Documents", "BildHatcher")
+        os.makedirs(writable_dir, exist_ok=True)
+        writable_db = os.path.join(writable_dir, db_filename)
+        # If not present, copy from bundled location
+        bundled_db = os.path.join(os.path.dirname(os.path.realpath(__file__)), db_filename)
+        if not os.path.exists(writable_db) and os.path.exists(bundled_db):
+            shutil.copy2(bundled_db, writable_db)
+        return writable_db
 
     def _run_migrations(self):
         """Checks the database schema and applies necessary updates."""
