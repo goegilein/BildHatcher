@@ -1,5 +1,4 @@
-from PyQt6 import QtWidgets, QtGui
-import pyqtgraph as pg
+from PyQt6 import QtWidgets, QtGui, QtCore
 from pyqtgraph.opengl import GLViewWidget,GLLinePlotItem
 import numpy as np
 from HelperClasses import HatchData
@@ -13,13 +12,14 @@ class HatchLinePlotter:
         self.pixel_per_mm = None
         self.image_matrix = None
         self.hatch_data = HatchData(None, None)
-        self.plot_lines_items=[]
+        self.plot_line_items=[]
 
         # Initialize GUI elements from the preloaded PyQt6 GUI
         self.plot_canvas = gui.plot_canvas  # QGraphicsView for the plot
         self.color_mode_plotting_combobox = gui.color_mode_plotting_combobox  # QComboBox for color mode
         self.white_threshold_plotting_spinbox = gui.white_threshold_plotting_spinbox  # QSpinBox for white threshold
-        self.plot_button = gui.plot_hatch_button  # QPushButton for plotting
+        self.plot_button = gui.plot_hatch_button  # QPushButton for plotting active hatchlines
+        self.plot_process_blocks_button = gui.plot_process_blocks_button # QPushButton for plotting active hatchblocks
         self.plot_linedwidth_spinbox = gui.plot_linewidth_spinbox  # QSpinBox for line width
         self.plot_linewidth_label = gui.plot_linewidth_label  # QLabel for line width
         self.plot_background_color_label = gui.plot_background_color_label  # QLabel for background color
@@ -35,6 +35,7 @@ class HatchLinePlotter:
 
         # Connect signals to methods
         self.plot_button.clicked.connect(self.plot_hatch_lines)
+        self.plot_process_blocks_button.clicked.connect(self.plot_hatch_blocks)
         self.plot_linedwidth_spinbox.editingFinished.connect(self.redraw_plot)
         self.color_mode_plotting_combobox.currentIndexChanged.connect(self.plot_hatch_lines)
         self.plot_background_color_button.clicked.connect(lambda: self.choose_background_color(None))
@@ -50,22 +51,9 @@ class HatchLinePlotter:
         # Initialize OpenGL settings
         self.initializeGL()
 
-    def plot_hatch_lines(self):
-        """
-        Example method implementing PyQtGraph to visualize the hatch data in a separate PyQt window.
-        """
-        # First, make sure to get handler data
-        self.get_handler_data()
-
-        if not self.hatch_data.data:
-            return
-        
-        # Clear the existing plot and the plot items
-        self.view.clear()
-        self.plot_lines_items=[]
-
+    def add_data_to_plot_items(self, data):
         # Iterate over each hatch line
-        for hatch_lines in self.hatch_data.data:
+        for hatch_lines in data:
             # Calculate the total number of points, including NaN break points
             total_points = sum(len(polyline) + 1 for polyline in hatch_lines) - 1  # Add 1 NaN per polyline, except the last
 
@@ -99,16 +87,55 @@ class HatchLinePlotter:
 
             # Create a line item for the current hatch line and add it to the view
             line_item = GLLinePlotItem(pos=pos, color=colors, width=self.plot_linedwidth_spinbox.value(), mode='line_strip')
-            self.plot_lines_items.append(line_item)
+            self.plot_line_items.append(line_item)
+
+    def plot_data(self):
+        self.view.clear()
+        for line_item in self.plot_line_items:
             line_item.setGLOptions("opaque")
             self.view.addItem(line_item)
+
+    def plot_hatch_lines(self):
+        """
+        Example method implementing PyQtGraph to visualize the hatch data in a separate PyQt window.
+        """
+        # First, make sure to get handler data
+        self.get_handler_data()
+
+        if not self.hatch_data.data:
+            return
+        
+        # Clear the existing plot and the plot items
+        self.view.clear()
+        self.plot_line_items=[]
+
+        self.add_data_to_plot_items(self.hatch_data.data)
+        self.plot_data()
+            
+        
+    def plot_hatch_blocks(self):
+        process_listWidget = self.gui.process_listWidget
+        selected_items = process_listWidget.selectedItems()
+        if not selected_items:
+            return  # No item selected
+
+        # Clear the existing plot and the plot items
+        self.view.clear()
+        self.plot_line_items=[]
+
+        for list_item in selected_items:
+                process_block = list_item.data(QtCore.Qt.ItemDataRole.UserRole)  # Retrieve the stored ProcessBlock object
+                self.add_data_to_plot_items(process_block.data)
+        self.plot_data()
+
+    
 
     def redraw_plot(self):
         """
         Redraw the plot with the current settings.
         """
         self.view.clear()
-        for item in self.plot_lines_items:
+        for item in self.plot_line_items:
             item.width = self.plot_linedwidth_spinbox.value()
             item.mode = 'line_strip'
             item.setGLOptions("opaque")

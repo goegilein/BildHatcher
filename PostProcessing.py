@@ -5,7 +5,7 @@ class PostProcessor:
     def __init__(self):
         pass
 
-    def process_data(self,process_block:ProcessBlock):
+    def process_block(self,process_block:ProcessBlock):
         data_offset = self.offset_data(process_block.data, process_block.offset)
 
         if process_block.post_processing == "None":
@@ -14,8 +14,10 @@ class PostProcessor:
             data_processed = self.maximize_line_length(data_offset)
         elif process_block.post_processing == "Constant Drive" or process_block.post_processing == "Over Drive":
             data_processed = self.set_drive_mode(data_offset, process_block.post_processing)
+        
+        process_block.data = data_processed
 
-        return data_processed
+        return process_block
 
     def offset_data(self, data, offset):
         '''Offset the data by the given offset in x, y, and z direction.'''
