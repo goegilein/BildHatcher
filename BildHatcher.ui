@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1373</width>
+    <width>1385</width>
     <height>962</height>
    </rect>
   </property>
@@ -413,19 +413,6 @@ QTabBar::tab:hover {
              <string>Plot Settings</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_16">
-             <item row="0" column="4" rowspan="5">
-              <widget class="QPushButton" name="plot_hatch_button">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="text">
-                <string>Plot Hatch Lines</string>
-               </property>
-              </widget>
-             </item>
              <item row="1" column="0">
               <widget class="QComboBox" name="color_mode_plotting_combobox"/>
              </item>
@@ -545,6 +532,32 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
+             <item row="0" column="4" rowspan="2">
+              <widget class="QPushButton" name="plot_hatch_button">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>Plot Hatch Lines</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="4" rowspan="3">
+              <widget class="QPushButton" name="plot_process_blocks_button">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>Plot Process Blocks</string>
+               </property>
+              </widget>
+             </item>
             </layout>
            </widget>
           </item>
@@ -557,7 +570,7 @@ QTabBar::tab:hover {
     <item row="0" column="1">
      <widget class="QTabWidget" name="control_tabWidget">
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="image_controls_tab">
        <attribute name="title">
@@ -2024,7 +2037,7 @@ QTabBar::tab:hover {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1373</width>
+     <width>1385</width>
      <height>21</height>
     </rect>
    </property>

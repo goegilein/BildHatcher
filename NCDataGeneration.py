@@ -816,6 +816,12 @@ class Hatcher:
                 g=0
                 b=0
                 polyline_new.append(Point(x,y,z,m,r,g,b))
+            #always close contours, by appending first point as last.
+            last_point=polyline[0]
+            x=(last_point[0]-center[0])/self.pixel_per_mm
+            y=((height-last_point[1]-1)-center[1])/self.pixel_per_mm
+            z=0
+            polyline_new.append(Point(x,y,z,1,0,0,0))
             polyline_cluster.append(polyline_new)
         self.hatch_data.data.append(polyline_cluster)
         self.hatch_data.type = "Contours"

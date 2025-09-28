@@ -133,7 +133,7 @@ class Parser:
         feedG0_prev=0
         prev_gcode_command=""
 
-        hatch_data = self.post_processor.process_data(process_block)
+        hatch_data = process_block.data #self.post_processor.process_data(process_block)
 
         #process block header
         gcode_commands.append(f"; Process Block: {process_block.post_processing} | Laser Mode: {process_block.laser_mode} | Air Assist: {process_block.air_assist} | Enclosure Fan: {process_block.enclosure_fan}%")
@@ -284,10 +284,12 @@ class Parser:
             hatch_data += self.set_speed_and_pwr(self.hatch_data.data, 
                                                 white_threshold=self.white_threshold_parsing_spinbox.value(), 
                                                 mode="manual")
-        process_block = ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset)
+        #process_block = ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset)
+        process_block = self.post_processor.process_block(ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset))
         list_item = QtWidgets.QListWidgetItem(f"{iterations}x {self.hatch_data.type}")
         list_item.setData(QtCore.Qt.ItemDataRole.UserRole, process_block)  # Store the process block in the item's data
         self.process_listWidget.addItem(list_item)
+
 
     def remove_selected_process_block(self):
         '''Removes the selected process block from the QListWidget'''
