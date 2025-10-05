@@ -16,6 +16,7 @@ class Hatcher:
         self.image_matrix = None
         self.pixel_per_mm = None
         self.hatching_cancelled = False
+        self.center_for_hatch = None  # Center of the image for Hatching
 
         # Initialize GUI elements from the preloaded PyQt6 GUI
         self.hatch_pattern_combobox = gui.hatch_pattern_combobox
@@ -27,7 +28,6 @@ class Hatcher:
         self.cyl_rad_spinbox = gui.cyl_rad_spinbox
         self.hatch_image_button = gui.hatch_image_button
         self.hatch_precision_spinbox = gui.hatch_precision_spinbox
-        self.hatch_progress_bar = gui.hatch_progress_bar
         self.hatch_progress_label = gui.hatch_progress_label
         self.create_contours_button = gui.create_contours_button
         self.contour_source_combobox = gui.contour_source_combobox
@@ -199,8 +199,7 @@ class Hatcher:
                 addstring = f" and {self.hatch_mode_combobox.currentText()}"
                 hatch_data.type += addstring
             return hatch_data
-            #self.hatch_progress_label.setText("Hatch Progress: Finished!")
-            #self.set_handler_data()
+
         except Exception as e:
             print(f"Error hatching clusters: {e}")
 
@@ -208,7 +207,7 @@ class Hatcher:
         if result:
             self.hatch_data = result
             self.set_handler_data()
-            #self.hatch_progress_label.setText("Hatch Progress: Finished!")
+            self.hatch_progress_label.setText("Hatch State: Finished!")
         #self.progress_dialog.close()
     
     def cancel_hatching(self):
@@ -229,12 +228,17 @@ class Hatcher:
             # Remove references
             delattr(self, 'worker')
             delattr(self, 'progress_dialog')
+            self.hatch_progress_label.setText("Hatch State: Cancelled")
 
     def hatch_clusters(self, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, white_threshold=255, db_color_palette=None):
         hatched_clusters = []
         cluster_counter = 0
         cyl_rad = cyl_rad_mm * self.pixel_per_mm
         image_matrix = np.flipud(self.image_matrix)
+        
+        if self.center_for_hatch is None:
+            self.center_for_hatch = [(image_matrix.shape[1]-1)/2,
+                            (image_matrix.shape[0]-1)/2]
 
         for color in color_list:
             #check if hatching was cancelled
@@ -331,7 +335,7 @@ class Hatcher:
             QtWidgets.QApplication.processEvents()  # Update the UI
         return hatched_clusters
 
-    def hatch_meander(self, hatch_pattern, hatch_distance, hatch_angle, step_size, image_matrix, pixel_per_mm, color, hatch_mode, cyl_rad, progress_state,cross_angle=None):
+    def hatch_meander(self, hatch_pattern, hatch_distance, hatch_angle, step_size, image_matrix, pixel_per_mm, color, hatch_mode, cyl_rad, progress_state, cross_angle=None):
         hatch_lines_poly=[]
         hatch_line_dir=1
         hatch_x_finished=False
@@ -373,7 +377,8 @@ class Hatcher:
         min_x = -np.ceil(step_start_x)
         max_x = image_matrix.shape[1]+np.ceil(step_start_x)
 
-        center = [(max_x+min_x)/2, (max_y+min_y)/2]
+        center = self.center_for_hatch
+        #center = [(max_x+min_x)/2, (max_y+min_y)/2] #depreciated: no defined globally
 
         # Determine the starting point of the hatch lines.
         if cos_theta >= 0:
@@ -507,7 +512,7 @@ class Hatcher:
             #update progress bar
             line_count+=1
             current_state = np.ceil((progress_state[0]+line_count/max_lines)/progress_state[1]*100)
-            if current_state > self.hatch_progress_bar.value()+1 and not self.hatching_cancelled:
+            if current_state > self.progress_dialog.value()+1 and not self.hatching_cancelled:
                 self.worker.progress.emit(int(current_state))
                 pass
         return hatch_lines_poly
@@ -518,8 +523,9 @@ class Hatcher:
         max_rad = np.ceil(
             np.sqrt((image_matrix.shape[0]/2)**2+(image_matrix.shape[1]/2)**2))+np.ceil(hatch_distance)
 
-        center = [(image_matrix.shape[1]-1)/2,
-                  (image_matrix.shape[0]-1)/2]
+        center = self.center_for_hatch
+        # center = [(image_matrix.shape[1]-1)/2,
+        #           (image_matrix.shape[0]-1)/2]
 
         point_outside=False
         hatch_rad = hatch_distance/10 #just the start radius is smaller
@@ -592,7 +598,7 @@ class Hatcher:
             hatch_rad += hatch_distance
             #update progress bar
             current_state = np.ceil((progress_state[0]+hatch_rad/max_rad)/progress_state[1]*100)
-            if current_state > self.hatch_progress_bar.value()+1 and not self.hatching_cancelled:
+            if current_state > self.progress_dialog.value()+1 and not self.hatching_cancelled:
                 self.worker.progress.emit(int(current_state))
         return hatch_lines_poly
             
@@ -602,9 +608,9 @@ class Hatcher:
         max_rad = np.ceil(
             np.sqrt((image_matrix.shape[0]/2)**2+(image_matrix.shape[1]/2)**2))+np.ceil(hatch_distance)
 
-
-        center = [(image_matrix.shape[1]-1)/2,
-                  (image_matrix.shape[0]-1)/2]
+        center = self.center_for_hatch
+        # center = [(image_matrix.shape[1]-1)/2,
+        #           (image_matrix.shape[0]-1)/2]
 
         x = center[0]
         y = center[1]
@@ -679,7 +685,7 @@ class Hatcher:
             hatch_rad_avg += hatch_distance
             #update progress bar
             current_state = np.ceil((progress_state[0]+hatch_rad_avg/max_rad)/progress_state[1]*100)
-            if current_state > self.hatch_progress_bar.value()+1 and not self.hatching_cancelled:
+            if current_state > self.progress_dialog.value()+1 and not self.hatching_cancelled:
                 self.worker.progress.emit(int(current_state))
         return hatch_lines_poly
             
@@ -690,9 +696,10 @@ class Hatcher:
         # Maximum Radius of one circle defined by the cluster diagonal
         max_rad = np.ceil(
             np.sqrt((image_matrix.shape[0]/2)**2+(image_matrix.shape[1]/2)**2))+np.ceil(hatch_distance)
-
-        center = [(image_matrix.shape[1]-1)/2,
-                  (image_matrix.shape[0]-1)/2]
+        
+        center = self.center_for_hatch
+        # center = [(image_matrix.shape[1]-1)/2,
+        #           (image_matrix.shape[0]-1)/2]
 
         hatch_start_x = center[0]
         hatch_start_y = center[1]
@@ -808,7 +815,7 @@ class Hatcher:
 
             #update progress bar
             current_state = np.ceil((progress_state[0]+ray_count/len(angles))/progress_state[1]*100)
-            if current_state > self.hatch_progress_bar.value()+1 and not self.hatching_cancelled:
+            if current_state > self.progress_dialog.value()+1 and not self.hatching_cancelled:
                 self.worker.progress.emit(int(current_state))
             #print("finished radial ray " + str(ray_count) + " / " + str(len(angles)))
         return hatch_lines_poly
@@ -879,7 +886,8 @@ class Hatcher:
         self.hatch_data.data=[]
         polyline_cluster=[]
         height, width, _ = self.image_matrix.shape
-        center = [(width)/2, (height)/2]
+        # center = [(width)/2, (height)/2]
+        center = self.center_for_hatch
         for polyline in self.contours_list:
             polyline_new=[]
             if type(polyline[0])==int: #single point detected. skip it
@@ -1035,6 +1043,7 @@ class Hatcher:
     def get_handler_data(self):
         self.image_matrix = self.data_handler.image_matrix
         self.pixel_per_mm = self.data_handler.pixel_per_mm
+        self.center_for_hatch = self.data_handler.center_for_hatch
         self.contours_list = self.data_handler.contours_list
 
 
