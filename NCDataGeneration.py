@@ -1,5 +1,6 @@
 from PyQt6 import QtWidgets
-from PyQt6.QtWidgets import QFileDialog
+from PyQt6.QtWidgets import QFileDialog, QProgressDialog 
+from PyQt6.QtCore import QThread, pyqtSignal
 import numpy as np
 from collections import defaultdict
 import random
@@ -14,7 +15,7 @@ class Hatcher:
         self.clusters = None
         self.image_matrix = None
         self.pixel_per_mm = None
-        self.cancel_bool = False
+        self.hatching_cancelled = False
 
         # Initialize GUI elements from the preloaded PyQt6 GUI
         self.hatch_pattern_combobox = gui.hatch_pattern_combobox
@@ -116,8 +117,34 @@ class Hatcher:
         sorted_colors_list = [tuple(color) for color in sorted_colors]
         
         return sorted_colors_list
+    
+    def create_hatching(self, mode="manual", db_color_palette=None, hatch_pattern=None,
+                       hatch_angle=None, cyl_rad_mm=None, hatch_mode=None,
+                       stepsize_mm=None, white_threshold=None):
+        
+        # Create progress dialog
+        self.progress_dialog = QProgressDialog("Hatching in progress...", "Cancel", 0, 100, self.gui)
+        self.progress_dialog.setWindowTitle("Creating Hatch Pattern")
+        self.progress_dialog.setModal(True)
+        
+        # Create and setup worker
+        self.worker = HatchingWorker(
+            self, mode, db_color_palette, hatch_pattern,
+            hatch_angle, cyl_rad_mm, hatch_mode,
+            stepsize_mm, white_threshold
+        )
+        
+        # Connect signals
+        self.worker.progress.connect(self.progress_dialog.setValue)
+        self.worker.finished.connect(self.hatching_finished)
+        self.progress_dialog.canceled.connect(self.cancel_hatching)
+        
+        # Start worker
+        self.hatching_cancelled = False
+        self.worker.start()
+        self.progress_dialog.show()
 
-    def create_hatching(self, 
+    def create_hatching_worker(self, 
                         mode="manual",
                         db_color_palette=None,
                         hatch_pattern=None,
@@ -126,7 +153,8 @@ class Hatcher:
                         hatch_mode=None,
                         stepsize_mm=None,
                         white_threshold=None):
-        
+        hatch_data= HatchData([], "")
+
         if mode == "manual":
             hatch_dist_mode = self.hatch_dist_mode_combobox.currentText()
             hatch_pattern = self.hatch_pattern_combobox.currentText()
@@ -140,10 +168,13 @@ class Hatcher:
         try:
             self.get_handler_data()
             # Reset progress bar
-            self.hatch_progress_bar.setValue(0)
+            self.worker.progress.emit(int(0))
             self.hatch_progress_label.setText("Hatch Progress: Hatching...")
             color_list = self.get_sorted_unique_colors(self.image_matrix)
-            hatch_data = self.hatch_clusters(
+            #check if hatching was cancelled
+            if self.hatching_cancelled:
+                return None
+            hatch_data.data = self.hatch_clusters(
                 mode=mode,
                 color_list=color_list,
                 hatch_pattern=hatch_pattern,
@@ -155,20 +186,49 @@ class Hatcher:
                 white_threshold=white_threshold,
                 db_color_palette=db_color_palette
             )
-            if hatch_data == 0:
-                return 0
+            if hatch_data.data == 0 or hatch_data.data is None:
+                return None
             else:
-                self.hatch_data.data = hatch_data
-                self.hatch_data.type = f"Image: {self.hatch_pattern_combobox.currentText()} with {self.hatch_dist_mode_combobox.currentText()} Lines"
-
+                hatch_data.type = f"Image: {self.hatch_pattern_combobox.currentText()} with {self.hatch_dist_mode_combobox.currentText()} Lines"
+            
+            #check if hatching was cancelled
+            if self.hatching_cancelled:
+                return None
             if hatch_mode in ["CylEquidistX", "CylEquidistRad"]:
-                self.hatch_data.data = self.make_hatch_cylindrical(hatch_data, cyl_rad_mm)
+                hatch_data.data = self.make_hatch_cylindrical(hatch_data.data, cyl_rad_mm)
                 addstring = f" and {self.hatch_mode_combobox.currentText()}"
-                self.hatch_data.type += addstring
-            self.hatch_progress_label.setText("Hatch Progress: Finished!")
-            self.set_handler_data()
+                hatch_data.type += addstring
+            return hatch_data
+            #self.hatch_progress_label.setText("Hatch Progress: Finished!")
+            #self.set_handler_data()
         except Exception as e:
             print(f"Error hatching clusters: {e}")
+
+    def hatching_finished(self, result):
+        if result:
+            self.hatch_data = result
+            self.set_handler_data()
+            #self.hatch_progress_label.setText("Hatch Progress: Finished!")
+        #self.progress_dialog.close()
+    
+    def cancel_hatching(self):
+        if hasattr(self, 'worker'):
+            self.hatching_cancelled = True
+
+            # Disconnect all signals
+            self.worker.progress.disconnect()
+            self.worker.finished.disconnect()
+            self.progress_dialog.canceled.disconnect()
+
+            self.worker.cancel()
+            
+            # Close and delete the dialog
+            self.progress_dialog.close()
+            self.progress_dialog.deleteLater()
+            
+            # Remove references
+            delattr(self, 'worker')
+            delattr(self, 'progress_dialog')
 
     def hatch_clusters(self, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, white_threshold=255, db_color_palette=None):
         hatched_clusters = []
@@ -177,13 +237,17 @@ class Hatcher:
         image_matrix = np.flipud(self.image_matrix)
 
         for color in color_list:
+            #check if hatching was cancelled
+            if self.hatching_cancelled:
+                return None
+            
             # Ensure the sum of RGB values is within a safe range
             color = np.array(color, dtype=np.int64)
 
             if sum(color)/3 > white_threshold:
                 # Skip colors that are too bright (white), and update the progress bar
                 cluster_counter += 1
-                self.hatch_progress_bar.setValue(int(np.ceil(cluster_counter / len(color_list) * 100)))
+                self.worker.progress.emit(int(np.ceil(cluster_counter / len(color_list) * 100)))
                 QtWidgets.QApplication.processEvents()  # Update the UI
                 continue
 
@@ -204,11 +268,6 @@ class Hatcher:
                 else:
                     print("Hatch Distance Mode not recognized")
                     continue
-
-            
- 
-            
-
 
             step_size = stepsize_mm * self.pixel_per_mm  # Step size in pixels
             hatch_distance = hatch_distance * self.pixel_per_mm  # Hatch distance in pixels
@@ -262,9 +321,13 @@ class Hatcher:
             else:
                 print("Unknown hatch method")
             cluster_counter += 1
+            
+            #check if hatching was cancelled
+            if self.hatching_cancelled:
+                return None
 
             # Update progress bar
-            self.hatch_progress_bar.setValue(int(np.ceil(cluster_counter / len(color_list) * 100)))
+            self.worker.progress.emit(int(np.ceil(cluster_counter / len(color_list) * 100)))
             QtWidgets.QApplication.processEvents()  # Update the UI
         return hatched_clusters
 
@@ -327,6 +390,10 @@ class Hatcher:
         hatching_done = False
         #loop over hatchlines. will set hatching done when both x and y linestarts are outsinde the bounding box
         while not hatching_done:
+            #check if hatching was cancelled
+            if self.hatching_cancelled:
+                return None
+            
             prev_x = None
             prev_y = None
             x_target = hatch_start_x
@@ -440,9 +507,9 @@ class Hatcher:
             #update progress bar
             line_count+=1
             current_state = np.ceil((progress_state[0]+line_count/max_lines)/progress_state[1]*100)
-            if current_state > self.hatch_progress_bar.value()+10:
-                self.hatch_progress_bar.setValue(int(current_state))
-                QtWidgets.QApplication.processEvents()
+            if current_state > self.hatch_progress_bar.value()+1 and not self.hatching_cancelled:
+                self.worker.progress.emit(int(current_state))
+                pass
         return hatch_lines_poly
         
     def hatch_circular(self, hatch_distance, step_size, image_matrix, pixel_per_mm, color, hatch_mode, cyl_rad, progress_state):
@@ -459,6 +526,10 @@ class Hatcher:
 
         #loop over circles. will stop when the circle is outside the image
         while hatch_rad <= max_rad:
+            #check if hatching was cancelled
+            if self.hatching_cancelled:
+                return None
+            
             angle_res = step_size/hatch_rad
             if angle_res > 2*np.pi/36:
                 angle_res = 2*np.pi/36
@@ -521,9 +592,8 @@ class Hatcher:
             hatch_rad += hatch_distance
             #update progress bar
             current_state = np.ceil((progress_state[0]+hatch_rad/max_rad)/progress_state[1]*100)
-            if current_state > self.hatch_progress_bar.value()+10:
-                self.hatch_progress_bar.setValue(int(current_state))
-                QtWidgets.QApplication.processEvents()
+            if current_state > self.hatch_progress_bar.value()+1 and not self.hatching_cancelled:
+                self.worker.progress.emit(int(current_state))
         return hatch_lines_poly
             
     def hatch_spiral(self, hatch_distance, step_size, image_matrix, pixel_per_mm,color, hatch_mode, cyl_rad, progress_state):
@@ -543,6 +613,10 @@ class Hatcher:
 
         #loop over spiral. will stop when the spiral is outside the image
         while hatch_rad_avg+hatch_distance/2 <= max_rad:
+            #check if hatching was cancelled
+            if self.hatching_cancelled:
+                return None
+            
             angle_res = step_size/hatch_rad_avg
             if angle_res > 2*np.pi/36:
                 angle_res = 2*np.pi/36
@@ -605,9 +679,8 @@ class Hatcher:
             hatch_rad_avg += hatch_distance
             #update progress bar
             current_state = np.ceil((progress_state[0]+hatch_rad_avg/max_rad)/progress_state[1]*100)
-            if current_state > self.hatch_progress_bar.value()+10:
-                self.hatch_progress_bar.setValue(int(current_state))
-                QtWidgets.QApplication.processEvents()
+            if current_state > self.hatch_progress_bar.value()+1 and not self.hatching_cancelled:
+                self.worker.progress.emit(int(current_state))
         return hatch_lines_poly
             
     def hatch_radial(self, hatch_distance, step_size, image_matrix, pixel_per_mm, color, hatch_mode, cyl_rad,progress_state):
@@ -630,6 +703,10 @@ class Hatcher:
         
         #loop over radial rays. ray number is known so use a for loop
         for angle in angles:
+            #check if hatching was cancelled
+            if self.hatching_cancelled:
+                return None
+            
             sin_angle=np.sin(angle)
             cos_angle=np.cos(angle)
             x_target = hatch_start_x
@@ -731,9 +808,8 @@ class Hatcher:
 
             #update progress bar
             current_state = np.ceil((progress_state[0]+ray_count/len(angles))/progress_state[1]*100)
-            if current_state > self.hatch_progress_bar.value()+10:
-                self.hatch_progress_bar.setValue(int(current_state))
-                QtWidgets.QApplication.processEvents()
+            if current_state > self.hatch_progress_bar.value()+1 and not self.hatching_cancelled:
+                self.worker.progress.emit(int(current_state))
             #print("finished radial ray " + str(ray_count) + " / " + str(len(angles)))
         return hatch_lines_poly
             
@@ -742,6 +818,10 @@ class Hatcher:
         hatched_clusters_cylindrical = []
         radius = cyl_rad_mm
         for hatch_lines in hatched_clusters:
+            #check if hatching was cancelled
+            if self.hatching_cancelled:
+                return None
+            
             hatch_lines_cylindrical = []
             for polyline in hatch_lines:
                 polyline_cyl = []
@@ -956,6 +1036,43 @@ class Hatcher:
         self.image_matrix = self.data_handler.image_matrix
         self.pixel_per_mm = self.data_handler.pixel_per_mm
         self.contours_list = self.data_handler.contours_list
+
+
+class HatchingWorker(QThread):
+    progress = pyqtSignal(int)
+    finished = pyqtSignal(object)
+    
+    def __init__(self, hatcher, mode, db_color_palette=None, hatch_pattern=None, 
+                 hatch_angle=None, cyl_rad_mm=None, hatch_mode=None, 
+                 stepsize_mm=None, white_threshold=None):
+        super().__init__()
+        self.hatcher = hatcher
+        self.mode = mode
+        self.db_color_palette = db_color_palette
+        self.hatch_pattern = hatch_pattern
+        self.hatch_angle = hatch_angle
+        self.cyl_rad_mm = cyl_rad_mm
+        self.hatch_mode = hatch_mode
+        self.stepsize_mm = stepsize_mm
+        self.white_threshold = white_threshold
+        self.cancelled = False
+        
+    def run(self):
+        try:
+            result = self.hatcher.create_hatching_worker(
+                self.mode, self.db_color_palette, self.hatch_pattern,
+                self.hatch_angle, self.cyl_rad_mm, self.hatch_mode,
+                self.stepsize_mm, self.white_threshold
+            )
+            if not self.cancelled:
+                self.finished.emit(result)
+        except Exception as e:
+            print(f"Error in worker thread: {e}")
+            
+    def cancel(self):
+        self.cancelled = True
+        self.quit()  # Use quit() instead of terminate()
+        self.wait()  # Wait for the thread to finish
 
 
 
