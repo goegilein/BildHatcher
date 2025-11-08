@@ -522,7 +522,7 @@ class ImageColorer(QtCore.QObject):
         mask_pixels = []
 
         # calc image coordinates from canvas click
-        x_img, y_img = self.canvas_to_image_coords(x_canvas, y_canvas)
+        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
 
         # Circular mask around (x_img, y_img)
         for dy in range(-radius, radius + 1):
@@ -534,56 +534,56 @@ class ImageColorer(QtCore.QObject):
 
         return mask_pixels
 
-    def canvas_to_image_coords(self, x_canvas, y_canvas):
-        image_matrix = self.data_handler.image_matrix
+    # def canvas_to_image_coords(self, x_canvas, y_canvas):
+    #     image_matrix = self.data_handler.image_matrix
 
-        # Dimensions of the underlying image data
-        height_px, width_px = image_matrix.shape[:2]
+    #     # Dimensions of the underlying image data
+    #     height_px, width_px = image_matrix.shape[:2]
 
-        # These are the final display dimensions used in display_image()
-        width_mm = width_px / self.data_handler.pixel_per_mm
-        height_mm = height_px / self.data_handler.pixel_per_mm
-        display_width_px = int(width_mm * self.data_handler.image_scaling * self.data_handler.pixel_per_mm_original)
-        display_height_px = int(height_mm * self.data_handler.image_scaling * self.data_handler.pixel_per_mm_original)
+    #     # These are the final display dimensions used in display_image()
+    #     width_mm = width_px / self.data_handler.pixel_per_mm
+    #     height_mm = height_px / self.data_handler.pixel_per_mm
+    #     display_width_px = int(width_mm * self.data_handler.image_scaling * self.data_handler.pixel_per_mm_original)
+    #     display_height_px = int(height_mm * self.data_handler.image_scaling * self.data_handler.pixel_per_mm_original)
 
-        # Compute the scaling factors between the displayed image and the original
-        if width_px == 0 or height_px == 0:
-            return
-        scale_x = display_width_px / width_px
-        scale_y = display_height_px / height_px
+    #     # Compute the scaling factors between the displayed image and the original
+    #     if width_px == 0 or height_px == 0:
+    #         return
+    #     scale_x = display_width_px / width_px
+    #     scale_y = display_height_px / height_px
 
-        # Get canvas dimensions
-        canvas_width = self.gui.image_canvas.viewport().width()
-        canvas_height = self.gui.image_canvas.viewport().height()
-        x_center = canvas_width / 2
-        y_center = canvas_height / 2
+    #     # Get canvas dimensions
+    #     canvas_width = self.gui.image_canvas.viewport().width()
+    #     canvas_height = self.gui.image_canvas.viewport().height()
+    #     x_center = canvas_width / 2
+    #     y_center = canvas_height / 2
 
-        #get offset of the image item
-        img_offset_x = self.gui.image_item.x()
-        img_offset_y = self.gui.image_item.y()
+    #     #get offset of the image item
+    #     img_offset_x = self.gui.image_item.x()
+    #     img_offset_y = self.gui.image_item.y()
 
-        #finally we need the state of the invisible scroll bars of the scene to offset its position
-        scrollbar_x = self.gui.image_canvas.horizontalScrollBar()
-        scrollbar_y = self.gui.image_canvas.verticalScrollBar()
+    #     #finally we need the state of the invisible scroll bars of the scene to offset its position
+    #     scrollbar_x = self.gui.image_canvas.horizontalScrollBar()
+    #     scrollbar_y = self.gui.image_canvas.verticalScrollBar()
 
-        scrollbar_pos_x = scrollbar_x.value()
-        scrollbar_pos_y = scrollbar_y.value()
+    #     scrollbar_pos_x = scrollbar_x.value()
+    #     scrollbar_pos_y = scrollbar_y.value()
 
-        scrollbar_mean_x= (scrollbar_x.maximum()-scrollbar_x.minimum())/2
-        scrollbar_mean_y = (scrollbar_y.maximum()-scrollbar_y.minimum())/2
+    #     scrollbar_mean_x= (scrollbar_x.maximum()-scrollbar_x.minimum())/2
+    #     scrollbar_mean_y = (scrollbar_y.maximum()-scrollbar_y.minimum())/2
 
-        scrollbar_offset_x = scrollbar_pos_x-scrollbar_mean_x
-        scrollbar_offset_y = scrollbar_pos_y-scrollbar_mean_y
+    #     scrollbar_offset_x = scrollbar_pos_x-scrollbar_mean_x
+    #     scrollbar_offset_y = scrollbar_pos_y-scrollbar_mean_y
         
-        # Actual click coordinates relative to the top-left of the displayed image
-        click_x_display = x_canvas - x_center + display_width_px / 2 - img_offset_x + scrollbar_offset_x
-        click_y_display = y_canvas - y_center + display_height_px / 2 - img_offset_y + scrollbar_offset_y
+    #     # Actual click coordinates relative to the top-left of the displayed image
+    #     click_x_display = x_canvas - x_center + display_width_px / 2 - img_offset_x + scrollbar_offset_x
+    #     click_y_display = y_canvas - y_center + display_height_px / 2 - img_offset_y + scrollbar_offset_y
 
-        # Convert display coords to original image coords
-        x_img = int(click_x_display / scale_x)
-        y_img = int(click_y_display / scale_y)
+    #     # Convert display coords to original image coords
+    #     x_img = int(click_x_display / scale_x)
+    #     y_img = int(click_y_display / scale_y)
 
-        return x_img, y_img
+    #     return x_img, y_img
 
     def select_color(self):
         # Open color chooser
@@ -623,7 +623,7 @@ class ImageColorer(QtCore.QObject):
         y_canvas = event.position().y()
 
         # calc image coordinates from canvas click
-        x_img, y_img = self.canvas_to_image_coords(x_canvas, y_canvas)
+        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
 
         # Ensure click is within image bounds
         if 0 <= x_img < width_px and 0 <= y_img < height_px:
@@ -708,7 +708,7 @@ class ImageColorer(QtCore.QObject):
             return []
         x_canvas = event.position().x()
         y_canvas = event.position().y()
-        x_img, y_img = self.canvas_to_image_coords(x_canvas, y_canvas)
+        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
 
         image = self.data_handler.image_matrix.copy()
         height, width = image.shape[:2]
@@ -758,7 +758,7 @@ class ImageColorer(QtCore.QObject):
 
         x_canvas = event.position().x()
         y_canvas = event.position().y()
-        x_img, y_img = self.canvas_to_image_coords(x_canvas, y_canvas)
+        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
 
         old_color = tuple(image[y_img, x_img])
 

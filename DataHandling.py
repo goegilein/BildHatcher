@@ -23,6 +23,7 @@ class DataHandler:
         self.image_matrix_original = None
         self._image_matrix_original = None
         self.image_original = None
+        self.center_for_hatch = None
         self.contours = None
         self._contours=None
         self.contours_list=[]
@@ -184,3 +185,114 @@ class DataHandler:
         self._contours=None
         self.contours_list = []
         #self._masked_pixels_list = []
+    
+    def canvas_to_image_coords(self, x_canvas, y_canvas):
+        image_matrix = self.image_matrix
+
+        # Dimensions of the underlying image data
+        height_px, width_px = image_matrix.shape[:2]
+
+        # These are the final display dimensions used in display_image()
+        width_mm = width_px / self.pixel_per_mm
+        height_mm = height_px / self.pixel_per_mm
+        display_width_px = int(width_mm * self.image_scaling * self.pixel_per_mm_original)
+        display_height_px = int(height_mm * self.image_scaling * self.pixel_per_mm_original)
+
+        # Compute the scaling factors between the displayed image and the original
+        if width_px == 0 or height_px == 0:
+            return
+        scale_x = display_width_px / width_px
+        scale_y = display_height_px / height_px
+
+        # Get canvas dimensions
+        canvas_width = self.gui.image_canvas.viewport().width()
+        canvas_height = self.gui.image_canvas.viewport().height()
+        x_center = canvas_width / 2
+        y_center = canvas_height / 2
+
+        #get offset of the image item
+        img_offset_x = self.gui.image_item.x()
+        img_offset_y = self.gui.image_item.y()
+
+        #finally we need the state of the invisible scroll bars of the scene to offset its position
+        scrollbar_x = self.gui.image_canvas.horizontalScrollBar()
+        scrollbar_y = self.gui.image_canvas.verticalScrollBar()
+
+        scrollbar_pos_x = scrollbar_x.value()
+        scrollbar_pos_y = scrollbar_y.value()
+
+        scrollbar_mean_x= (scrollbar_x.maximum()-scrollbar_x.minimum())/2
+        scrollbar_mean_y = (scrollbar_y.maximum()-scrollbar_y.minimum())/2
+
+        scrollbar_offset_x = scrollbar_pos_x-scrollbar_mean_x
+        scrollbar_offset_y = scrollbar_pos_y-scrollbar_mean_y
+        
+        # Actual click coordinates relative to the top-left of the displayed image
+        click_x_display = x_canvas - x_center + display_width_px / 2 - img_offset_x + scrollbar_offset_x
+        click_y_display = y_canvas - y_center + display_height_px / 2 - img_offset_y + scrollbar_offset_y
+
+        # Convert display coords to original image coords
+        x_img = int(click_x_display / scale_x)
+        y_img = int(click_y_display / scale_y)
+
+        return x_img, y_img
+
+    def image_to_canvas_coords(self, x_img, y_img):
+        """Convert image coordinates to canvas coordinates"""
+        try:
+            image_matrix = self.image_matrix
+
+            # Dimensions of the underlying image data
+            height_px, width_px = image_matrix.shape[:2]
+
+            # These are the final display dimensions used in display_image()
+            width_mm = width_px / self.pixel_per_mm
+            height_mm = height_px / self.pixel_per_mm
+            display_width_px = int(width_mm * self.image_scaling * self.pixel_per_mm_original)
+            display_height_px = int(height_mm * self.image_scaling * self.pixel_per_mm_original)
+
+            # Compute the scaling factors between the displayed image and the original
+            if width_px == 0 or height_px == 0:
+                return
+            scale_x = display_width_px / width_px
+            scale_y = display_height_px / height_px
+
+            # Get canvas dimensions
+            canvas_width = self.gui.image_canvas.viewport().width()
+            canvas_height = self.gui.image_canvas.viewport().height()
+            x_center = canvas_width / 2
+            y_center = canvas_height / 2
+
+            #get offset of the image item
+            img_offset_x = self.gui.image_item.x()
+            img_offset_y = self.gui.image_item.y()
+
+            #finally we need the state of the invisible scroll bars of the scene to offset its position
+            scrollbar_x = self.gui.image_canvas.horizontalScrollBar()
+            scrollbar_y = self.gui.image_canvas.verticalScrollBar()
+
+            scrollbar_pos_x = scrollbar_x.value()
+            scrollbar_pos_y = scrollbar_y.value()
+
+            scrollbar_mean_x= (scrollbar_x.maximum()-scrollbar_x.minimum())/2
+            scrollbar_mean_y = (scrollbar_y.maximum()-scrollbar_y.minimum())/2
+
+            scrollbar_offset_x = scrollbar_pos_x-scrollbar_mean_x
+            scrollbar_offset_y = scrollbar_pos_y-scrollbar_mean_y
+
+            display_x = x_img * scale_x
+            display_y = y_img * scale_y
+            
+            # Calculate canvas coordinates
+            x_canvas = display_x + x_center - display_width_px / 2 + img_offset_x - scrollbar_offset_x
+            y_canvas = display_y + y_center - display_height_px / 2 + img_offset_y - scrollbar_offset_y
+
+            # # Calculate final canvas coordinates
+            # x_canvas = display_x + (canvas_width - display_width_px) / 2 - scrollbar_offset_x
+            # y_canvas = display_y + (canvas_height - display_height_px) / 2 - scrollbar_offset_y
+
+            return x_canvas, y_canvas
+
+        except Exception as e:
+            print(f"Error converting image to canvas coordinates: {e}")
+            return None

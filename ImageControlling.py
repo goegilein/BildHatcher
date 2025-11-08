@@ -1,6 +1,8 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtWidgets import QFileDialog, QListWidgetItem
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem
+from PyQt6.QtWidgets import QGraphicsLineItem
+from PyQt6.QtCore import QPointF
+from PyQt6.QtGui import QPen, QColor
 from PIL import Image
 import numpy as np
 import io
@@ -69,11 +71,9 @@ class BaseFunctions:
         self.monochrome_check = gui.monochrome_check
 
         # Add list to manage gCode_blocks
-        #self.images_ListWidget = hc.CustomListManager(self.image_lister_frame, pos_row=2, pos_col=2, rowspan=4, colspan=3)
         self.images_ListWidget = gui.images_ListWidget
 
         # Bind event for selection change
-        #self.images_ListWidget.bind_on_sel(self.change_image)
         self.images_ListWidget.itemSelectionChanged.connect(self.change_image)
 
     def load_image(self, file_path):
@@ -289,16 +289,6 @@ class BaseFunctions:
                 for idx in darker_indices:
                     combined_image[indices[0][idx], indices[1][idx]] = candidate[idx]
 
-        # # Loop through selected images and transfer non-white pixels to combined image. Track average color
-        # for image_item in selected_images:
-        #     image_matrix = image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-        #     white_mask = np.all(image_matrix == [255, 255, 255], axis=-1)
-        #     color_mask = ~white_mask
-        #     col, row = np.where(color_mask)
-        #     img_color = image_matrix[col[0], row[0], :]
-        #     avg_color = avg_color + img_color / len(selected_images)
-        #     combined_image[color_mask] = image_matrix[color_mask]
-
         # Make the combined_image monochrome if checked (use avg_color)
         if self.monochrome_check.isChecked():
             white_mask = np.all(combined_image == [255, 255, 255], axis=-1)
@@ -332,6 +322,9 @@ class ImageSizer(QtCore.QObject):
         self.masked_pixels = []  # currently masked pixels; put an empty list as start list
         self.masked_pixels_list = [[]]  # list to store masked pixels
         self.choose_color_on = False
+        self.setting_image_center = False
+        self.showing_image_center = False
+        self.current_image_center = None  # x, y in image coordinates
 
         # Bind right-click and drag events to move the image in the canvas
         self.image_canvas.viewport().installEventFilter(self)
@@ -368,7 +361,19 @@ class ImageSizer(QtCore.QObject):
         self.grid_toggle_button.clicked.connect(self.toggle_grid)
 
         self.image_item = gui.image_item
-        # self.image_scene.addItem(self.image_item)
+
+        #Image Center
+        self.h_center_spinbox = gui.h_center_spinbox
+        self.v_center_spinbox = gui.v_center_spinbox
+        self.reset_image_center_button = gui.reset_image_center_button
+        self.set_image_center_button = gui.set_image_center_button
+        self.show_image_center_button = gui.show_image_center_button
+        self.reset_image_center_button.clicked.connect(self.reset_image_center_to_default)
+        self.set_image_center_button.clicked.connect(self.toggle_set_image_center)
+        self.show_image_center_button.clicked.connect(self.toggle_show_image_center)
+
+        self.data_handler.add_image_changed_callback(self.reset_image_center_to_current)
+
 
     def eventFilter(self, source, event):
         if event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.RightButton:
@@ -379,6 +384,8 @@ class ImageSizer(QtCore.QObject):
             self.stop_drag(event)
         elif event.type() == QtCore.QEvent.Type.Wheel:
             self.on_mouse_wheel(event)
+        elif event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self.set_image_center(event)
         return super().eventFilter(source, event)
 
     def start_drag(self, event):
@@ -416,6 +423,9 @@ class ImageSizer(QtCore.QObject):
         self.image_item.setPos(new_x, new_y)
         if event is not None:
             self.drag_start_pos = event.pos()
+        
+        #update center cross position
+        self.redraw_center_cross()
 
     def stop_drag(self, event):
         self.image_canvas.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
@@ -487,10 +497,16 @@ class ImageSizer(QtCore.QObject):
             self.image_item.setPos(new_x, new_y)
 
             self.updating_scaling = False
+            
+            #update center cross position
+            self.redraw_center_cross()
 
     def update_image(self):
         self.data_handler.image_scaling = self.zoom_slider.value() / 100
         self.data_handler.set_and_display_image()
+
+        #update center cross
+        self.redraw_center_cross()
 
         #make sure that the image stays within the bounds by calling the drag function with no argument
         self.drag(event=None)
@@ -513,7 +529,6 @@ class ImageSizer(QtCore.QObject):
             self.grid_toggle_button.setText("Hide Grid")
         self.grid_on = not self.grid_on
         self.update_grid()
-        #self.update_image()
 
     def update_grid(self):
         # Clear previously added lines
@@ -549,6 +564,119 @@ class ImageSizer(QtCore.QObject):
                     line = self.image_scene.addLine(-width, -y, width, -y, QtGui.QPen(QtCore.Qt.GlobalColor.gray))
                     line.setZValue(1)  # Ensure the grid lines are in front of the image
                 y += grid_distance_px
+
+    def toggle_set_image_center(self):
+        if self.set_image_center_button.isChecked():
+            self.setting_image_center = True
+        else:
+            self.setting_image_center = False
+
+    def set_image_center(self, event):
+        if self.setting_image_center:
+            x_canvas = event.position().x()
+            y_canvas = event.position().y()
+
+            new_x, new_y = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
+            self.current_image_center = [new_x, new_y]
+
+            self.update_image_center()
+
+            #turn off the setting mode
+            self.set_image_center_button.setChecked(False)
+            self.setting_image_center = False
+
+    def reset_image_center_to_default(self):
+        if self.data_handler.image_matrix_original is None:
+            self.data_handler.center_for_hatch = None
+            return
+        
+        self.current_image_center = [(self.data_handler.image_matrix_original.shape[1]-1)/2,
+                        (self.data_handler.image_matrix_original.shape[0]-1)/2]
+        
+        self.update_image_center()
+    
+    def reset_image_center_to_current(self):
+        if self.current_image_center is None:
+            self.reset_image_center_to_default()
+        else:
+            self.update_image_center()
+
+    
+    def update_image_center(self):
+
+        self.data_handler.center_for_hatch = self.current_image_center
+
+        #update gui as well
+        pixel_per_mm = self.data_handler.pixel_per_mm
+        x_mm = self.current_image_center[0] / pixel_per_mm
+        y_mm = self.current_image_center[1] / pixel_per_mm
+        self.gui.h_center_spinbox.setValue(x_mm)
+        self.gui.v_center_spinbox.setValue(y_mm)
+
+        self.redraw_center_cross()
+    
+    def toggle_show_image_center(self):
+        if self.showing_image_center:
+            # Remove any existing crosses
+            for item in self.image_scene.items():
+                if isinstance(item, QGraphicsLineItem) and item.zValue() == 2:
+                    self.image_scene.removeItem(item)
+            self.show_image_center_button.setText("Show Image Center")
+        else:
+            self.show_image_center_button.setText("Hide Image Center")
+
+        self.showing_image_center = not self.showing_image_center
+        self.redraw_center_cross()
+
+    def redraw_center_cross(self):
+        """Draw a cross at the specified image coordinates"""
+        try:
+            # Remove any existing crosses
+            for item in self.image_scene.items():
+                if isinstance(item, QGraphicsLineItem) and item.zValue() == 2:
+                    self.image_scene.removeItem(item)
+
+            if not self.showing_image_center:
+                return
+
+            # Get canvas coordinates
+            center_x, center_y = self.data_handler.image_to_canvas_coords(self.current_image_center[0], self.current_image_center[1])
+            
+            # Convert viewport coordinates to scene coordinates
+            viewport_pos = self.image_canvas.mapToScene(int(center_x), int(center_y))
+            scene_x = viewport_pos.x()
+            scene_y = viewport_pos.y()
+            
+            # Define cross size (adjust as needed)
+            cross_size = 20
+            
+            # Create horizontal and vertical lines
+            horizontal_line = QGraphicsLineItem(
+                scene_x - cross_size, scene_y,
+                scene_x + cross_size, scene_y
+            )
+            vertical_line = QGraphicsLineItem(
+                scene_x, scene_y - cross_size,
+                scene_x, scene_y + cross_size
+            )
+            
+            # Set line appearance
+            pen = QPen(QColor(255, 0, 0))  # Red color
+            pen.setWidth(2)
+            horizontal_line.setPen(pen)
+            vertical_line.setPen(pen)
+            
+            # Set z-value to ensure cross is above image and grid
+            horizontal_line.setZValue(2)
+            vertical_line.setZValue(2)
+            
+            # Add lines to scene
+            self.image_scene.addItem(horizontal_line)
+            self.image_scene.addItem(vertical_line)
+            
+        except Exception as e:
+            print(f"Error drawing center cross: {e}")
+        
 
 
 
