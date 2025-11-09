@@ -9,10 +9,9 @@ import Plotting
 import Parsing
 import TestStructures
 import DataHandling
-import ImageEditing
 import Settings
 import AutomatedProcessing
-import CustomUiElements
+import CustomUiElements #this import is necessary to register custom ui elements for compilation
 
 
 if __name__ == "__main__":
@@ -46,7 +45,7 @@ if __name__ == "__main__":
     image_controller = ImageControlling.BaseFunctions(data_handler, gui)
     image_sizer = ImageControlling.ImageSizer(data_handler, gui)
     image_adjuster = ImageEditing.ImageAdjuster(data_handler, gui)
-    immage_colorer = ImageEditing.ImageColorer(data_handler, gui)
+    image_colorer = ImageEditing.ImageColorer(data_handler, gui)
     image_hatcher = NCDataGeneration.Hatcher(data_handler, gui)
     hatch_line_plotter = Plotting.HatchLinePlotter(data_handler, gui)
     test_structure = TestStructures.Teststructures(data_handler, gui)

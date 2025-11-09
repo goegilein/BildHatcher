@@ -1,13 +1,5 @@
 import numpy as np
- 
-class ImgObj:
-    def __init__(self, image_matrix, image_matrix_adjusted, image_matrix_original, pixel_per_mm, pixel_per_mm_original, image_scaling):
-        self.image_matrix = image_matrix
-        self.image_matrix_adjusted = image_matrix_adjusted
-        self.image_matrix_original = image_matrix_original
-        self.pixel_per_mm = pixel_per_mm
-        self.pixel_per_mm_original = pixel_per_mm_original
-        self.image_scaling = image_scaling
+from typing import List
         
 class Point:
     def __init__(self,x,y,z,move_type,r,g,b,speed=None,pwr=None):
@@ -100,25 +92,22 @@ class ImgObj:
         self.image_scaling = image_scaling
         self.mask_matrix = None
 
-class HatchData:
-    def __init__(self, data, type):
-        self.data = data
-        self.type = type
-
 class HatchCluster:
-    def __init__(self, hatch_lines, hatch_pattern, hatch_angle, hatch_distance, h_dist_min_max, hatch_mode, cyl_rad, hatch_precision):
-        self.hatch_lines = hatch_lines
-        self.hatch_pattern = hatch_pattern
-        self.hatch_angle = hatch_angle
-        self.hatch_distance = hatch_distance
-        self.h_dist_min_max = h_dist_min_max
-        self.hatch_mode = hatch_mode
-        self.cyl_rad = cyl_rad
-        self.hatch_precistion = hatch_precision
+    def __init__(self, data, input_matrix, ref_position, additional_code=""):
+        self.data=data
+        self.input_matrix = input_matrix
+        self.ref_position=ref_position
+        self.additional_code=additional_code
+
+class HatchData:
+    def __init__(self, hatch_clusters: List[HatchCluster], type: str):
+        self.hatch_clusters = hatch_clusters
+        self.type = type
             
 class ProcessBlock:
-    def __init__(self, data, post_processing="None", laser_mode="constant",air_assist="off",enclosure_fan=100 , offset = [0,0,0]):
-        self.data = data
+    def __init__(self, hatch_data:HatchData, iterations = 1, post_processing="None", laser_mode="constant",air_assist="off",enclosure_fan=100 , offset = [0,0,0]):
+        self.hatch_data = hatch_data
+        self.iterations = iterations
         self.post_processing = post_processing
         self.laser_mode = laser_mode
         self.air_assist = air_assist

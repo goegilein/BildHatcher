@@ -102,14 +102,15 @@ class HatchLinePlotter:
         # First, make sure to get handler data
         self.get_handler_data()
 
-        if not self.hatch_data.data:
+        if not self.hatch_data.hatch_clusters:
             return
         
         # Clear the existing plot and the plot items
         self.view.clear()
         self.plot_line_items=[]
 
-        self.add_data_to_plot_items(self.hatch_data.data)
+        for hatch_cluster in self.hatch_data.hatch_clusters:
+            self.add_data_to_plot_items(hatch_cluster.data)
         self.plot_data()
             
         

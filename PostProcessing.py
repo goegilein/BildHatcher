@@ -6,16 +6,18 @@ class PostProcessor:
         pass
 
     def process_block(self,process_block:ProcessBlock):
-        data_offset = self.offset_data(process_block.data, process_block.offset)
+        for hatch_cluster in process_block.hatch_data.hatch_clusters:
+            data = hatch_cluster.data
+            data_offset = self.offset_data(data, process_block.offset)
 
-        if process_block.post_processing == "None":
-            data_processed = data_offset
-        elif process_block.post_processing == "Maximize Lines":
-            data_processed = self.maximize_line_length(data_offset)
-        elif process_block.post_processing == "Constant Drive" or process_block.post_processing == "Over Drive":
-            data_processed = self.set_drive_mode(data_offset, process_block.post_processing)
-        
-        process_block.data = data_processed
+            if process_block.post_processing == "None":
+                data_processed = data_offset
+            elif process_block.post_processing == "Maximize Lines":
+                data_processed = self.maximize_line_length(data_offset)
+            elif process_block.post_processing == "Constant Drive" or process_block.post_processing == "Over Drive":
+                data_processed = self.set_drive_mode(data_offset, process_block.post_processing)
+            
+            hatch_cluster.data = data_processed
 
         return process_block
 
@@ -27,9 +29,9 @@ class PostProcessor:
             return data
         
         data_offset = []
-        for hatch_lines in data:
+        for line_collection in data:
             hatch_lines_new = []
-            for polyline in hatch_lines:
+            for polyline in line_collection:
                 polyline_new = []
                 for point in polyline:
                     point_new = point.clone_with(x=point.pos[0] + offset[0], y=point.pos[1] + offset[1], z=point.pos[2] + offset[2])
