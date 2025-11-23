@@ -93,10 +93,12 @@ class ImgObj:
         self.mask_matrix = None
 
 class HatchCluster:
-    def __init__(self, data, input_matrix, ref_position, additional_code=""):
+    def __init__(self, data, input_matrix, ref_position, cluster_center_for_hatch, cylinder_radius, additional_code=""):
         self.data=data
         self.input_matrix = input_matrix
         self.ref_position=ref_position
+        self.cluster_center_for_hatch = cluster_center_for_hatch
+        self.cylinder_radius = cylinder_radius
         self.additional_code=additional_code
 
 class HatchData:

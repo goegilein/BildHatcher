@@ -40,7 +40,7 @@ class Parser:
         self.laser_mode_combobox.addItems([ "constant","variable"])
         self.power_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
         self.speed_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
-        self.export_format_combobox.addItems([".jcode", ".txt"])
+        self.export_format_combobox.addItems([".jcode", ".gcode", ".txt"])
 
         self.white_threshold_parsing_spinbox.setValue(255)
         self.min_power_spinbox.setValue(0)
@@ -204,7 +204,7 @@ class Parser:
         gcode_commands.append("")
         return(gcode_commands)
 
-    def format_gcode(self, process_block, cluster_index):
+    def format_gcode_for_jcode(self, process_block, cluster_index):
         header = self.generate_gcode_header()
         footer = self.generate_gcode_footer()
         full_gcode = header 
@@ -212,14 +212,14 @@ class Parser:
         full_gcode += footer
         return "\n".join(full_gcode)
 
-    def export_gcode(self, path, process_block:ProcessBlock, cluster_index):
+    def export_gcode_for_jcode(self, path, process_block:ProcessBlock, cluster_index):
         # Open a save file dialog
         savepath = path
         if savepath:
             with open(savepath, 'w') as file:
-                file.write(self.format_gcode(process_block, cluster_index))
+                file.write(self.format_gcode_for_jcode(process_block, cluster_index))
     
-    def save_jcode(self):
+    def save_jcode(self, block_list = None):
         # we will export jcode main file here
         # Open a save file dialog
         savepath, _ = QFileDialog.getSaveFileName(
@@ -229,15 +229,24 @@ class Parser:
             directory="",
         )
         with open(savepath, 'w') as file:
-            file.write(';This file was created by BildHatcher\n')
+            file.write('; This file was created by BildHatcher\n')
             current_datetime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             file.write(f'; Created: {current_datetime}\n')
 
-        #first loop over all process blocks
-        for block_idx in range(self.process_listWidget.count()):
-            list_item = self.process_listWidget.item(block_idx)  # Get the item at the given index
-            process_block = list_item.data(QtCore.Qt.ItemDataRole.UserRole)  # Retrieve the stored ProcessBlock object
+        if block_list is None:
+            block_list = []
+            for block_idx in range(self.process_listWidget.count()):
+                list_item = self.process_listWidget.item(block_idx)  # Get the item at the given index
+                process_block = list_item.data(QtCore.Qt.ItemDataRole.UserRole)  # Retrieve the stored ProcessBlock object
+                block_list.append(process_block)
+            
+        if not block_list:
+            QtWidgets.QMessageBox.critical(self.gui, "Error", "No Process Blocks available to save.")
+            return
 
+        #first loop over all process blocks
+        for block_idx, process_block in enumerate(block_list):
+        
             #loop over all iterations
             for block_iter in range(process_block.iterations):
                 #loop over all hatch clusters. write to jcode and create separate gcode files for every cluster
@@ -250,13 +259,71 @@ class Parser:
                         file.write(f"\nJ1 {cluster_filename}")
                     
                     if block_iter > 0:
+                        #in this case the gcode for this cluster was already created.
                         continue
 
                     #create gcode for every cluster here
-                    self.export_gcode(cluster_filename, process_block, cluster_index)
+                    self.export_gcode_for_jcode(cluster_filename, process_block, cluster_index)
+    
+    def save_gcode(self, block_list = None):
+
+        #frist get all blocks so we can make a sanity check
+        if block_list is None:
+            block_list = []
+            for block_idx in range(self.process_listWidget.count()):
+                list_item = self.process_listWidget.item(block_idx)  # Get the item at the given index
+                process_block = list_item.data(QtCore.Qt.ItemDataRole.UserRole)  # Retrieve the stored ProcessBlock object
+                block_list.append(process_block)
+        
+        if not block_list:
+            QtWidgets.QMessageBox.critical(self.gui, "Error", "No Process Blocks available to save.")
+            return
+
+        #santiy check if all clusters of all blocks use the wp as ref position
+        ref_position = [0,0,0,0]
+
+        for block_idx, process_block in enumerate(block_list):
+            for cluster_index, hatch_cluster in enumerate(process_block.hatch_data.hatch_clusters):
+                if not hatch_cluster.ref_position == ref_position:
+                    QtWidgets.QMessageBox.critical(self.gui, "Error", f"Cluster {cluster_index+1} of Process Block {block_idx+1} has a non-zero reference position. \nCannot save as single G-code file. Use .jcode instead.")
+                    return
+
+        # Open a save file dialog
+        savepath, _ = QFileDialog.getSaveFileName(
+            #parent=self.gui,
+            caption="Save G-code File",
+            filter="G-code files (*.gcode);;All files (*.*)",
+            directory="",
+            #selectedFilter="*.gcode"
+        )
+        if not savepath:
+            return
+
+        #setup gcode
+        header = self.generate_gcode_header()
+        footer = self.generate_gcode_footer()
+        full_gcode = header 
+        #now loop over all process blocks and clusters and pack everything into a single gcode file
+        for block_idx, process_block in enumerate(block_list):
+        
+            #loop over all iterations
+            for block_iter in range(process_block.iterations):
+                #loop over all hatch clusters. write to jcode and create separate gcode files for every cluster
+                hatch_clusters = process_block.hatch_data.hatch_clusters
+                for cluster_index, hatch_cluster in enumerate(hatch_clusters):
+
+                    
+                    full_gcode += self.generate_gcode(process_block, cluster_index)
+                    full_gcode += footer
+        
+        full_gcode += footer
+        formated_gcode = "\n".join(full_gcode)
+
+        with open(savepath, 'w') as file:
+            file.write(formated_gcode)
 
     
-    def automatic_gcode(self, db_color_palette, white_threshold=255, offset = [0,0,0]):
+    def automatic_jcode(self, db_color_palette, white_threshold=255, offset = [0,0,0]):
         # Open a save file dialog
         savepath, _ = QFileDialog.getSaveFileName(
             #parent=self.gui,
@@ -276,21 +343,22 @@ class Parser:
         self.get_handler_data()
 
         hatch_data = self.set_speed_and_pwr(
-            hatch_data_in=self.hatch_data.hatch_clusters,
+            hatch_data_in=self.hatch_data,
             white_threshold=white_threshold, 
             mode="automatic", 
             db_color_palette=db_color_palette)
         
-        process_block = ProcessBlock(
+        process_block = self.post_processor.process_block(ProcessBlock(
             hatch_data,
+            iterations=1,
             post_processing=post_processing,
             laser_mode=laser_mode,
             air_assist=air_assist,
             enclosure_fan=enclosure_fan,
             offset=offset)
+        )
 
-        with open(savepath, 'w') as file:
-                file.write(self.format_gcode(process_block=process_block))
+        self.save_jcode(block_list=[process_block])
 
     def add_process_block(self,iterations=1):
         '''Creates a process block from the active hatch data and puts it into the processListWidget'''
@@ -357,6 +425,8 @@ class Parser:
         format = self.export_format_combobox.currentText()
         if format == ".jcode":
             self.save_jcode()
+        elif format == ".gcode":
+            self.save_gcode()
         elif format == ".txt":
             self.save_txt()
         print("finished exporting")
