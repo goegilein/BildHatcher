@@ -63,7 +63,7 @@ class AutomatedProcessor:
             stepsize_mm=  0.1,
             white_threshold = self.automatic_white_threshold_spinBox.value())
         
-        self.parser.automatic_gcode(
+        self.parser.automatic_jcode(
             db_color_palette = self.db_color_palette,
             white_threshold = self.automatic_white_threshold_spinBox.value(),
             offset = [0,0,0]
