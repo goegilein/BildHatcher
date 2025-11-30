@@ -189,16 +189,23 @@ class Hatcher:
             hatch_angle, cyl_rad_mm, hatch_mode,
             stepsize_mm, white_threshold
         )
-        
+
         # Connect signals
         self.worker.progress.connect(self.progress_dialog.setValue)
         self.worker.finished.connect(self.hatching_finished)
         self.progress_dialog.canceled.connect(self.cancel_hatching)
         
+        
         # Start worker
         self.hatching_cancelled = False
         self.worker.start()
         self.progress_dialog.show()
+
+        # Wait for worker to finish (blocking call)
+        if mode == "automatic":
+            self.waiting_for_worker = True
+            while self.waiting_for_worker:
+                QtWidgets.QApplication.processEvents()
 
     def create_hatching_worker(self, 
                         mode="manual",
@@ -278,6 +285,7 @@ class Hatcher:
             self.hatch_data = result
             self.set_handler_data()
             self.hatch_progress_label.setText("Hatch State: Finished!")
+            self.waiting_for_worker = False
         #self.progress_dialog.close()
     
     def cancel_hatching(self):
@@ -299,6 +307,7 @@ class Hatcher:
             delattr(self, 'worker')
             delattr(self, 'progress_dialog')
             self.hatch_progress_label.setText("Hatch State: Cancelled")
+            self.waiting_for_worker = False
 
     def hatch_cluster(self, cluster_matrix, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, white_threshold=255, db_color_palette=None, cluster_progress=0):
         hatched_clusters = []
