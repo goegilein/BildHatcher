@@ -36,7 +36,7 @@ class HatchLinePlotter:
         # Connect signals to methods
         self.plot_button.clicked.connect(self.plot_hatch_lines)
         self.plot_process_blocks_button.clicked.connect(self.plot_hatch_blocks)
-        self.plot_linedwidth_spinbox.editingFinished.connect(self.redraw_plot)
+        self.plot_linedwidth_spinbox.editingFinished.connect(self.plot_data)
         self.color_mode_plotting_combobox.currentIndexChanged.connect(self.plot_hatch_lines)
         self.plot_background_color_button.clicked.connect(lambda: self.choose_background_color(None))
 
@@ -51,49 +51,62 @@ class HatchLinePlotter:
         # Initialize OpenGL settings
         self.initializeGL()
 
-    def add_data_to_plot_items(self, data):
+    def add_data_to_plot_items(self, hatch_data:HatchData):
+        #iterate over the hach cluster. apply the offset from ref_position
+        for hatch_cluster in hatch_data.hatch_clusters:
+            offset = np.array(hatch_cluster.ref_position[0:3])  # Extract the offset values (x, y, z)
+            offset[2]+= hatch_cluster.cylinder_radius  # Set z offset to cylinder radius
+            rot_angle = np.radians(hatch_cluster.ref_position[3])  # For Plotting only, revert back the rotation
+            rot_matrix_y = np.array([[np.cos(rot_angle), 0, np.sin(rot_angle)],
+                                        [0, 1, 0],
+                                        [-np.sin(rot_angle), 0, np.cos(rot_angle)]])
         # Iterate over each hatch line
-        for hatch_lines in data:
-            # Calculate the total number of points, including NaN break points
-            total_points = sum(len(polyline) + 1 for polyline in hatch_lines) - 1  # Add 1 NaN per polyline, except the last
+            for hatch_lines in hatch_cluster.data:
 
-            # Preallocate numpy arrays for positions and colors
-            pos = np.zeros((total_points, 3), dtype=np.float32)  # Shape (N, 3)
-            colors = np.zeros((total_points, 4), dtype=np.float32)  # Shape (N, 4)
+                # Calculate the total number of points, including NaN break points
+                total_points = sum(len(polyline) + 1 for polyline in hatch_lines) - 1  # Add 1 NaN per polyline, except the last
 
-            # Fill the numpy arrays
-            index = 0
-            for polyline in hatch_lines:
-                for point in polyline:
-                    # Fill position array
-                    if (point.r+point.g+point.b)/3 > self.white_threshold_plotting_spinbox.value():
+                # Preallocate numpy arrays for positions and colors
+                pos = np.zeros((total_points, 3), dtype=np.float32)  # Shape (N, 3)
+                colors = np.zeros((total_points, 4), dtype=np.float32)  # Shape (N, 4)
+
+                # Fill the numpy arrays
+                index = 0
+                for polyline in hatch_lines:
+                    for point in polyline:
+                        # Fill position array
+                        if (point.r+point.g+point.b)/3 > self.white_threshold_plotting_spinbox.value():
+                            pos[index] = [np.nan, np.nan, np.nan]
+                        else:
+                            pos[index] =  rot_matrix_y @ (np.array([point.x, point.y, point.z])+offset)-np.array([0,0,hatch_cluster.cylinder_radius])
+
+                        # Fill color array
+                        if self.color_mode_plotting_combobox.currentText() == "Black":
+                            colors[index] = [0, 0, 0, 1.0]
+                        else:
+                            colors[index] = [point.r / 255, point.g / 255, point.b / 255, 1.0]  # RGB values normalized to [0, 1]
+                        
+                        index += 1
+
+                    # Add a NaN break point to disconnect the line
+                    if index < total_points:  # Avoid adding NaN after the last polyline
                         pos[index] = [np.nan, np.nan, np.nan]
-                    else:
-                        pos[index] = [point.x, point.y, point.z]
+                        colors[index] = [0, 0, 0, 0]  # Invisible color
+                        index += 1
 
-                    # Fill color array
-                    if self.color_mode_plotting_combobox.currentText() == "Black":
-                        colors[index] = [0, 0, 0, 1.0]
-                    else:
-                        colors[index] = [point.r / 255, point.g / 255, point.b / 255, 1.0]  # RGB values normalized to [0, 1]
-                    
-                    index += 1
-
-                # Add a NaN break point to disconnect the line
-                if index < total_points:  # Avoid adding NaN after the last polyline
-                    pos[index] = [np.nan, np.nan, np.nan]
-                    colors[index] = [0, 0, 0, 0]  # Invisible color
-                    index += 1
-
-            # Create a line item for the current hatch line and add it to the view
-            line_item = GLLinePlotItem(pos=pos, color=colors, width=self.plot_linedwidth_spinbox.value(), mode='line_strip')
-            self.plot_line_items.append(line_item)
+                # Create a line item for the current hatch line and add it to the view
+                line_item = GLLinePlotItem(pos=pos, color=colors, width=self.plot_linedwidth_spinbox.value(), mode='line_strip')
+                self.plot_line_items.append(line_item)
 
     def plot_data(self):
         self.view.clear()
-        for line_item in self.plot_line_items:
-            line_item.setGLOptions("opaque")
-            self.view.addItem(line_item)
+        self.add_coordinate_axes()
+        for item in self.plot_line_items:
+            item.width = self.plot_linedwidth_spinbox.value()
+            item.mode = 'line_strip'
+            item.setGLOptions("opaque")
+            self.view.addItem(item)
+
 
     def plot_hatch_lines(self):
         """
@@ -102,14 +115,16 @@ class HatchLinePlotter:
         # First, make sure to get handler data
         self.get_handler_data()
 
-        if not self.hatch_data.data:
+        if not self.hatch_data.hatch_clusters:
             return
         
         # Clear the existing plot and the plot items
         self.view.clear()
         self.plot_line_items=[]
 
-        self.add_data_to_plot_items(self.hatch_data.data)
+        # for hatch_cluster in self.hatch_data.hatch_clusters:
+        #     self.add_data_to_plot_items(hatch_cluster.data)
+        self.add_data_to_plot_items(self.hatch_data)
         self.plot_data()
             
         
@@ -125,21 +140,44 @@ class HatchLinePlotter:
 
         for list_item in selected_items:
                 process_block = list_item.data(QtCore.Qt.ItemDataRole.UserRole)  # Retrieve the stored ProcessBlock object
-                self.add_data_to_plot_items(process_block.data)
+                self.add_data_to_plot_items(process_block.hatch_data)
         self.plot_data()
 
-    
+    def add_coordinate_axes(self):
+        """
+        Add a coordinate system (X, Y, Z axes) to the plot.
+        X-axis: Red, Y-axis: Green, Z-axis: Blue
+        """
+        axis_length = 20  # Length of each axis line
+        
+        # X-axis (Red)
+        x_pos = np.array([[0, 0, 0], [axis_length, 0, 0]], dtype=np.float32)
+        x_colors = np.array([[1, 0, 0, 1], [1, 0, 0, 1]], dtype=np.float32)
+        x_line = GLLinePlotItem(pos=x_pos, color=x_colors, width=2, antialias=True)
+        self.view.addItem(x_line)
+        
+        # Y-axis (Green)
+        y_pos = np.array([[0, 0, 0], [0, axis_length, 0]], dtype=np.float32)
+        y_colors = np.array([[0, 1, 0, 1], [0, 1, 0, 1]], dtype=np.float32)
+        y_line = GLLinePlotItem(pos=y_pos, color=y_colors, width=2, antialias=True)
+        self.view.addItem(y_line)
+        
+        # Z-axis (Blue)
+        z_pos = np.array([[0, 0, 0], [0, 0, axis_length]], dtype=np.float32)
+        z_colors = np.array([[0, 0, 1, 1], [0, 0, 1, 1]], dtype=np.float32)
+        z_line = GLLinePlotItem(pos=z_pos, color=z_colors, width=2, antialias=True)
+        self.view.addItem(z_line)   
 
-    def redraw_plot(self):
-        """
-        Redraw the plot with the current settings.
-        """
-        self.view.clear()
-        for item in self.plot_line_items:
-            item.width = self.plot_linedwidth_spinbox.value()
-            item.mode = 'line_strip'
-            item.setGLOptions("opaque")
-            self.view.addItem(item)
+    # def redraw_plot(self):
+    #     """
+    #     Redraw the plot with the current settings.
+    #     """
+    #     self.view.clear()
+    #     for item in self.plot_line_items:
+    #         item.width = self.plot_linedwidth_spinbox.value()
+    #         item.mode = 'line_strip'
+    #         item.setGLOptions("opaque")
+    #         self.view.addItem(item)
 
     def initializeGL(self):
         """

@@ -4,7 +4,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 import numpy as np
 from collections import defaultdict
 import random
-from HelperClasses import Point, HatchData
+from HelperClasses import Point, HatchData, HatchCluster
 import ezdxf
 
 class Hatcher:
@@ -82,17 +82,63 @@ class Hatcher:
         else:
             self.cyl_rad_spinbox.setEnabled(True)
 
-    def find_clusters(self):
-        self.get_handler_data()
-        height, width, _ = self.image_matrix.shape
-        self.clusters = defaultdict(
-            lambda: np.zeros((height, width), dtype=np.uint8))
+    # def find_clusters(self):
+    #     self.get_handler_data()
+    #     height, width, _ = self.image_matrix.shape
+    #     self.clusters = defaultdict(
+    #         lambda: np.zeros((height, width), dtype=np.uint8))
 
-        for i in range(height):
-            for j in range(width):
-                color = tuple(self.image_matrix[i, j])
-                # Invert the y-axis to match the image display
-                self.clusters[color][height-i-1, j] = 1
+    #     for i in range(height):
+    #         for j in range(width):
+    #             color = tuple(self.image_matrix[i, j])
+    #             # Invert the y-axis to match the image display
+    #             self.clusters[color][height-i-1, j] = 1
+
+    def calculate_clusters(self, hatch_mode, workpiece_radius):
+        hatch_data= HatchData([], "")
+        image_matrix = np.flipud(self.image_matrix)
+
+        if hatch_mode in ["CylEquidistX", "CylEquidistRad"]:
+
+            # Check if the image ist too large for cylindrical hatching (Laser Distance has to be maintained). Dive then.
+            image_width_px = image_matrix.shape[1]
+            image_with_mm = image_width_px / self.pixel_per_mm
+            z_dist = 5  # Distance from in mm laser to workpiece for 1064nm lasers
+            radius_mm = workpiece_radius
+            
+            #calculate the maximum angle allowed to maintain laser distance
+            max_angle_allowed = np.acos((radius_mm - z_dist)/radius_mm) * 2 * (180/np.pi)  # in degrees
+
+            #calculate the angle that the image would cover on the cylinder
+            max_angle_image=image_with_mm/(2*np.pi*radius_mm)*360
+            if max_angle_image>360:
+                return None
+            
+            #get the center of the image_matrix for hatching
+            if self.center_for_hatch is None:
+                self.center_for_hatch = [(image_matrix.shape[1]-1)/2,
+                                (image_matrix.shape[0]-1)/2]
+            
+            if max_angle_image>max_angle_allowed:
+                clusters_needed = int(np.ceil(max_angle_image/max_angle_allowed))
+                cluster_width_px = int(np.ceil(image_width_px/clusters_needed))
+                for i in range(clusters_needed):
+                    start_x = i * cluster_width_px
+                    end_x = min((i + 1) * cluster_width_px, image_width_px)
+                    cluster_matrix = image_matrix[:, start_x:end_x]
+                    cluster_mid_x_rel_to_image_center = ((start_x + end_x) / 2 - self.center_for_hatch[0]) / self.pixel_per_mm
+                    angle_for_cluster_mid = (cluster_mid_x_rel_to_image_center/(2*radius_mm*np.pi) * 360)*-1 #invert angle for correct rotation direction
+                    ref_position = [0, 0, 0, angle_for_cluster_mid]  # x, y, z, rotation
+                    cluster_center_for_hatch = [(cluster_matrix.shape[1]-1)/2, self.center_for_hatch[1], 0]
+                    hatch_data.hatch_clusters.append(HatchCluster(None, cluster_matrix, ref_position,cluster_center_for_hatch, radius_mm))
+                return hatch_data
+        else:
+            radius_mm = 0  # Not used for non-cylindrical hatching
+
+        #if not cylindrical hatching or image fits within laser distance, return single cluster
+        hatch_data.hatch_clusters.append(HatchCluster(None, image_matrix, ref_position=[0,0,0,0], cluster_center_for_hatch=self.center_for_hatch, cylinder_radius=radius_mm))
+
+        return hatch_data
 
     def get_sorted_unique_colors(self, image_matrix):
         """
@@ -104,18 +150,28 @@ class Hatcher:
         Returns:
             list: A list of unique RGB colors sorted by the sum of the RGB values in descending order.
         """
-        # Reshape the image matrix to a 2D array where each row is an RGB color
-        reshaped_image = image_matrix.reshape(-1, 3)
+        # # Reshape the image matrix to a 2D array where each row is an RGB color
+        # reshaped_image = image_matrix.reshape(-1, 3)
         
-        # Get unique colors
-        unique_colors = np.unique(reshaped_image, axis=0)
+        # # Get unique colors
+        # unique_colors = np.unique(reshaped_image, axis=0)
         
-        # Sort unique colors by the sum of the RGB values in descending order
-        sorted_colors = sorted(unique_colors, key=lambda color: np.sum(color), reverse=True)
+        # # Sort unique colors by the sum of the RGB values in descending order
+        # sorted_colors = sorted(unique_colors, key=lambda color: np.sum(color), reverse=True)
         
-        # Convert sorted colors to a list of tuples
-        sorted_colors_list = [tuple(color) for color in sorted_colors]
+        # # Convert sorted colors to a list of tuples
+        # sorted_colors_list = [tuple(color) for color in sorted_colors]
+        # Reshape and convert rows to tuples
+
+        #new implementation for speed
+        reshaped = image_matrix.reshape(-1, 3)
         
+        # Use a set to get unique colors (very fast)
+        unique_colors_set = set(map(tuple, reshaped))
+        
+        # Convert to list and sort by sum of RGB values
+        sorted_colors_list = sorted(unique_colors_set, key=lambda color: sum(color), reverse=True)
+    
         return sorted_colors_list
     
     def create_hatching(self, mode="manual", db_color_palette=None, hatch_pattern=None,
@@ -153,7 +209,7 @@ class Hatcher:
                         hatch_mode=None,
                         stepsize_mm=None,
                         white_threshold=None):
-        hatch_data= HatchData([], "")
+        #hatch_data= HatchData([], "")
 
         if mode == "manual":
             hatch_dist_mode = self.hatch_dist_mode_combobox.currentText()
@@ -170,32 +226,46 @@ class Hatcher:
             # Reset progress bar
             self.worker.progress.emit(int(0))
             self.hatch_progress_label.setText("Hatch Progress: Hatching...")
-            color_list = self.get_sorted_unique_colors(self.image_matrix)
+            
             #check if hatching was cancelled
             if self.hatching_cancelled:
                 return None
-            hatch_data.data = self.hatch_clusters(
-                mode=mode,
-                color_list=color_list,
-                hatch_pattern=hatch_pattern,
-                hatch_angle=hatch_angle,
-                hatch_dist_mode=hatch_dist_mode,
-                cyl_rad_mm=cyl_rad_mm,
-                hatch_mode=hatch_mode,
-                stepsize_mm=stepsize_mm,
-                white_threshold=white_threshold,
-                db_color_palette=db_color_palette
-            )
-            if hatch_data.data == 0 or hatch_data.data is None:
+            
+            #divde the image into clusters to hatch and store in appropriate output format already. then loop over all clusters
+            hatch_data = self.calculate_clusters(hatch_mode, cyl_rad_mm)
+            if hatch_data is None:
                 return None
-            else:
-                hatch_data.type = f"Image: {self.hatch_pattern_combobox.currentText()} with {self.hatch_dist_mode_combobox.currentText()} Lines"
+
+            for idx, hatch_cluster in enumerate(hatch_data.hatch_clusters):
+                cluster_progress = (idx+1)/len(hatch_data.hatch_clusters)*100
+                #first get the colors of the cluster
+                color_list = self.get_sorted_unique_colors(hatch_cluster.input_matrix)
+                hatch_cluster.data = self.hatch_cluster(
+                    cluster_matrix = hatch_cluster.input_matrix,
+                    cluster_center_for_hatch = hatch_cluster.cluster_center_for_hatch,
+                    mode=mode,
+                    color_list=color_list,
+                    hatch_pattern=hatch_pattern,
+                    hatch_angle=hatch_angle,
+                    hatch_dist_mode=hatch_dist_mode,
+                    cyl_rad_mm=cyl_rad_mm,
+                    hatch_mode=hatch_mode,
+                    stepsize_mm=stepsize_mm,
+                    white_threshold=white_threshold,
+                    db_color_palette=db_color_palette,
+                    cluster_progress = cluster_progress
+                )
+                if hatch_cluster.data == 0 or hatch_cluster.data is None:
+                    return None
+                
+            hatch_data.type = f"Image: {self.hatch_pattern_combobox.currentText()} with {self.hatch_dist_mode_combobox.currentText()} Lines"
             
             #check if hatching was cancelled
             if self.hatching_cancelled:
                 return None
             if hatch_mode in ["CylEquidistX", "CylEquidistRad"]:
-                hatch_data.data = self.make_hatch_cylindrical(hatch_data.data, cyl_rad_mm)
+                for hatch_cluster in hatch_data.hatch_clusters:
+                    hatch_cluster.data = self.make_hatch_cylindrical(hatch_cluster.data, cyl_rad_mm)
                 addstring = f" and {self.hatch_mode_combobox.currentText()}"
                 hatch_data.type += addstring
             return hatch_data
@@ -230,15 +300,15 @@ class Hatcher:
             delattr(self, 'progress_dialog')
             self.hatch_progress_label.setText("Hatch State: Cancelled")
 
-    def hatch_clusters(self, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, white_threshold=255, db_color_palette=None):
+    def hatch_cluster(self, cluster_matrix, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, white_threshold=255, db_color_palette=None, cluster_progress=0):
         hatched_clusters = []
-        cluster_counter = 0
+        color_cluster_counter = 0
         cyl_rad = cyl_rad_mm * self.pixel_per_mm
-        image_matrix = np.flipud(self.image_matrix)
+        #cluster = np.flipud(self.image_matrix)
         
-        if self.center_for_hatch is None:
-            self.center_for_hatch = [(image_matrix.shape[1]-1)/2,
-                            (image_matrix.shape[0]-1)/2]
+        # if self.center_for_hatch is None:
+        #     self.center_for_hatch = [(input_matrix.shape[1]-1)/2,
+        #                     (input_matrix.shape[0]-1)/2]
 
         for color in color_list:
             #check if hatching was cancelled
@@ -250,8 +320,8 @@ class Hatcher:
 
             if sum(color)/3 > white_threshold:
                 # Skip colors that are too bright (white), and update the progress bar
-                cluster_counter += 1
-                self.worker.progress.emit(int(np.ceil(cluster_counter / len(color_list) * 100)))
+                color_cluster_counter += 1
+                self.worker.progress.emit(int(np.ceil(color_cluster_counter / len(color_list) * cluster_progress)))
                 QtWidgets.QApplication.processEvents()  # Update the UI
                 continue
 
@@ -276,67 +346,67 @@ class Hatcher:
             step_size = stepsize_mm * self.pixel_per_mm  # Step size in pixels
             hatch_distance = hatch_distance * self.pixel_per_mm  # Hatch distance in pixels
 
-            progress_state = [cluster_counter, len(color_list)]
+            progress_state = [color_cluster_counter, len(color_list), cluster_progress]
 
             if hatch_pattern in ["RandomMeander", "FixedMeander"]:
-                hatch_lines = self.hatch_meander(
-                    hatch_pattern, hatch_distance, hatch_angle, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state
+                line_collection = self.hatch_meander(
+                    hatch_pattern, hatch_distance, hatch_angle, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
                 )
-                if hatch_lines == 0:
+                if line_collection == 0:
                     return 0
                 else:
-                    hatched_clusters.append(hatch_lines)
+                    hatched_clusters.append(line_collection)
             elif hatch_pattern == "CrossedMeander":
-                hatch_lines1 = self.hatch_meander(
-                    hatch_pattern, hatch_distance, hatch_angle, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state, cross_angle=0
+                line_collection1 = self.hatch_meander(
+                    hatch_pattern, hatch_distance, hatch_angle, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state, cross_angle=0
                 )
-                hatch_lines2 = self.hatch_meander(
-                    hatch_pattern, hatch_distance, hatch_angle, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state, cross_angle=90
+                line_collection2 = self.hatch_meander(
+                    hatch_pattern, hatch_distance, hatch_angle, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state, cross_angle=90
                 )
-                if hatch_lines1 == 0:
+                if line_collection1 == 0:
                     return 0
                 else:
-                    hatched_clusters.append(hatch_lines1)
-                    hatched_clusters.append(hatch_lines2)
+                    hatched_clusters.append(line_collection1)
+                    hatched_clusters.append(line_collection2)
             elif hatch_pattern == "Circular":
-                hatch_lines = self.hatch_circular(
-                    hatch_distance, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state
+                line_collection = self.hatch_circular(
+                    hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
                 )
-                if hatch_lines == 0:
+                if line_collection == 0:
                     return 0
                 else:
-                    hatched_clusters.append(hatch_lines)
+                    hatched_clusters.append(line_collection)
             elif hatch_pattern == "Spiral":
-                hatch_lines = self.hatch_spiral(
-                    hatch_distance, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state
+                line_collection = self.hatch_spiral(
+                    hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
                 )
-                if hatch_lines == 0:
+                if line_collection == 0:
                     return 0
                 else:
-                    hatched_clusters.append(hatch_lines)
+                    hatched_clusters.append(line_collection)
             elif hatch_pattern == "Radial":
-                hatch_lines = self.hatch_radial(
-                    hatch_distance, step_size, image_matrix, self.pixel_per_mm, color, hatch_mode, cyl_rad, progress_state
+                line_collection = self.hatch_radial(
+                    hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
                 )
-                if hatch_lines == 0:
+                if line_collection == 0:
                     return 0
                 else:
-                    hatched_clusters.append(hatch_lines)
+                    hatched_clusters.append(line_collection)
             else:
                 print("Unknown hatch method")
-            cluster_counter += 1
+            color_cluster_counter += 1
             
             #check if hatching was cancelled
             if self.hatching_cancelled:
                 return None
 
             # Update progress bar
-            self.worker.progress.emit(int(np.ceil(cluster_counter / len(color_list) * 100)))
+            self.worker.progress.emit(int(np.ceil(color_cluster_counter / len(color_list) * cluster_progress)))
             QtWidgets.QApplication.processEvents()  # Update the UI
         return hatched_clusters
 
-    def hatch_meander(self, hatch_pattern, hatch_distance, hatch_angle, step_size, image_matrix, pixel_per_mm, color, hatch_mode, cyl_rad, progress_state, cross_angle=None):
-        hatch_lines_poly=[]
+    def hatch_meander(self, hatch_pattern, hatch_distance, hatch_angle, step_size, image_matrix, center, color, hatch_mode, cyl_rad, progress_state, cross_angle=None):
+        line_collection_poly=[]
         hatch_line_dir=1
         hatch_x_finished=False
         hatch_y_finished=False
@@ -377,7 +447,7 @@ class Hatcher:
         min_x = -np.ceil(step_start_x)
         max_x = image_matrix.shape[1]+np.ceil(step_start_x)
 
-        center = self.center_for_hatch
+        # center = self.center_for_hatch
         #center = [(max_x+min_x)/2, (max_y+min_y)/2] #depreciated: no defined globally
 
         # Determine the starting point of the hatch lines.
@@ -430,8 +500,8 @@ class Hatcher:
                 #check if the current point is outside the image
                 if point_outside or y_round>=image_matrix.shape[0] or y_round<0 or x_round>= image_matrix.shape[1] or x_round<0:
                     if polyline:
-                        x1=((x+prev_x)/2-center[0])/pixel_per_mm
-                        y1=((y+prev_y)/2-center[1])/pixel_per_mm
+                        x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
+                        y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                         z1=0
                         polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
                         polyline_cache.append(polyline)
@@ -448,14 +518,14 @@ class Hatcher:
                         # polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
                         pass
                     else:
-                        x1=(x-center[0])/pixel_per_mm
-                        y1=(y-center[1])/pixel_per_mm
+                        x1=(x-center[0])/self.pixel_per_mm
+                        y1=(y-center[1])/self.pixel_per_mm
                         z1=0
                         polyline.append(Point(x1, y1, z1, 0, color[0], color[1], color[2]))
                 else:
                     if polyline:
-                        x1=((x+prev_x)/2-center[0])/pixel_per_mm
-                        y1=((y+prev_y)/2-center[1])/pixel_per_mm
+                        x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
+                        y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                         z1=0
                         polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
                         polyline_cache.append(polyline)
@@ -477,8 +547,8 @@ class Hatcher:
 
             #finally append the last line if there is one
             if polyline:
-                        x1=((x+prev_x)/2-center[0])/pixel_per_mm
-                        y1=((y+prev_y)/2-center[1])/pixel_per_mm
+                        x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
+                        y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                         z1=0
                         polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
                         polyline_cache.append(polyline)
@@ -486,12 +556,12 @@ class Hatcher:
             #append polyines here in correct order for meandering
             if hatch_line_dir==1:
                 for poly_line in polyline_cache:
-                    hatch_lines_poly.append(poly_line)
+                    line_collection_poly.append(poly_line)
             else:
                 for poly_line in reversed(polyline_cache):
                     poly_line[0].move_type=1
                     poly_line[-1].move_type=0
-                    hatch_lines_poly.append(list(reversed(poly_line)))
+                    line_collection_poly.append(list(reversed(poly_line)))
 
             hatch_line_dir*=-1
 
@@ -511,19 +581,19 @@ class Hatcher:
 
             #update progress bar
             line_count+=1
-            current_state = np.ceil((progress_state[0]+line_count/max_lines)/progress_state[1]*100)
+            current_state = np.ceil((progress_state[0]+line_count/max_lines)/progress_state[1]*progress_state[2])
             if current_state > self.progress_dialog.value()+1 and not self.hatching_cancelled:
                 self.worker.progress.emit(int(current_state))
                 pass
-        return hatch_lines_poly
+        return line_collection_poly
         
-    def hatch_circular(self, hatch_distance, step_size, image_matrix, pixel_per_mm, color, hatch_mode, cyl_rad, progress_state):
-        hatch_lines_poly=[]
+    def hatch_circular(self, hatch_distance, step_size, image_matrix, center, color, hatch_mode, cyl_rad, progress_state):
+        line_collection_poly=[]
         # Maximum Radius of one circle defined by the cluster diagonal, plus extra space for one hatch line
         max_rad = np.ceil(
             np.sqrt((image_matrix.shape[0]/2)**2+(image_matrix.shape[1]/2)**2))+np.ceil(hatch_distance)
 
-        center = self.center_for_hatch
+        # center = self.center_for_hatch
         # center = [(image_matrix.shape[1]-1)/2,
         #           (image_matrix.shape[0]-1)/2]
 
@@ -568,7 +638,7 @@ class Hatcher:
                 if point_outside or y_round>=image_matrix.shape[0] or y_round<0 or x_round>= image_matrix.shape[1] or x_round<0:
                     if polyline:
                         if len(polyline) > 1:
-                            hatch_lines_poly.append(polyline)
+                            line_collection_poly.append(polyline)
                         polyline = []
                     point_outside=False
                     current_pixel_color=np.array([-1,-1,-1])
@@ -577,8 +647,8 @@ class Hatcher:
 
                 #check if current pixel is the color we want to hatch
                 if current_pixel_color[0]==color[0] and current_pixel_color[1]==color[1] and current_pixel_color[2]==color[2]: #MUCH faster than np.array_equal
-                    x1 = (x-center[0])/pixel_per_mm
-                    y1 = (y-center[1])/pixel_per_mm
+                    x1 = (x-center[0])/self.pixel_per_mm
+                    y1 = (y-center[1])/self.pixel_per_mm
                     z1 = 0
                     if polyline:
                         polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
@@ -587,28 +657,28 @@ class Hatcher:
                 else:
                     if polyline:
                         if len(polyline) > 1:
-                            hatch_lines_poly.append(polyline)
+                            line_collection_poly.append(polyline)
                         polyline = []
 
                 angle += angle_res
             if polyline:  # if we have a last line add it
                 if len(polyline) > 1:
-                        hatch_lines_poly.append(polyline)
+                        line_collection_poly.append(polyline)
                 polyline = []
             hatch_rad += hatch_distance
             #update progress bar
-            current_state = np.ceil((progress_state[0]+hatch_rad/max_rad)/progress_state[1]*100)
+            current_state = np.ceil((progress_state[0]+hatch_rad/max_rad)/progress_state[1]*progress_state[2])
             if current_state > self.progress_dialog.value()+1 and not self.hatching_cancelled:
                 self.worker.progress.emit(int(current_state))
-        return hatch_lines_poly
+        return line_collection_poly
             
-    def hatch_spiral(self, hatch_distance, step_size, image_matrix, pixel_per_mm,color, hatch_mode, cyl_rad, progress_state):
-        hatch_lines_poly=[]
+    def hatch_spiral(self, hatch_distance, step_size, image_matrix, center, color, hatch_mode, cyl_rad, progress_state):
+        line_collection_poly=[]
         # Maximum Radius of one circle defined by the cluster diagonal
         max_rad = np.ceil(
             np.sqrt((image_matrix.shape[0]/2)**2+(image_matrix.shape[1]/2)**2))+np.ceil(hatch_distance)
 
-        center = self.center_for_hatch
+        # center = self.center_for_hatch
         # center = [(image_matrix.shape[1]-1)/2,
         #           (image_matrix.shape[0]-1)/2]
 
@@ -655,7 +725,7 @@ class Hatcher:
                 if point_outside or y_round>=image_matrix.shape[0] or y_round<0 or x_round>= image_matrix.shape[1] or x_round<0:
                     if polyline:
                         if len(polyline) > 1:
-                            hatch_lines_poly.append(polyline)
+                            line_collection_poly.append(polyline)
                         polyline = []
                     point_outside=False
                     current_pixel_color=np.array([-1,-1,-1])
@@ -664,8 +734,8 @@ class Hatcher:
 
                 #check if current pixel is the color we want to hatch        
                 if current_pixel_color[0]==color[0] and current_pixel_color[1]==color[1] and current_pixel_color[2]==color[2]: #MUCH faster than np.array_equal
-                    x1 = (x-center[0])/pixel_per_mm
-                    y1 = (y-center[1])/pixel_per_mm
+                    x1 = (x-center[0])/self.pixel_per_mm
+                    y1 = (y-center[1])/self.pixel_per_mm
                     z1 = 0
                     if polyline:
                         polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
@@ -675,29 +745,29 @@ class Hatcher:
                 else:
                     if polyline:
                         if len(polyline) > 1:
-                            hatch_lines_poly.append(polyline)
+                            line_collection_poly.append(polyline)
                         polyline = []
                 angle += angle_res
             if polyline:  # if we have a last line add it
                 if len(polyline) > 1:
-                        hatch_lines_poly.append(polyline)
+                        line_collection_poly.append(polyline)
                 polyline = []
             hatch_rad_avg += hatch_distance
             #update progress bar
-            current_state = np.ceil((progress_state[0]+hatch_rad_avg/max_rad)/progress_state[1]*100)
+            current_state = np.ceil((progress_state[0]+hatch_rad_avg/max_rad)/progress_state[1]*progress_state[2])
             if current_state > self.progress_dialog.value()+1 and not self.hatching_cancelled:
                 self.worker.progress.emit(int(current_state))
-        return hatch_lines_poly
+        return line_collection_poly
             
-    def hatch_radial(self, hatch_distance, step_size, image_matrix, pixel_per_mm, color, hatch_mode, cyl_rad,progress_state):
-        hatch_lines_poly=[]
+    def hatch_radial(self, hatch_distance, step_size, image_matrix, center, color, hatch_mode, cyl_rad,progress_state):
+        line_collection_poly=[]
         hatch_line_dir=1
         # We have to pad the array, since start points of hatchlines might lay outside the image
         # Maximum Radius of one circle defined by the cluster diagonal
         max_rad = np.ceil(
             np.sqrt((image_matrix.shape[0]/2)**2+(image_matrix.shape[1]/2)**2))+np.ceil(hatch_distance)
         
-        center = self.center_for_hatch
+        # center = self.center_for_hatch
         # center = [(image_matrix.shape[1]-1)/2,
         #           (image_matrix.shape[0]-1)/2]
 
@@ -749,8 +819,8 @@ class Hatcher:
                 #check if current pixel is outside the image
                 if point_outside or y_round>=image_matrix.shape[0] or y_round<0 or x_round>= image_matrix.shape[1] or x_round<0:
                     if polyline:
-                        x1=((x+prev_x)/2-center[0])/pixel_per_mm
-                        y1=((y+prev_y)/2-center[1])/pixel_per_mm
+                        x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
+                        y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                         z1=0
                         polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
                         polyline_cache.append(polyline)
@@ -762,8 +832,8 @@ class Hatcher:
                 
                 #check if current pixel is the color we want to hatch
                 if current_pixel_color[0]==color[0] and current_pixel_color[1]==color[1] and current_pixel_color[2]==color[2]: #MUCH faster than np.array_equal
-                    x1=(x-center[0])/pixel_per_mm
-                    y1=(y-center[1])/pixel_per_mm
+                    x1=(x-center[0])/self.pixel_per_mm
+                    y1=(y-center[1])/self.pixel_per_mm
                     z1=0
                     if polyline:
                         pass
@@ -772,8 +842,8 @@ class Hatcher:
                         polyline.append(Point(x1, y1, z1, 0, color[0], color[1], color[2]))
                 else:
                     if polyline:
-                        x1=((x+prev_x)/2-center[0])/pixel_per_mm
-                        y1=((y+prev_y)/2-center[1])/pixel_per_mm
+                        x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
+                        y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                         z1=0
                         polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
                         polyline_cache.append(polyline)
@@ -793,8 +863,8 @@ class Hatcher:
             
             #finally append line if there is an open one
             if polyline:
-                    x1=((x+prev_x)/2-center[0])/pixel_per_mm
-                    y1=((y+prev_y)/2-center[1])/pixel_per_mm
+                    x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
+                    y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                     z1=0
                     polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
                     polyline_cache.append(polyline)
@@ -803,34 +873,34 @@ class Hatcher:
             #append polyines here in correct order for meandering
             if hatch_line_dir==1:
                 for poly_line in polyline_cache:
-                    hatch_lines_poly.append(poly_line)
+                    line_collection_poly.append(poly_line)
             else:
                 for poly_line in reversed(polyline_cache):
                     poly_line[0].move_type=1
                     poly_line[-1].move_type=0
-                    hatch_lines_poly.append(list(reversed(poly_line)))
+                    line_collection_poly.append(list(reversed(poly_line)))
 
             ray_count+=1
             hatch_line_dir*=-1
 
             #update progress bar
-            current_state = np.ceil((progress_state[0]+ray_count/len(angles))/progress_state[1]*100)
+            current_state = np.ceil((progress_state[0]+ray_count/len(angles))/progress_state[1]*progress_state[2])
             if current_state > self.progress_dialog.value()+1 and not self.hatching_cancelled:
                 self.worker.progress.emit(int(current_state))
             #print("finished radial ray " + str(ray_count) + " / " + str(len(angles)))
-        return hatch_lines_poly
+        return line_collection_poly
             
             
     def make_hatch_cylindrical(self, hatched_clusters,cyl_rad_mm=100):
         hatched_clusters_cylindrical = []
         radius = cyl_rad_mm
-        for hatch_lines in hatched_clusters:
+        for line_collection in hatched_clusters:
             #check if hatching was cancelled
             if self.hatching_cancelled:
                 return None
             
-            hatch_lines_cylindrical = []
-            for polyline in hatch_lines:
+            line_collection_cylindrical = []
+            for polyline in line_collection:
                 polyline_cyl = []
                 if len(polyline) > 2:  # we have an actual polyline
 
@@ -868,8 +938,8 @@ class Hatcher:
                         
                 else:
                     print("Single Hatch-Point encountered. This should not happen. Skipping it.")
-                hatch_lines_cylindrical.append(polyline_cyl)
-            hatched_clusters_cylindrical.append(hatch_lines_cylindrical)
+                line_collection_cylindrical.append(polyline_cyl)
+            hatched_clusters_cylindrical.append(line_collection_cylindrical)
         return hatched_clusters_cylindrical
     
     def create_contours(self):
@@ -883,7 +953,7 @@ class Hatcher:
 
     def contour_from_image(self):
         self.get_handler_data()
-        self.hatch_data.data=[]
+        self.hatch_data.hatch_clusters=[]
         polyline_cluster=[]
         height, width, _ = self.image_matrix.shape
         # center = [(width)/2, (height)/2]
@@ -911,7 +981,7 @@ class Hatcher:
             z=0
             polyline_new.append(Point(x,y,z,1,0,0,0))
             polyline_cluster.append(polyline_new)
-        self.hatch_data.data.append(polyline_cluster)
+        self.hatch_data.hatch_clusters.append(polyline_cluster)
         self.hatch_data.type = "Contours"
         self.set_handler_data()
     
@@ -1031,7 +1101,7 @@ class Hatcher:
                 point_list.append(Point(px, py, 0, move, r=0, g=0, b=0))
             hatch_data.append(point_list)
 
-        self.hatch_data.data = [hatch_data]  # store as a list of lists of polylines
+        self.hatch_data.hatch_clusters = [hatch_data]  # store as a list of lists of polylines
         self.hatch_data.type = "DXF_Imported"
         self.set_handler_data()
 

@@ -673,7 +673,7 @@ QTabBar::tab:hover {
     <item row="0" column="1">
      <widget class="QTabWidget" name="control_tabWidget">
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="image_controls_tab">
        <attribute name="title">
@@ -2076,7 +2076,7 @@ QTabBar::tab:hover {
               </sizepolicy>
              </property>
              <property name="text">
-              <string>Generate G-Code File</string>
+              <string>Generate J-Code File</string>
              </property>
             </widget>
            </item>

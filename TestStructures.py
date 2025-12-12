@@ -125,7 +125,7 @@ class Teststructures:
                                 print("Error: Unknown selection for subfield structure")
                 hatched_test_structure.append(hatch_lines_poly)
 
-        self.hatch_data.data = hatched_test_structure
+        self.hatch_data.hatch_clusters = hatched_test_structure
         self.hatch_data.type = "Test: Subfield Structure"
         self.set_handler_data()
 
@@ -138,7 +138,7 @@ class Teststructures:
             Point(0, -size, 0, 1, 0, 0, 0),
             Point(0, 0, 0, 1, 0, 0, 0)
         ]
-        self.hatch_data.data = [[polyline]]
+        self.hatch_data.hatch_clusters = [[polyline]]
         self.hatch_data.type = "Test: Simple Square Contour"
         self.set_handler_data()
 
@@ -154,7 +154,7 @@ class Teststructures:
             polyline.append(Point(size-node*nodedist,-size,0,1,0,0,0))
         for node in range(1,int(size/nodedist)+1):
             polyline.append(Point(0,-size+node*nodedist,0,1,0,0,0))
-        self.hatch_data.data=[[polyline]]
+        self.hatch_data.hatch_clusters=[[polyline]]
         self.hatch_data.type = "Test: Polyline Square Contour"
         self.set_handler_data()
 
@@ -178,7 +178,7 @@ class Teststructures:
                 for i in range(1,int(length/node_dist)+1):
                     polyline.append(Point(x,y-(1-2*dir)*i*node_dist,0,1,0,0,0))
                 hatched_test_structure.append([polyline])
-        self.hatch_data.data = hatched_test_structure
+        self.hatch_data.hatch_clusters = hatched_test_structure
         self.hatch_data.type = "Test: Vert. Polyline Structure"
         self.set_handler_data()
     
@@ -201,7 +201,7 @@ class Teststructures:
                 for i in range(1,int(length/node_dist)+1):
                     polyline.append(Point(x+i*node_dist,y,0,1,0,0,0))
                 hatched_test_structure.append([polyline])
-        self.hatch_data.data = hatched_test_structure
+        self.hatch_data.hatch_clusters = hatched_test_structure
         self.hatch_data.type = "Test: Horz. Polyline Structure"
         self.set_handler_data()
 
@@ -248,7 +248,7 @@ class Teststructures:
                         print("Error: Unknown selection for subfield structure")
                 hatched_test_structure.append(hatch_lines_poly)
 
-        self.hatch_data.data = hatched_test_structure
+        self.hatch_data.hatch_clusters = hatched_test_structure
         self.hatch_data.type = "Test: Filled Squares"
         self.set_handler_data()
 
