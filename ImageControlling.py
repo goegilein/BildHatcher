@@ -67,6 +67,10 @@ class BaseFunctions:
         self.combine_image_button = gui.combine_image_button
         self.combine_image_button.clicked.connect(self.combine_images)
 
+        #Flip image button
+        self.rot_image_180_button = gui.rot_image_180_button
+        self.rot_image_180_button.clicked.connect(self.rot_image_180)
+
         # Monochrome check box
         self.monochrome_check = gui.monochrome_check
 
@@ -236,6 +240,12 @@ class BaseFunctions:
 
     def keep_changes(self):
         self.get_handler_data()
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, self.image_matrix.copy())
+        self.set_handler_data()
+    
+    def rot_image_180(self):
+        self.get_handler_data()
+        self.image_matrix = np.flipud(np.fliplr(self.image_matrix))
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, self.image_matrix.copy())
         self.set_handler_data()
 

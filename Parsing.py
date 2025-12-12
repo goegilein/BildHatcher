@@ -324,16 +324,16 @@ class Parser:
 
     
     def automatic_jcode(self, db_color_palette, white_threshold=255, offset = [0,0,0]):
-        # Open a save file dialog
-        savepath, _ = QFileDialog.getSaveFileName(
-            #parent=self.gui,
-            caption="Save G-code File",
-            filter="G-code files (*.nc);;All files (*.*)",
-            directory="",
-            #selectedFilter="*.nc"
-        )
-        if not savepath:
-            return
+        # # Open a save file dialog
+        # savepath, _ = QFileDialog.getSaveFileName(
+        #     #parent=self.gui,
+        #     caption="Save G-code File",
+        #     filter="G-code files (*.nc);;All files (*.*)",
+        #     directory="",
+        #     #selectedFilter="*.nc"
+        # )
+        # if not savepath:
+        #     return
 
         post_processing = db_color_palette.post_processing
         laser_mode = db_color_palette.laser_mode
