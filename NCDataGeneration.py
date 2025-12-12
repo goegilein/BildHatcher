@@ -103,7 +103,7 @@ class Hatcher:
             # Check if the image ist too large for cylindrical hatching (Laser Distance has to be maintained). Dive then.
             image_width_px = image_matrix.shape[1]
             image_with_mm = image_width_px / self.pixel_per_mm
-            z_dist = 5  # Distance from in mm laser to workpiece for 1064nm lasers
+            z_dist = 17 # Distance from in mm laser to workpiece for 1064nm lasers
             radius_mm = workpiece_radius
             
             #calculate the maximum angle allowed to maintain laser distance

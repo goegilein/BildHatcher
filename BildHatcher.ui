@@ -489,6 +489,13 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
+             <item row="0" column="3">
+              <widget class="QPushButton" name="rot_image_180_button">
+               <property name="text">
+                <string>rot180</string>
+               </property>
+              </widget>
+             </item>
             </layout>
            </widget>
           </item>
