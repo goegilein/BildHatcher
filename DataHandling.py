@@ -3,6 +3,7 @@ from PyQt6 import QtCore
 from PyQt6.QtGui import QPixmap, QImage, QPixmap
 import cv2
 from HelperClasses import HatchData
+import numpy as np
 
 class DataHandler:
     def __init__(self, gui):
@@ -128,7 +129,6 @@ class DataHandler:
                 if self.masked_pixels_list:
                     self.image_matrix= self.mask_pixels(self.image_matrix.copy(), self.masked_pixels_list, only_last=True)
             else:
-                #if self.masked_pixels_list:
                 self.image_matrix= self.mask_pixels(self._image_matrix_adjusted.copy(), self.masked_pixels_list)
 
             #then write the contours into the image
@@ -168,6 +168,10 @@ class DataHandler:
             image_qt = QImage(image_resized.tobytes(), image_resized.width, image_resized.height, image_resized.width * 3, QImage.Format.Format_RGB888)
             self.image_item.setPixmap(QPixmap.fromImage(image_qt))
             self.image_canvas.setSceneRect(0, 0, display_width_px, display_height_px)
+
+            #update the color count label
+            unique_color_count = self.get_unique_color_count()
+            self.gui.number_of_colors_label.setText(f"#Colors: {unique_color_count}")
 
         except Exception as e:
             print(f"Error displaying image: {e}")
@@ -212,6 +216,41 @@ class DataHandler:
         self.contours_list = []
         #self._masked_pixels_list = []
     
+    def get_unique_color_count(self):
+        """Get the number of unique colors in the image matrix efficiently.
+        
+        Returns:
+            int: Number of unique colors in the image
+        """
+        try:
+            if self.image_matrix is None:
+                return 0
+            
+            # Get the image matrix
+            img = self.image_matrix
+            
+            # Handle different image formats
+            if len(img.shape) == 3 and img.shape[2] == 3:
+                # RGB image - reshape to 2D where each row is a color (R, G, B)
+                # This allows us to use unique on rows instead of individual pixels
+                # Reshape to (height*width, 3) and get unique rows
+                reshaped = img.reshape(-1, img.shape[2])
+                # Convert to structured array for efficient unique counting
+                struct_array = np.ascontiguousarray(reshaped).view(np.dtype((np.void, reshaped.dtype.itemsize * reshaped.shape[1])))
+                unique_colors = np.unique(struct_array)
+                return len(unique_colors)
+            elif len(img.shape) == 2:
+                # Grayscale image
+                return len(np.unique(img))
+            else:
+                # Handle other formats by flattening
+                return len(np.unique(img))
+                
+        except Exception as e:
+            print(f"Error getting unique color count: {e}")
+            return 0
+    
+    #Coordinate conversion functions
     def canvas_to_image_coords(self, x_canvas, y_canvas):
         image_matrix = self.image_matrix
 
