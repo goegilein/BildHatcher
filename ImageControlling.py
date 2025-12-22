@@ -416,20 +416,40 @@ class ImageSizer(QtCore.QObject):
         # Get item and viewport sizes
         item_rect = self.image_item.boundingRect()
         viewport_size = self.image_canvas.viewport().size()
-        max_x = viewport_size.width() - item_rect.width()
-        max_y = viewport_size.height() - item_rect.height()
-        min_x = -viewport_size.width() + item_rect.width()
-        min_y = -viewport_size.height() + item_rect.height()
+        
+        # Get the zoom scale from the canvas transform
+        transform = self.image_canvas.transform()
+        zoom_scale = transform.m11()  # Get the scale factor
+        
+        # Calculate dimensions
+        unscaled_width = item_rect.width()
+        unscaled_height = item_rect.height()
+        scaled_width = unscaled_width * zoom_scale
+        scaled_height = unscaled_height * zoom_scale
+        
+        viewport_width = viewport_size.width()
+        viewport_height = viewport_size.height()
 
-        # Clamp to prevent dragging off-canvas
-        if max_x>0: #case: image is smaller than viewport
-            new_x = max(min_x/2, min(new_x, max_x/2))
-        else:
+        # Clamp to prevent dragging off-canvas, ensuring canvas is always filled
+        if scaled_width > viewport_width:
+            # Image is larger than viewport - no gaps allowed
+            # Convert viewport bounds to scene coordinates by dividing by zoom_scale
+            max_x = (viewport_width - scaled_width) / zoom_scale
             new_x = max(max_x, min(new_x, 0))
-        if max_y>0: #case: image is smaller than viewport
-            new_y = max(min_y/2, min(new_y, max_y/2))
         else:
+            # Image is smaller than viewport - center it
+            max_x = (viewport_width - scaled_width) / 2 / zoom_scale
+            new_x = max(-max_x, min(new_x, max_x))
+            
+        if scaled_height > viewport_height:
+            # Image is larger than viewport - no gaps allowed
+            # Convert viewport bounds to scene coordinates by dividing by zoom_scale
+            max_y = (viewport_height - scaled_height) / zoom_scale
             new_y = max(max_y, min(new_y, 0))
+        else:
+            # Image is smaller than viewport - center it
+            max_y = (viewport_height - scaled_height) / 2 / zoom_scale
+            new_y = max(-max_y, min(new_y, max_y))
 
         # Calculate the actual delta applied after clamping
         actual_delta_x = new_x - self.image_item.x()
