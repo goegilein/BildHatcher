@@ -104,7 +104,7 @@ class BaseFunctions:
                 self.changeing_image = True
                 self.add_listbox_item(self.image_matrix.copy(), filename, set_selected=True)
                 self.changeing_image = False
-                self.set_handler_data()
+                self.set_handler_data(new_image = True)
                 self.update_dimension_fields()
             except Exception as e:
                 print(f"Error loading image: {e}")
@@ -138,7 +138,7 @@ class BaseFunctions:
         self.dpi = 96  # Assuming 96 DPI if not specified
         self.dpi = self.image.info.get('dpi', (self.dpi, self.dpi))[0]  # Get DPI from image or use default
         self.pixel_per_mm = self.dpi / 25.4  # Update image scaling
-        self.set_handler_data()
+        self.set_handler_data(new_image=True)
         self.update_dimension_fields()
 
     def update_dimensions(self):
@@ -160,7 +160,7 @@ class BaseFunctions:
                     self.update_dpi(new_dpi)
             else:
                 self.image_matrix = np.array(Image.fromarray(self.image_matrix).resize((int(new_width), int(new_height))))
-            self.set_handler_data()
+            self.set_handler_data(new_image = False)
         except Exception as e:
             print(f"Error updating dimensions: {e}")
 
@@ -240,13 +240,13 @@ class BaseFunctions:
     def keep_changes(self):
         self.get_handler_data()
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, self.image_matrix.copy())
-        self.set_handler_data()
+        self.set_handler_data(new_image = False)
     
     def rot_image_180(self):
         self.get_handler_data()
         self.image_matrix = np.flipud(np.fliplr(self.image_matrix))
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, self.image_matrix.copy())
-        self.set_handler_data()
+        self.set_handler_data(new_image = True)
 
     def remove_image(self):
         selected_items = self.images_ListWidget.selectedItems()
@@ -272,7 +272,7 @@ class BaseFunctions:
         self.image_matrix = new_image.copy()
         self.image_matrix_original = new_image.copy()
         self.data_handler.reset_edits()
-        self.set_handler_data()
+        self.set_handler_data(new_image=True)
         self.changeing_image = False
         self.active_image_item = sel_image_item[0]
 
@@ -307,13 +307,14 @@ class BaseFunctions:
         self.remove_image()
         self.add_listbox_item(combined_image, "combined", set_selected=True)
 
-    def set_handler_data(self):
+    def set_handler_data(self, new_image = False):
         self.data_handler.pixel_per_mm = self.pixel_per_mm
         self.data_handler.pixel_per_mm_original = self.pixel_per_mm_original
-        self.data_handler.image_original = self.image_original
-        self.data_handler.image_matrix_original = self.image_matrix
         self.data_handler.image_matrix = self.image_matrix.copy()
         self.data_handler.image_matrix_adjusted = self.image_matrix.copy()
+        if new_image:
+            self.data_handler.image_original = self.image_original
+            self.data_handler.image_matrix_original = self.image_matrix
 
     def get_handler_data(self):
         self.image_matrix = self.data_handler.image_matrix
@@ -381,7 +382,8 @@ class ImageSizer(QtCore.QObject):
         self.set_image_center_button.clicked.connect(self.toggle_set_image_center)
         self.show_image_center_button.clicked.connect(self.toggle_show_image_center)
 
-        self.data_handler.add_image_changed_callback(self.reset_image_center_to_current)
+        self.data_handler.add_image_changed_callback(self.reset_image_center_to_default)
+        self.data_handler.add_image_resized_callback(self.reset_image_center_to_current)
 
 
     def eventFilter(self, source, event):
@@ -458,9 +460,23 @@ class ImageSizer(QtCore.QObject):
         max_y = viewport_size.height() - item_rect.height()
 
         if max_x>0: #case: image is smaller than viewport
+            actual_delta_x = -self.image_item.x()
+            actual_delta_y = -self.image_item.y()
             self.image_item.setPos(0, 0)
         else:
+            actual_delta_x = (max_x/2) - self.image_item.x()
+            actual_delta_y = (max_y/2) - self.image_item.y()
             self.image_item.setPos(max_x/2, max_y/2)
+        
+        # Move all other items in the scene (grid lines, center cross, etc.)
+        for item in self.image_scene.items():
+            if item != self.image_item:
+                if isinstance(item, QtWidgets.QGraphicsLineItem) and item.zValue() == 1:
+                    #this is a grid line. dont move those!
+                    continue
+                current_pos = item.pos()
+                item.setPos(current_pos.x() + actual_delta_x, current_pos.y() + actual_delta_y)
+        
 
     def update_zoom_from_slider(self):
         if not self.updating_scaling:
@@ -627,14 +643,6 @@ class ImageSizer(QtCore.QObject):
 
             if not self.showing_image_center:
                 return
-
-            # # Get canvas coordinates
-            # center_x, center_y = self.data_handler.image_to_canvas_coords(self.current_image_center[0], self.current_image_center[1])
-            
-            # # Convert viewport coordinates to scene coordinates
-            # viewport_pos = self.image_canvas.mapToScene(int(center_x), int(center_y))
-            # scene_x = viewport_pos.x()
-            # scene_y = viewport_pos.y()
 
             #get scene coordinates directly
             scene_x,scene_y = self.data_handler.image_to_scene_coords(self.current_image_center[0], self.current_image_center[1])

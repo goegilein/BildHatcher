@@ -13,6 +13,7 @@ class DataHandler:
         self.image_scene = gui.image_scene
         self.image_item = gui.image_item
         self.image_changed_callback_list = []  # List to hold callbacks for image changes
+        self.image_resized_callback_list = []  # List to hold callbacks for image resizing
 
         #values to handle
         self._hatch_data = HatchData(None, None)
@@ -50,6 +51,24 @@ class DataHandler:
         """Add a callback to be called when the image changes."""
         if callable(callback):
             self.image_changed_callback_list.append(callback)
+        else:
+            raise ValueError("Callback must be callable")
+    
+    #create a watcher for pixel_per_mm. 
+    @property
+    def pixel_per_mm(self):
+        return self._pixel_per_mm
+    
+    @pixel_per_mm.setter
+    def pixel_per_mm(self, new_value):
+        self._pixel_per_mm = new_value
+        for callback in self.image_resized_callback_list:
+            callback()
+    
+    def add_image_resized_callback(self, callback):
+        """Add a callback to be called when the image is resized."""
+        if callable(callback):
+            self.image_resized_callback_list.append(callback)
         else:
             raise ValueError("Callback must be callable")
 
