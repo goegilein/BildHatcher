@@ -194,7 +194,6 @@ class BaseFunctions:
             self.image = Image.fromarray(self.image_matrix)
             self.image = self.set_image_dpi(self.image, self.dpi)
         self.update_dimension_fields()
-        #self.set_handler_data()
 
     def split_colors(self):
         self.get_handler_data()
@@ -344,7 +343,7 @@ class ImageSizer(QtCore.QObject):
         self.zoom_slider = gui.zoom_slider
         self.zoom_slider.setRange(10, 1000)
         self.zoom_slider.setValue(100)  # Default to 100%
-        self.zoom_slider.valueChanged.connect(self.update_image_from_slider)
+        self.zoom_slider.valueChanged.connect(self.update_zoom_from_slider)
 
         # Add a button to reset the zoom factor to 100%
         self.reset_zoom_button = gui.reset_zoom_button
@@ -354,7 +353,7 @@ class ImageSizer(QtCore.QObject):
         self.zoom_spinbox = gui.zoom_spinbox
         self.zoom_spinbox.setRange(10, 1000)
         self.zoom_spinbox.setValue(100)
-        self.zoom_spinbox.valueChanged.connect(self.update_image_from_spinbox)
+        self.zoom_spinbox.valueChanged.connect(self.update_zoom_from_spinbox)
 
         #Add a button to recenter the image
         self.recenter_image_button = gui.recenter_image_button
@@ -364,7 +363,7 @@ class ImageSizer(QtCore.QObject):
         self.grid_distance_label = gui.grid_distance_label
         self.grid_distance_spinbox = gui.grid_distance_spinbox
         self.grid_distance_spinbox.setValue(10)
-        self.grid_distance_spinbox.valueChanged.connect(self.update_image)
+        self.grid_distance_spinbox.valueChanged.connect(self.update_grid)
 
         # Add a toggle button for the grid
         self.grid_toggle_button = gui.grid_toggle_button
@@ -430,12 +429,24 @@ class ImageSizer(QtCore.QObject):
         else:
             new_y = max(max_y, min(new_y, 0))
 
+        # Calculate the actual delta applied after clamping
+        actual_delta_x = new_x - self.image_item.x()
+        actual_delta_y = new_y - self.image_item.y()
+
+        # Move the image item
         self.image_item.setPos(new_x, new_y)
+        
+        # Move all other items in the scene (grid lines, center cross, etc.)
+        for item in self.image_scene.items():
+            if item != self.image_item:
+                if isinstance(item, QtWidgets.QGraphicsLineItem) and item.zValue() == 1:
+                    #this is a grid line. dont move those!
+                    continue
+                current_pos = item.pos()
+                item.setPos(current_pos.x() + actual_delta_x, current_pos.y() + actual_delta_y)
+        
         if event is not None:
             self.drag_start_pos = event.pos()
-        
-        #update center cross position
-        self.redraw_center_cross()
 
     def stop_drag(self, event):
         self.image_canvas.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
@@ -451,33 +462,35 @@ class ImageSizer(QtCore.QObject):
         else:
             self.image_item.setPos(max_x/2, max_y/2)
 
-    def update_image_from_slider(self):
+    def update_zoom_from_slider(self):
         if not self.updating_scaling:
             self.updating_scaling = True
             self.zoom_spinbox.setValue(self.zoom_slider.value())
-            self.update_image()
+            self.apply_scene_zoom()
             self.updating_scaling = False
 
-    def update_image_from_spinbox(self):
+    def update_zoom_from_spinbox(self):
         if not self.updating_scaling:
             self.updating_scaling = True
             self.zoom_slider.setValue(self.zoom_spinbox.value())
-            self.update_image()
+            self.apply_scene_zoom()
             self.updating_scaling = False
+
+    def apply_scene_zoom(self):
+        """Apply zoom transformation to the entire scene"""
+        zoom_percent = self.zoom_spinbox.value()
+        scale_factor = zoom_percent / 100.0
+        
+        # Create a new transform
+        transform = QtGui.QTransform()
+        transform.scale(scale_factor, scale_factor)
+        
+        # Apply the transform to the scene
+        self.image_canvas.setTransform(transform)
 
     def on_mouse_wheel(self, event):
         if not self.updating_scaling:
             self.updating_scaling = True
-
-            # Get the position of the cursor relative to the image
-            cursor_pos_before = event.position()
-            canvas_size = self.image_canvas.viewport().size()
-            rel_cursor_pos_x = (cursor_pos_before.x()-canvas_size.width()/2) / (canvas_size.width()/2)
-            rel_cursor_pos_y = (cursor_pos_before.y()-canvas_size.height()/2) / (canvas_size.height()/2)
-
-            image_shape_before = self.image_item.pixmap().toImage().size()
-            width_before = image_shape_before.width()
-            height_before = image_shape_before.height()
 
             # Calculate the new zoom value
             delta = event.angleDelta().y() / 120  # Typically, event.angleDelta().y() is a multiple of 120
@@ -486,50 +499,16 @@ class ImageSizer(QtCore.QObject):
             self.zoom_spinbox.setValue(new_value)
             self.zoom_slider.setValue(new_value)
 
-            # Update the image
-            self.update_image()
-
-            #get image size after zooming
-            image_shape_after = self.image_item.pixmap().toImage().size()
-            width_after = image_shape_after.width()
-            height_after = image_shape_after.height()
-
-
-            # Calculate the difference and adjust the image position while scaling for relative mouse positioning
-            delta_pos_x = np.abs(width_before - width_after)
-            delta_pos_y = np.abs(height_before - height_after)
-            new_x = self.image_item.x() - int((delta_pos_x*rel_cursor_pos_x))
-            new_y = self.image_item.y() - int((delta_pos_y*rel_cursor_pos_y))
-            if self.image_item.boundingRect().width() < canvas_size.width():
-                new_x = 0
-            if self.image_item.boundingRect().height() < canvas_size.height():
-                new_y = 0
-            self.image_item.setPos(new_x, new_y)
+            # Apply the zoom to the scene
+            self.apply_scene_zoom()
 
             self.updating_scaling = False
             
-            #update center cross position
-            self.redraw_center_cross()
-
-    def update_image(self):
-        self.data_handler.image_scaling = self.zoom_slider.value() / 100
-        self.data_handler.set_and_display_image()
-
-        #update center cross
-        self.redraw_center_cross()
-
-        #make sure that the image stays within the bounds by calling the drag function with no argument
-        self.drag(event=None)
-        try:
-            self.update_grid()
-        except ValueError:
-            pass  # Ignore errors caused by invalid input
-
     def reset_zoom(self):
         self.updating_scaling = True
         self.zoom_slider.setValue(100)  # Reset the slider to 100%
         self.zoom_spinbox.setValue(100)  # Reset the spinbox to 100%
-        self.update_image()  # Update the image to reflect the reset zoom
+        self.apply_scene_zoom()  # Apply the reset zoom to the scene
         self.updating_scaling = False
 
     def toggle_grid(self):
@@ -549,7 +528,7 @@ class ImageSizer(QtCore.QObject):
         if self.grid_on and self.grid_distance_spinbox.value() > 0:
             grid_distance_mm = self.grid_distance_spinbox.value()
             pixel_per_mm_original = self.data_handler.pixel_per_mm_original  # has to work on original image scaling to account for changes in pixel size
-            grid_distance_px = grid_distance_mm * pixel_per_mm_original * self.data_handler.image_scaling
+            grid_distance_px = grid_distance_mm * pixel_per_mm_original #* self.data_handler.image_scaling
 
             viewport_size = self.image_canvas.viewport().size()
             width = viewport_size.width()
@@ -649,13 +628,16 @@ class ImageSizer(QtCore.QObject):
             if not self.showing_image_center:
                 return
 
-            # Get canvas coordinates
-            center_x, center_y = self.data_handler.image_to_canvas_coords(self.current_image_center[0], self.current_image_center[1])
+            # # Get canvas coordinates
+            # center_x, center_y = self.data_handler.image_to_canvas_coords(self.current_image_center[0], self.current_image_center[1])
             
-            # Convert viewport coordinates to scene coordinates
-            viewport_pos = self.image_canvas.mapToScene(int(center_x), int(center_y))
-            scene_x = viewport_pos.x()
-            scene_y = viewport_pos.y()
+            # # Convert viewport coordinates to scene coordinates
+            # viewport_pos = self.image_canvas.mapToScene(int(center_x), int(center_y))
+            # scene_x = viewport_pos.x()
+            # scene_y = viewport_pos.y()
+
+            #get scene coordinates directly
+            scene_x,scene_y = self.data_handler.image_to_scene_coords(self.current_image_center[0], self.current_image_center[1])
             
             # Define cross size (adjust as needed)
             cross_size = 20

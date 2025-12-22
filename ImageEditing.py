@@ -325,7 +325,7 @@ class ImageColorer(QtCore.QObject):
 
         # Add a label, input field and toggle button for masking the image
         self.toggle_draw_button = gui.toggle_draw_button
-        self.toggle_draw_button.clicked.connect(self.toggle_coloring)
+        self.toggle_draw_button.clicked.connect(self.toggle_draw_color)
 
         self.pen_width_label = gui.pen_width_label
         self.pen_width_spinbox = gui.pen_width_spinbox
@@ -394,9 +394,9 @@ class ImageColorer(QtCore.QObject):
 
         # Add mask drawing functionality
         self.mask_drawing_on = False
-        self.masks_list = []  # List of mask matrices
-        self.mask_overlays = []  # List of QGraphicsRectItem overlays
-        self.mask_start_point = None
+        self.data_handler_masks_list = []  # List of mask matrices
+        # self.data_handler.mask_overlays = []  # List of QGraphicsRectItem overlays
+        self.mask_start_point_scene = None
         self.mask_rect = None
         self.current_mask_overlay_item = None
 
@@ -453,7 +453,7 @@ class ImageColorer(QtCore.QObject):
             self.start_mask_rect(event)
     
     def on_mouse_click_drag(self, event):
-        if self.mask_drawing_on and self.mask_start_point is not None:
+        if self.mask_drawing_on and self.mask_start_point_scene is not None:
             self.update_mask_rect_preview(event)
         elif self.color_drawing_on:
             self.drag_color_drawing(event)
@@ -480,7 +480,7 @@ class ImageColorer(QtCore.QObject):
 
         self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.PointingHandCursor if self.choose_color_on else QtCore.Qt.CursorShape.ArrowCursor)
 
-    def toggle_coloring(self, event=None):
+    def toggle_draw_color(self, event=None):
         self.color_drawing_on = not self.color_drawing_on
         self.choose_color_on = False
         self.fill_color_on = False
@@ -546,10 +546,12 @@ class ImageColorer(QtCore.QObject):
         self.color_drawing_on = False
         self.fill_color_on = False
         self.replace_color_on = False
+        self.mask_drawing_on = False
         self.pick_from_image_button.setChecked(False)
         self.toggle_draw_button.setChecked(False)
         self.fill_color_button.setChecked(False)
         self.replace_color_button.setChecked(False)
+        self.draw_mask_button.setChecked(False)
         self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
     def start_color_drawing(self, event):
@@ -790,13 +792,13 @@ class ImageColorer(QtCore.QObject):
 
         old_color = tuple(image[y_img, x_img])
         active_mask = None
-        for mask in self.masks_list:
+        for mask in self.data_handler_masks_list:
             if np.isnan(mask[y_img, x_img][0])==False:
                 # Clicked inside a mask, do not replace color
                 active_mask = mask
                 break
         if active_mask is None:
-            if self.masks_list:
+            if self.data_handler_masks_list:
                 active_mask = self.get_background_mask()
             else:
                 active_mask = image
@@ -974,25 +976,29 @@ class ImageColorer(QtCore.QObject):
         """Start drawing a rectangular mask."""
         x_canvas = event.position().x()
         y_canvas = event.position().y()
-        self.mask_start_point = (x_canvas, y_canvas)
+          
+            # Convert viewport coordinates to scene coordinates
+        x_scene, y_scene = self.data_handler.canvas_to_scene_coords(x_canvas, y_canvas)
+        self.mask_start_point_scene = (x_scene, y_scene)
         # self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
 
     def update_mask_rect_preview(self, event):
         """Update the preview of the rectangular mask being drawn."""
-        if self.mask_start_point is None:
+        if self.mask_start_point_scene is None:
             return
         
         x_canvas = event.position().x()
         y_canvas = event.position().y()
-        
+
+        x_scene, y_scene = self.data_handler.canvas_to_scene_coords(x_canvas, y_canvas)
         # Remove old overlay if exists
         if self.current_mask_overlay_item is not None:
             self.gui.image_scene.removeItem(self.current_mask_overlay_item)
         
         # Create rectangle from start point to current point
-        x_start, y_start = self.mask_start_point
-        width = x_canvas - x_start
-        height = y_canvas - y_start
+        x_start, y_start = self.mask_start_point_scene
+        width = x_scene - x_start
+        height = y_scene - y_start
         
         # Draw dotted rectangle overlay
         self.mask_rect = QRectF(int(x_start), int(y_start), int(width), int(height))
@@ -1006,27 +1012,29 @@ class ImageColorer(QtCore.QObject):
 
     def finish_mask_rect(self, event):
         """Finish drawing the rectangular mask and create the mask matrix."""
-        if self.mask_rect is None or self.mask_start_point is None:
+        if self.mask_rect is None or self.mask_start_point_scene is None:
             return
         
         # Add current overlay to the list of overlays, plot it permanently and reset current overlay
         if self.current_mask_overlay_item is not None:
             new_mask_overlay_item = self.current_mask_overlay_item
-            self.mask_overlays.append(new_mask_overlay_item)
+            self.data_handler.mask_overlays.append(new_mask_overlay_item)
             self.gui.image_scene.removeItem(self.current_mask_overlay_item)
             self.current_mask_overlay_item = None
 
             #replot from overlays
-            self.gui.image_scene.addItem(self.mask_overlays[-1])
+            self.gui.image_scene.addItem(self.data_handler.mask_overlays[-1])
         
         # Convert canvas coordinates to image coordinates
-        x_start_canvas, y_start_canvas = self.mask_start_point
+        x_start_scene, y_start_scene = self.mask_start_point_scene
         x_end_canvas = event.position().x()
         y_end_canvas = event.position().y()
-        
-        x_start_img, y_start_img = self.data_handler.canvas_to_image_coords(x_start_canvas, y_start_canvas)
+
+        x_end_scene, y_end_scene = self.data_handler.canvas_to_scene_coords(x_end_canvas, y_end_canvas)
+
+        x_start_img, y_start_img = self.data_handler.scene_to_image_coords(x_start_scene, y_start_scene)
         x_end_img, y_end_img = self.data_handler.canvas_to_image_coords(x_end_canvas, y_end_canvas)
-        
+
         # Normalize coordinates
         x_min = min(x_start_img, x_end_img)
         x_max = max(x_start_img, x_end_img)
@@ -1044,17 +1052,17 @@ class ImageColorer(QtCore.QObject):
         mask_matrix[y_min:y_max, x_min:x_max] = image_matrix[y_min:y_max, x_min:x_max]
         
         # Store the mask
-        self.masks_list.append(mask_matrix)
+        self.data_handler_masks_list.append(mask_matrix)
         self.update_masks_list_widget()
         
         # Reset
-        self.mask_start_point = None
+        self.mask_start_point_scene = None
         self.mask_rect = None
 
     def update_masks_list_widget(self):
         """Update the masks list widget display."""
         self.masks_list_widget.clear()
-        for idx, mask in enumerate(self.masks_list):
+        for idx, mask in enumerate(self.data_handler_masks_list):
             non_nan_count = np.count_nonzero(~np.isnan(mask[:,:,0]))
             item_text = f"Mask {idx + 1} ({non_nan_count} pixels)"
             self.masks_list_widget.addItem(item_text)
@@ -1072,9 +1080,9 @@ class ImageColorer(QtCore.QObject):
         selected_items = self.masks_list_widget.selectedItems()
         if selected_items:
             index = self.masks_list_widget.row(selected_items[0])
-            self.masks_list.pop(index)
-            self.gui.image_scene.removeItem(self.mask_overlays[index])
-            self.mask_overlays.pop(index)
+            self.data_handler_masks_list.pop(index)
+            self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
+            self.data_handler.mask_overlays.pop(index)
             self.update_masks_list_widget()
 
     def clear_all_masks(self):
@@ -1085,11 +1093,11 @@ class ImageColorer(QtCore.QObject):
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
         )
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
-            self.masks_list.clear()
+            self.data_handler_masks_list.clear()
             self.update_masks_list_widget()
-            for overlay in self.mask_overlays:
+            for overlay in self.data_handler.mask_overlays:
                 self.gui.image_scene.removeItem(overlay)
-            self.mask_overlays.clear()
+            self.data_handler.mask_overlays.clear()
 
     def get_background_mask(self):
         """
@@ -1103,7 +1111,7 @@ class ImageColorer(QtCore.QObject):
         background_mask = image_matrix.copy().astype(np.float32)
         
         # Set pixels covered by any mask to NaN
-        for mask in self.masks_list:
+        for mask in self.data_handler_masks_list:
             # Where mask is not NaN, set background to NaN
             covered = ~np.isnan(mask[:,:,0])
             background_mask[covered] = np.nan
@@ -1116,7 +1124,7 @@ class ImageColorer(QtCore.QObject):
         Returns: {'mask_0': array, 'mask_1': array, ..., 'background': array}
         """
         all_masks = {}
-        for idx, mask in enumerate(self.masks_list):
+        for idx, mask in enumerate(self.data_handler_masks_list):
             all_masks[f'mask_{idx}'] = mask
         all_masks['background'] = self.get_background_mask()
         return all_masks
