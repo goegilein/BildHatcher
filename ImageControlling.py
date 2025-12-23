@@ -141,6 +141,8 @@ class BaseFunctions:
         self.image_matrix = np.array(self.image)
         self.pixel_per_mm = self.default_dpi / 25.4  # Update image scaling
         self.set_handler_data(new_image=True)
+        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
         self.update_dimension_fields()
 
     def update_dimensions(self):
@@ -156,24 +158,23 @@ class BaseFunctions:
             if self.lock_ratio_check.isChecked():  # If ratio is locked we simply rescale the DPI. This maintains the image information
                 if sender == self.width_spinbox:#.hasFocus():
                     new_pixel_per_mm = self.image_matrix.shape[1] / new_width_mm
-                    # new_dpi = self.dpi / (new_width / self.image_matrix.shape[1])
-                    self.update_resolution(new_pixel_per_mm)
+                    self.pixel_per_mm = new_pixel_per_mm
                 else:
                     new_pixel_per_mm = self.image_matrix.shape[0] / new_height_mm
-                    # new_dpi = self.dpi / (new_height / self.image_matrix.shape[0])
-                    self.update_resolution(new_pixel_per_mm)
+                    self.pixel_per_mm = new_pixel_per_mm
             else:
                 new_width = new_width_mm * self.pixel_per_mm
                 new_height = new_height_mm * self.pixel_per_mm
                 self.image_matrix = np.array(Image.fromarray(self.image_matrix).resize((int(new_width), int(new_height))))
             self.set_handler_data(new_image = False)
+            img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+            self.update_dimension_fields()
         except Exception as e:
             print(f"Error updating dimensions: {e}")
 
     def update_dimension_fields(self):
         height, width = self.image_matrix.shape[:2]
-        # width_mm = width * 25.4 / self.dpi
-        # height_mm = height * 25.4 / self.dpi
         width_mm = width / self.pixel_per_mm
         height_mm = height / self.pixel_per_mm
         self.updating_dimensions = True
@@ -181,34 +182,12 @@ class BaseFunctions:
         self.height_spinbox.setValue(height_mm)
         self.updating_dimensions = False
 
-    def update_resolution(self, pixel_per_mm):
-        # self.dpi = desired_dpi
-        self.pixel_per_mm = pixel_per_mm
-        # Check if 'self.image' exists
-        # if hasattr(self, 'image'):
-        #     self.image = self.set_image_dpi(self.image, self.dpi)
-        # else:
-        #     # Create image from array if not already present
-        #     self.image = Image.fromarray(self.image_matrix)
-        #     self.image = self.set_image_dpi(self.image, self.dpi)
-        self.set_handler_data(new_image = False)
-        self.update_dimension_fields()
-
     def reset_image_size(self):
-        self.get_handler_data()
-        # self.dpi = 96  # Assuming 96 DPI if not specified
-        #self.dpi = self.image.info.get('dpi', (self.dpi, self.dpi))[0]  # Get DPI from image or use default
         self.pixel_per_mm = self.pixel_per_mm_original
-        # Check if 'self.image' exists
-        # if hasattr(self, 'image'):
-        #     self.image = self.set_image_dpi(self.image, self.dpi)
-        # else:
-        #     # Create image from array if not already present
-        #     self.image = Image.fromarray(self.image_matrix)
-        #     self.image = self.set_image_dpi(self.image, self.dpi)
+        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
         self.set_handler_data(new_image = False)   
         self.update_dimension_fields()
-
 
     def split_colors(self):
         self.get_handler_data()
@@ -245,7 +224,6 @@ class BaseFunctions:
         for color, cluster in clusters.items():
             img_obj = ImgObj(cluster, self.pixel_per_mm, self.pixel_per_mm_original)
             self.add_listbox_item(img_obj, str(color))
-        #self.images_ListWidget.after_idle(self.unset_image_changeing)
         self.changeing_image = False
 
     def add_image(self):
