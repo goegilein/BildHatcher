@@ -7,6 +7,7 @@ from PIL import Image
 import numpy as np
 import io
 from collections import defaultdict
+from HelperClasses import ImgObj
 
 class BaseFunctions:
     def __init__(self, data_handler, gui):
@@ -17,8 +18,8 @@ class BaseFunctions:
         self.image_original = None
         self.image = None
         self.image_matrix = None
-        self.dpi = 96  # Assuming 96 DPI if not specified
-        self.pixel_per_mm = self.dpi / 25.4  # Image scaling in real space
+        self.default_dpi = 96  # Assuming 96 DPI by default
+        self.pixel_per_mm = self.default_dpi / 25.4  # Image scaling in real space
         self.changeing_image = False
         self.updating_dimensions = False
         self.active_image_item = None
@@ -46,6 +47,10 @@ class BaseFunctions:
         self.lock_ratio_check = gui.lock_ratio_check
         self.lock_ratio_check.setChecked(True)
         self.lock_ratio_check.setEnabled(False)
+
+        #Add button to reset image size
+        self.reset_image_size_button = gui.reset_image_size_button
+        self.reset_image_size_button.clicked.connect(self.reset_image_size)
 
         # Add image button
         self.add_image_button = gui.add_image_button
@@ -96,22 +101,21 @@ class BaseFunctions:
                     # Remove alpha or extra channels
                     self.image_matrix = self.image_matrix[..., :3]
 
-                self.dpi = 96  # Assuming 96 DPI if not specified
-                self.dpi = self.image.info.get('dpi', (self.dpi, self.dpi))[0]  # Get DPI from image or use default
-                self.pixel_per_mm = self.dpi / 25.4  # Update image
+                self.pixel_per_mm = self.default_dpi / 25.4  # Update image
                 self.pixel_per_mm_original = self.pixel_per_mm
                 filename = file_path.split("/")[-1]
                 self.changeing_image = True
-                self.add_listbox_item(self.image_matrix.copy(), filename, set_selected=True)
+                img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+                self.add_listbox_item(img_obj, filename, set_selected=True)
                 self.changeing_image = False
                 self.set_handler_data(new_image = True)
                 self.update_dimension_fields()
             except Exception as e:
                 print(f"Error loading image: {e}")
 
-    def add_listbox_item(self, image_matrix, name, set_selected=False):
+    def add_listbox_item(self, img_obj:ImgObj, name:str, set_selected=False):
         item = QListWidgetItem(name)
-        item.setData(QtCore.Qt.ItemDataRole.UserRole, image_matrix)
+        item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
         self.images_ListWidget.addItem(item)
         if set_selected:
             # Clear all selections and select only the new item
@@ -135,9 +139,7 @@ class BaseFunctions:
     def reset_image(self):
         self.image = self.image_original.copy()
         self.image_matrix = np.array(self.image)
-        self.dpi = 96  # Assuming 96 DPI if not specified
-        self.dpi = self.image.info.get('dpi', (self.dpi, self.dpi))[0]  # Get DPI from image or use default
-        self.pixel_per_mm = self.dpi / 25.4  # Update image scaling
+        self.pixel_per_mm = self.default_dpi / 25.4  # Update image scaling
         self.set_handler_data(new_image=True)
         self.update_dimension_fields()
 
@@ -149,16 +151,20 @@ class BaseFunctions:
             self.get_handler_data()
             new_width_mm = float(self.width_spinbox.value())
             new_height_mm = float(self.height_spinbox.value())
-            new_width = new_width_mm * self.pixel_per_mm
-            new_height = new_height_mm * self.pixel_per_mm
+            # new_width = new_width_mm * self.pixel_per_mm
+            # new_height = new_height_mm * self.pixel_per_mm
             if self.lock_ratio_check.isChecked():  # If ratio is locked we simply rescale the DPI. This maintains the image information
                 if sender == self.width_spinbox:#.hasFocus():
-                    new_dpi = self.dpi / (new_width / self.image_matrix.shape[1])
-                    self.update_dpi(new_dpi)
+                    new_pixel_per_mm = self.image_matrix.shape[1] / new_width_mm
+                    # new_dpi = self.dpi / (new_width / self.image_matrix.shape[1])
+                    self.update_resolution(new_pixel_per_mm)
                 else:
-                    new_dpi = self.dpi / (new_height / self.image_matrix.shape[0])
-                    self.update_dpi(new_dpi)
+                    new_pixel_per_mm = self.image_matrix.shape[0] / new_height_mm
+                    # new_dpi = self.dpi / (new_height / self.image_matrix.shape[0])
+                    self.update_resolution(new_pixel_per_mm)
             else:
+                new_width = new_width_mm * self.pixel_per_mm
+                new_height = new_height_mm * self.pixel_per_mm
                 self.image_matrix = np.array(Image.fromarray(self.image_matrix).resize((int(new_width), int(new_height))))
             self.set_handler_data(new_image = False)
         except Exception as e:
@@ -166,34 +172,43 @@ class BaseFunctions:
 
     def update_dimension_fields(self):
         height, width = self.image_matrix.shape[:2]
-        width_mm = width * 25.4 / self.dpi
-        height_mm = height * 25.4 / self.dpi
+        # width_mm = width * 25.4 / self.dpi
+        # height_mm = height * 25.4 / self.dpi
+        width_mm = width / self.pixel_per_mm
+        height_mm = height / self.pixel_per_mm
         self.updating_dimensions = True
         self.width_spinbox.setValue(width_mm)
         self.height_spinbox.setValue(height_mm)
         self.updating_dimensions = False
 
-    def set_image_dpi(self, image, dpi):
-        # Create an in-memory bytes buffer
-        buffer = io.BytesIO()
-        # Save the image to the buffer with the specified DPI
-        image.save(buffer, format='PNG', dpi=(dpi, dpi))
-        buffer.seek(0)
-        # Load the image from the buffer
-        new_image = Image.open(buffer)
-        return new_image
-
-    def update_dpi(self, desired_dpi):
-        self.dpi = desired_dpi
-        self.pixel_per_mm = self.dpi / 25.4
+    def update_resolution(self, pixel_per_mm):
+        # self.dpi = desired_dpi
+        self.pixel_per_mm = pixel_per_mm
         # Check if 'self.image' exists
-        if hasattr(self, 'image'):
-            self.image = self.set_image_dpi(self.image, self.dpi)
-        else:
-            # Create image from array if not already present
-            self.image = Image.fromarray(self.image_matrix)
-            self.image = self.set_image_dpi(self.image, self.dpi)
+        # if hasattr(self, 'image'):
+        #     self.image = self.set_image_dpi(self.image, self.dpi)
+        # else:
+        #     # Create image from array if not already present
+        #     self.image = Image.fromarray(self.image_matrix)
+        #     self.image = self.set_image_dpi(self.image, self.dpi)
+        self.set_handler_data(new_image = False)
         self.update_dimension_fields()
+
+    def reset_image_size(self):
+        self.get_handler_data()
+        # self.dpi = 96  # Assuming 96 DPI if not specified
+        #self.dpi = self.image.info.get('dpi', (self.dpi, self.dpi))[0]  # Get DPI from image or use default
+        self.pixel_per_mm = self.pixel_per_mm_original
+        # Check if 'self.image' exists
+        # if hasattr(self, 'image'):
+        #     self.image = self.set_image_dpi(self.image, self.dpi)
+        # else:
+        #     # Create image from array if not already present
+        #     self.image = Image.fromarray(self.image_matrix)
+        #     self.image = self.set_image_dpi(self.image, self.dpi)
+        self.set_handler_data(new_image = False)   
+        self.update_dimension_fields()
+
 
     def split_colors(self):
         self.get_handler_data()
@@ -225,9 +240,11 @@ class BaseFunctions:
         self.changeing_image = True
         sel_image_item = self.images_ListWidget.selectedItems()[-1]
         image_name = sel_image_item.text()
-        self.add_listbox_item(self.image_matrix.copy(), image_name + "_unsplit", set_selected=True)
+        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        self.add_listbox_item(img_obj, image_name + "_unsplit", set_selected=True)
         for color, cluster in clusters.items():
-            self.add_listbox_item(cluster, str(color))
+            img_obj = ImgObj(cluster, self.pixel_per_mm, self.pixel_per_mm_original)
+            self.add_listbox_item(img_obj, str(color))
         #self.images_ListWidget.after_idle(self.unset_image_changeing)
         self.changeing_image = False
 
@@ -235,17 +252,20 @@ class BaseFunctions:
         self.get_handler_data()
         sel_image_item = self.active_image_item
         image_name = sel_image_item.text()
-        self.add_listbox_item(self.image_matrix.copy(), image_name + "_edited", set_selected=True)
+        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        self.add_listbox_item(img_obj, image_name + "_edited", set_selected=True)
 
     def keep_changes(self):
         self.get_handler_data()
-        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, self.image_matrix.copy())
+        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
         self.set_handler_data(new_image = False)
     
     def rot_image_180(self):
         self.get_handler_data()
         self.image_matrix = np.flipud(np.fliplr(self.image_matrix))
-        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, self.image_matrix.copy())
+        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
         self.set_handler_data(new_image = True)
 
     def remove_image(self):
@@ -266,13 +286,14 @@ class BaseFunctions:
         if not sel_image_item or len(sel_image_item) != 1:
             return
         self.changeing_image = True
-        new_image = sel_image_item[0].data(QtCore.Qt.ItemDataRole.UserRole)
-        self.image_original = Image.fromarray(new_image)
-        self.image = Image.fromarray(new_image)
-        self.image_matrix = new_image.copy()
-        self.image_matrix_original = new_image.copy()
+        img_obj = sel_image_item[0].data(QtCore.Qt.ItemDataRole.UserRole)
+        self.image = Image.fromarray(img_obj.image_matrix)
+        self.image_matrix = img_obj.image_matrix.copy()
+        self.pixel_per_mm = img_obj.pixel_per_mm
+        self.pixel_per_mm_original = img_obj.pixel_per_mm_original
         self.data_handler.reset_edits()
         self.set_handler_data(new_image=True)
+        self.update_dimension_fields()
         self.changeing_image = False
         self.active_image_item = sel_image_item[0]
 
@@ -305,7 +326,8 @@ class BaseFunctions:
             combined_image[color_mask] = avg_color.astype(np.uint8)
 
         self.remove_image()
-        self.add_listbox_item(combined_image, "combined", set_selected=True)
+        img_obj = ImgObj(combined_image, self.pixel_per_mm, self.pixel_per_mm_original)
+        self.add_listbox_item(img_obj, "combined", set_selected=True)
 
     def set_handler_data(self, new_image = False):
         self.data_handler.pixel_per_mm = self.pixel_per_mm

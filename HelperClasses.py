@@ -83,14 +83,10 @@ class Point:
         )
     
 class ImgObj:
-    def __init__(self, image_matrix, image_matrix_adjusted, image_matrix_original, pixel_per_mm, pixel_per_mm_original, image_scaling):
+    def __init__(self, image_matrix, pixel_per_mm, pixel_per_mm_original):
         self.image_matrix = image_matrix
-        self.image_matrix_adjusted = image_matrix_adjusted
-        self.image_matrix_original = image_matrix_original
         self.pixel_per_mm = pixel_per_mm
         self.pixel_per_mm_original = pixel_per_mm_original
-        self.image_scaling = image_scaling
-        self.mask_matrix = None
 
 class HatchCluster:
     def __init__(self, data, input_matrix, ref_position, cluster_center_for_hatch, cylinder_radius, additional_code=""):
