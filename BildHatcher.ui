@@ -911,27 +911,76 @@ QTabBar::tab:hover {
            <string>Color Image</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_13">
-           <item row="6" column="0">
-            <widget class="QPushButton" name="draw_mask_button">
+           <item row="3" column="0" rowspan="2">
+            <widget class="QPushButton" name="draw_contour_button">
              <property name="text">
-              <string>Draw mask</string>
+              <string>Draw Contours</string>
              </property>
              <property name="checkable">
               <bool>true</bool>
              </property>
             </widget>
            </item>
-           <item row="6" column="1">
-            <widget class="QPushButton" name="delete_mask_button">
+           <item row="2" column="0">
+            <widget class="QPushButton" name="fill_color_button">
              <property name="text">
-              <string>Delete Mask</string>
+              <string>Fill Color Patch</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
-           <item row="6" column="2">
-            <widget class="QPushButton" name="delete_all_masks_button">
+           <item row="0" column="0" rowspan="2">
+            <widget class="QPushButton" name="toggle_draw_button">
              <property name="text">
-              <string>Delete all Masks</string>
+              <string>Toggle Draw</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QSpinBox" name="pen_width_spinbox">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>100</number>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="2">
+            <widget class="QSpinBox" name="contour_space_spinbox">
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>100</number>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QLabel" name="contour_thickness_label">
+             <property name="text">
+              <string>Contour Thickness (px)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QPushButton" name="replace_color_button">
+             <property name="text">
+              <string>Replace Color</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
@@ -1035,76 +1084,10 @@ QTabBar::tab:hover {
              </layout>
             </widget>
            </item>
-           <item row="3" column="1">
-            <widget class="QLabel" name="contour_thickness_label">
+           <item row="0" column="1">
+            <widget class="QLabel" name="pen_width_label">
              <property name="text">
-              <string>Contour Thickness (px)</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="1">
-            <widget class="QPushButton" name="replace_color_button">
-             <property name="text">
-              <string>Replace Color</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QSpinBox" name="pen_width_spinbox">
-             <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
-             </property>
-             <property name="minimum">
-              <number>1</number>
-             </property>
-             <property name="maximum">
-              <number>100</number>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="0">
-            <widget class="QPushButton" name="fill_color_button">
-             <property name="text">
-              <string>Fill Color Patch</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="0" rowspan="2">
-            <widget class="QPushButton" name="toggle_draw_button">
-             <property name="text">
-              <string>Toggle Draw</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="2">
-            <widget class="QSpinBox" name="contour_space_spinbox">
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
-             <property name="minimum">
-              <number>0</number>
-             </property>
-             <property name="maximum">
-              <number>100</number>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="0" rowspan="2">
-            <widget class="QPushButton" name="draw_contour_button">
-             <property name="text">
-              <string>Draw Contours</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
+              <string>Pen Width (px)</string>
              </property>
             </widget>
            </item>
@@ -1128,10 +1111,23 @@ QTabBar::tab:hover {
              </property>
             </widget>
            </item>
-           <item row="0" column="1">
-            <widget class="QLabel" name="pen_width_label">
+           <item row="5" column="3">
+            <widget class="QPushButton" name="clean_up_image_colors_button">
              <property name="text">
-              <string>Pen Width (px)</string>
+              <string>clean up image colors</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QPushButton" name="recolor_from_database_button">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Recolor from Database</string>
              </property>
             </widget>
            </item>
@@ -1149,28 +1145,74 @@ QTabBar::tab:hover {
              </property>
             </widget>
            </item>
-           <item row="5" column="0">
-            <widget class="QPushButton" name="recolor_from_database_button">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="draw_mask_groupbox">
+          <property name="title">
+           <string>Draw Masks</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_22">
+           <item row="0" column="1">
+            <widget class="QPushButton" name="ellipse_mask_button">
              <property name="text">
-              <string>Recolor from Database</string>
+              <string>Ellipse</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
-           <item row="5" column="3">
-            <widget class="QPushButton" name="clean_up_image_colors_button">
+           <item row="0" column="0">
+            <widget class="QPushButton" name="rectangle_mask_button">
              <property name="text">
-              <string>clean up image colors</string>
+              <string>Rectangle</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
-           <item row="7" column="0" colspan="3">
+           <item row="1" column="0">
+            <widget class="QPushButton" name="delete_mask_button">
+             <property name="text">
+              <string>Delete Mask</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QPushButton" name="polygon_mask_button">
+             <property name="text">
+              <string>Polygon</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="3">
             <widget class="QListWidget" name="masks_list_widget"/>
+           </item>
+           <item row="1" column="1">
+            <widget class="QPushButton" name="delete_all_masks_button">
+             <property name="text">
+              <string>Delete all Masks</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="3">
+            <spacer name="horizontalSpacer_4">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
            </item>
           </layout>
          </widget>
