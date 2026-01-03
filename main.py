@@ -11,6 +11,7 @@ import TestStructures
 import DataHandling
 import Settings
 import AutomatedProcessing
+import EventHandling
 import CustomUiElements #this import is necessary to register custom ui elements for compilation
 
 
@@ -32,7 +33,7 @@ if __name__ == "__main__":
     ui_path = resource_path("BildHatcher.ui")
     gui = uic.loadUi(ui_path)
     
-    #create the image canvas. has do be done programmatically as there is no QtDesigner element for it
+    #create the image canvas. has to be done programmatically as there is no QtDesigner element for it
     gui.image_scene = QtWidgets.QGraphicsScene()
     gui.image_canvas.setScene(gui.image_scene)
     gui.image_item = QtWidgets.QGraphicsPixmapItem()
@@ -42,10 +43,11 @@ if __name__ == "__main__":
     gui.show()
         
     data_handler= DataHandling.DataHandler(gui)
+    event_handler = EventHandling.EventHandler(gui)
     image_controller = ImageControlling.BaseFunctions(data_handler, gui)
-    image_sizer = ImageControlling.ImageSizer(data_handler, gui)
+    image_sizer = ImageControlling.ImageSizer(data_handler, event_handler, gui)
     image_adjuster = ImageEditing.ImageAdjuster(data_handler, gui)
-    image_colorer = ImageEditing.ImageColorer(data_handler, gui)
+    image_colorer = ImageEditing.ImageColorer(data_handler, event_handler, gui)
     image_hatcher = NCDataGeneration.Hatcher(data_handler, gui)
     hatch_line_plotter = Plotting.HatchLinePlotter(data_handler, gui)
     test_structure = TestStructures.Teststructures(data_handler, gui)

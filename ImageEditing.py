@@ -308,9 +308,10 @@ from PyQt6.QtCore import QRect, QRectF
 
 class ImageColorer(QtCore.QObject):
     
-    def __init__(self, data_handler, gui):
+    def __init__(self, data_handler, event_handler, gui):
         super().__init__()  # Call the superclass constructor
         self.data_handler = data_handler
+        self.event_handler = event_handler
         self.gui = gui
         self.updating_scaling = False  # Flag to control trace callback
         self.grid_on = False  # Flag to control grid drawing
@@ -424,32 +425,23 @@ class ImageColorer(QtCore.QObject):
         self.masks_list_widget = gui.masks_list_widget
         # self.masks_list_widget.itemSelectionChanged.connect(self.on_mask_selected)
 
-        # Event filters
-        self.gui.image_canvas.viewport().installEventFilter(self)
-        self.gui.installEventFilter(self)
+        #Event callbacks for handling gui interactions
+        self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
+        self.event_handler.add_global_event_callback(self.trigger_global_event)
 
-    def eventFilter(self, source, event):
+    def trigger_canvas_event(self, event):
         # Handle canvas viewport events (mouse clicks/drag)
-        if source == self.gui.image_canvas.viewport():
-            if event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.LeftButton:
-                self.on_canvas_left_click(event)
-                return True  # Consume the event
-            elif event.type() == QtCore.QEvent.Type.MouseMove and event.buttons() == QtCore.Qt.MouseButton.LeftButton:
-                self.on_mouse_click_drag(event)
-                return True
-            elif event.type() == QtCore.QEvent.Type.MouseButtonRelease and event.button() == QtCore.Qt.MouseButton.LeftButton:
-                self.on_mouse_release(event)
-                return True
-            # elif event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.RightButton:
-            #     self.on_canvas_right_click(event)
-            #     return True
-        
+        if event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self.on_canvas_left_click(event)
+        elif event.type() == QtCore.QEvent.Type.MouseMove and event.buttons() == QtCore.Qt.MouseButton.LeftButton:
+            self.on_mouse_left_click_drag(event)
+        elif event.type() == QtCore.QEvent.Type.MouseButtonRelease and event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self.on_mouse_left_release(event)
+    
+    def trigger_global_event(self, event):
         # Handle keyboard events from entire UI
         if event.type() == QtCore.QEvent.Type.KeyPress:
             self.on_key_press(event)
-            return True  # Consume the event
-        
-        return super().eventFilter(source, event)
 
     def on_canvas_left_click(self, event):
         if self.choose_color_on:
@@ -471,10 +463,6 @@ class ImageColorer(QtCore.QObject):
             elif self.mask_shape_mode == "polygon":
                 self.add_polygon_point(event)
     
-    def on_canvas_right_click(self, event):
-        if self.mask_drawing_on and self.mask_shape_mode == "polygon":
-            self.remove_last_polygon_point()
-    
     def on_key_press(self, event):
         if event.key() == QtCore.Qt.Key.Key_Z and (event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
             self.undo_coloring()
@@ -484,8 +472,11 @@ class ImageColorer(QtCore.QObject):
         elif event.key() == QtCore.Qt.Key.Key_Escape:
             if self.mask_drawing_on:
                 self.cancel_mask_drawing()
+        elif event.key() == QtCore.Qt.Key.Key_Backspace:
+            if self.mask_drawing_on and self.mask_shape_mode == "polygon":
+                self.remove_last_polygon_point()
     
-    def on_mouse_click_drag(self, event):
+    def on_mouse_left_click_drag(self, event):
         if self.mask_drawing_on and self.mask_start_point_scene is not None:
             if self.mask_shape_mode == "rectangle":
                 self.update_mask_rect_preview(event)
@@ -494,7 +485,7 @@ class ImageColorer(QtCore.QObject):
         elif self.color_drawing_on:
             self.drag_color_drawing(event)
     
-    def on_mouse_release(self, event):
+    def on_mouse_left_release(self, event):
         if self.mask_drawing_on:
             if self.mask_shape_mode == "rectangle":
                 self.finish_mask_rect(event)

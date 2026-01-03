@@ -320,9 +320,10 @@ class BaseFunctions:
         self.image_matrix = self.data_handler.image_matrix
     
 class ImageSizer(QtCore.QObject):
-    def __init__(self, data_handler, gui):
+    def __init__(self, data_handler, event_handler, gui):
         super().__init__()
         self.data_handler = data_handler
+        self.event_handler = event_handler
         self.gui = gui
         self.image_canvas = gui.image_canvas
         self.image_scene = gui.image_scene
@@ -335,10 +336,6 @@ class ImageSizer(QtCore.QObject):
         self.setting_image_center = False
         self.showing_image_center = False
         self.current_image_center = None  # x, y in image coordinates
-
-        # Bind right-click and drag events to move the image in the canvas
-        self.image_canvas.viewport().installEventFilter(self)
-        self.image_canvas.setMouseTracking(True)
 
         # Add a slider to control the display size
         self.zoom_slider = gui.zoom_slider
@@ -385,8 +382,10 @@ class ImageSizer(QtCore.QObject):
         self.data_handler.add_image_changed_callback(self.reset_image_center_to_default)
         self.data_handler.add_image_resized_callback(self.reset_image_center_to_current)
 
+        #Event callbacks for handling gui interactions
+        self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
 
-    def eventFilter(self, source, event):
+    def trigger_canvas_event(self, event):
         if event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.RightButton:
             self.start_drag(event)
         elif event.type() == QtCore.QEvent.Type.MouseMove and event.buttons() == QtCore.Qt.MouseButton.RightButton:
@@ -397,7 +396,7 @@ class ImageSizer(QtCore.QObject):
             self.on_mouse_wheel(event)
         elif event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.LeftButton:
             self.set_image_center(event)
-        return super().eventFilter(source, event)
+
 
     def start_drag(self, event):
         self.image_canvas.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
