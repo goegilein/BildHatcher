@@ -305,6 +305,13 @@ import cv2
 import numpy as np
 import collections
 from PyQt6.QtCore import QRect, QRectF
+from PyQt6.QtGui import (QImage, QPixmap, QPainter, QPen, QColor, 
+                         QPainterPath, QBrush)
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                             QPushButton, QHBoxLayout, QGraphicsView, 
+                             QGraphicsScene, QGraphicsPixmapItem, QGraphicsPathItem,
+                             QLabel, QSlider)
+from PyQt6.QtCore import Qt, QPointF
 
 class ImageColorer(QtCore.QObject):
     
@@ -316,7 +323,7 @@ class ImageColorer(QtCore.QObject):
         self.updating_scaling = False  # Flag to control trace callback
         self.grid_on = False  # Flag to control grid drawing
         self.color_drawing_on = False  # toggle flag for masking
-        self.colored_pixels_list = [[]]  # list to store masked pixels
+        self.colored_pixels_list = [[]]  # list to store colored pixels
         self.choose_color_on = False
         self.contours_visible = False
         self.contours = []
@@ -325,6 +332,25 @@ class ImageColorer(QtCore.QObject):
         self.fill_color_on = False
         self.replace_color_on = False
 
+        # -----------------State FOR NEW DRAWING METHOD
+        # self.is_drawing_mode = False
+        # self.is_currently_drawing = False
+        self.pen_size = 1 # 1 Pixel width
+
+        self.temp_path_item = None
+        self.current_path = None
+        self.active_vector_items = [] # Stack for Vector Items (Lightweight)
+
+        # Setup Pen for Pixel Art (Square Cap, No Aliasing)
+        self.pixel_pen = QPen(QColor("red"), self.pen_size)
+        self.pixel_pen.setCosmetic(False) # False = Scale with zoom (Width 1 means 1 Image-Pixel, not 1 Screen-Pixel)
+        self.pixel_pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        # Use SquareCap so single pixels are squares, not circles
+        self.pixel_pen.setCapStyle(Qt.PenCapStyle.SquareCap) 
+
+        # -----------------END State FOR NEW DRAWING METHOD
+
+        
         # Add a label, input field and toggle button for masking the image
         self.toggle_draw_button = gui.toggle_draw_button
         self.toggle_draw_button.clicked.connect(lambda: self.set_single_toggle_state('color_drawing_on'))
@@ -332,6 +358,7 @@ class ImageColorer(QtCore.QObject):
         self.pen_width_label = gui.pen_width_label
         self.pen_width_spinbox = gui.pen_width_spinbox
         self.pen_width_spinbox.setValue(1)
+        self.pen_width_spinbox.valueChanged.connect(self.set_pen_size)
 
         # Add a label, input field and toggle button for filling a color patch in the image
         self.fill_color_button = gui.fill_color_button
@@ -355,7 +382,7 @@ class ImageColorer(QtCore.QObject):
 
         # Label to display chosen color and initialize it
         self.color_edit = gui.color_edit
-        self.show_chosen_color()
+        self.set_active_color(self.active_color)
 
         # Add buttons to restore and undo mask steps original image
         self.restore_uncolored_image_button = gui.restore_uncolored_image_button
@@ -428,6 +455,10 @@ class ImageColorer(QtCore.QObject):
         #Event callbacks for handling gui interactions
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
         self.event_handler.add_global_event_callback(self.trigger_global_event)
+
+
+
+    ### EVENT HANDLING METHODS ###
 
     def trigger_canvas_event(self, event):
         # Handle canvas viewport events (mouse clicks/drag)
@@ -539,74 +570,14 @@ class ImageColorer(QtCore.QObject):
         except Exception as e:
             print(f"Error in set_single_toggle_state: {e}")
 
-
-    def start_color_drawing(self, event):
-        if self.color_drawing_on:
-            self.colored_pixels_list.append([self.active_color])  # create a new entry in the pixel list when starting a new mask
-            self.apply_colow_drawing(event)
-
-    def drag_color_drawing(self, event):
-        if self.color_drawing_on:
-            self.apply_colow_drawing(event)
-
-    def stop_color_drawing(self, event):
-        if self.color_drawing_on:
-            pass
-
-    def apply_colow_drawing(self, event):
-        """
-        Apply Mask to clicked pixel of current image in data handler. store masked pixels for later use.
-        Pass image matrix with applied mask to DataHandler for visualization of each masking step
-        Do a full image calculation only on button release
-        """
-        image_matrix = self.data_handler.image_matrix
-        # Convert canvas coords to image coords, then mask those pixels
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
-        radius = self.pen_width_spinbox.value() - 1
-        masked_pixel = self.get_colored_pixels(image_matrix, x_canvas, y_canvas, radius)
-
-        self.colored_pixels_list[-1] += masked_pixel
-
-        self.data_handler.masked_pixels_list = self.colored_pixels_list.copy()
-
-    def restore_uncolored_image(self):
-        self.colored_pixels_list = [[]]
-        self.data_handler.masked_pixels_list = self.colored_pixels_list.copy()
-
-    def undo_coloring(self, event=None):
-        if len(self.colored_pixels_list) > 2:
-            self.colored_pixels_list.pop()
-            self.data_handler.masked_pixels_list = self.colored_pixels_list.copy()
-        else:
-            self.restore_uncolored_image()
-
-    def get_colored_pixels(self, image_matrix, x_canvas, y_canvas, radius):
-        """Mask pixels in a radius around (x_canvas, y_canvas) on the displayed image."""
-        if image_matrix is None:
-            return []
-
-        colored_pixels = []
-
-        # calc image coordinates from canvas click
-        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
-
-        # Circular mask around (x_img, y_img)
-        for dy in range(-radius, radius + 1):
-            for dx in range(-radius, radius + 1):
-                if dx * dx + dy * dy <= radius * radius:
-                    px = x_img + dx
-                    py = y_img + dy
-                    colored_pixels.append([px, py])
-
-        return colored_pixels
+    #### SELECT COLOR METHODS ####
 
     def select_color(self):
         # Open color chooser
         color_code = QtWidgets.QColorDialog.getColor()
         if color_code.isValid():
-            self.active_color = [color_code.red(), color_code.green(), color_code.blue()]
-            self.show_chosen_color()
+            active_color = [color_code.red(), color_code.green(), color_code.blue()]
+            self.set_active_color(active_color)
 
     def select_color_from_db(self):
         def on_color_received(color_data):
@@ -615,9 +586,9 @@ class ImageColorer(QtCore.QObject):
             color_string = color_data['color_rgb']  # e.g., "255,0,0"
 
             # 2. Split the string by the comma and convert each part to an integer
-            self.active_color = [int(c) for c in color_string.split(',')]
-            self.show_chosen_color()
-            
+            active_color = [int(c) for c in color_string.split(',')]
+            self.set_active_color(active_color)
+
         dialog = QtWidgets.QDialog()
         dialog.setWindowTitle("Select Color")
         layout = QtWidgets.QVBoxLayout(dialog)
@@ -626,7 +597,6 @@ class ImageColorer(QtCore.QObject):
         navigator.colorSelected.connect(on_color_received)
         layout.addWidget(navigator)
         dialog.exec()
-
 
     def choose_color(self, event):
         if not self.choose_color_on:
@@ -644,18 +614,355 @@ class ImageColorer(QtCore.QObject):
         # Ensure click is within image bounds
         if 0 <= x_img < width_px and 0 <= y_img < height_px:
             r, g, b = image_matrix[y_img, x_img]
-            self.active_color = [int(r), int(g), int(b)]
-            self.show_chosen_color()
+            active_color = [int(r), int(g), int(b)]
+            self.set_active_color(active_color)
 
         # Disable pick mode after one pick
         self.choose_color_on = False
 
-    def show_chosen_color(self):
+    def set_active_color(self, color_list):
+        self.active_color = color_list
+        self.pixel_pen.setColor(QColor(*self.active_color))
+        
+        #show chosen color in the color display
         color = QtGui.QColor(*self.active_color)
         opposite_color = QtGui.QColor(255 - color.red(), 255 - color.green(), 255 - color.blue())
         color_string = f"R{color.red()}, G{color.green()}, B{color.blue()}"
         self.color_edit.setText(color_string)
         self.color_edit.setStyleSheet(f"color: {opposite_color.name()}; background-color: {color.name()}")
+    
+
+    ### COLORING METHODS ###
+
+    def set_pen_size(self):
+        size = self.gui.pen_width_spinbox.value()
+        self.pen_size = size
+        self.pixel_pen.setWidth(size)
+
+    def snap_to_pixel_grid(self, position: QPointF):
+        """ 
+        Forces coordinates to integers. 
+        Example: 10.4 -> 10.5 (Center of pixel 10) or just 10.0 depending on preference.
+        For QPainterPath drawing with SquareCap, pointing to the center of the pixel is usually best.
+        """
+        x = np.floor(position.x()) + 0.5
+        y = np.floor(position.y()) + 0.5
+        return QPointF(x, y)
+
+    def start_color_drawing(self, event):
+        # self.is_currently_drawing = True
+        
+        # Map mouse to scene
+        scene_pos = self.gui.image_canvas.mapToScene(event.pos())
+        # Snap to grid!
+        snapped_pos = self.snap_to_pixel_grid(scene_pos)
+        
+        self.current_path = QPainterPath(snapped_pos)
+        
+        self.temp_path_item = QGraphicsPathItem(self.current_path)
+        self.temp_path_item.setPen(self.pixel_pen)
+        self.temp_path_item.setZValue(10) # Layer above image
+        
+        self.gui.image_scene.addItem(self.temp_path_item)
+
+        # Add to vector stack for Undo
+        self.active_vector_items.append(self.temp_path_item)
+
+    def drag_color_drawing(self, event):
+        if self.temp_path_item:
+            scene_pos = self.gui.image_canvas.mapToScene(event.pos())
+            snapped_pos = self.snap_to_pixel_grid(scene_pos)
+            
+            # Optimization: Don't add point if we are on the same pixel
+            if self.current_path.currentPosition() != snapped_pos:
+                self.current_path.lineTo(snapped_pos)
+                self.temp_path_item.setPath(self.current_path)
+
+    def stop_color_drawing(self, event):
+        # self.is_currently_drawing = False
+        pass
+
+    def _create_overlay_from_mask(self, mask_boolean):
+        """
+        Efficiently converts a boolean mask (H, W) into a QGraphicsPixmapItem overlay.
+        """
+        h, w = mask_boolean.shape
+        
+        # 1. RGBA Array erstellen (4 Kanäle: R, G, B, Alpha)
+        rgba_overlay = np.zeros((h, w, 4), dtype=np.uint8)
+        
+        # 2. Farbe setzen (r, g, b, alpha)
+        r, g, b = self.active_color
+        
+        # 3. Nur dort Pixel setzen, wo die Maske True ist
+        # Numpy Broadcasting ist hier extrem schnell (auch bei 4K/8K)
+        # Alpha auf 255 setzen für volle Opazität
+        rgba_overlay[mask_boolean] = [r, g, b, 255]
+        
+        # 4. In QImage wandeln
+        # Format_RGBA8888 erwartet 4 Bytes pro Pixel (R, G, B, A)
+        overlay_img = QImage(rgba_overlay.data, w, h, QImage.Format.Format_RGBA8888)
+        
+        # 5. QGraphicsItem erstellen
+        pixmap_item = QGraphicsPixmapItem(QPixmap.fromImage(overlay_img))
+        pixmap_item.setZValue(10) # Über dem Hintergrund
+        return pixmap_item
+
+    # ==========================================
+    # ANGEPASSTE METHODEN
+    # ==========================================
+
+    def fill_color_patch(self, event):
+        """
+        Flood-fill angepasst für Overlay-Logik.
+        event_pos: QPointF (Scene Coordinates)
+        """
+        # 1. Daten abholen
+        # image_matrix = self._get_image_matrix() # Das ist RGBA
+        image_matrix = self.data_handler.image_matrix
+        if image_matrix is None: return
+
+        h, w = image_matrix.shape[:2]
+        x_canvas = event.position().x()
+        y_canvas = event.position().y()
+
+        # Bounds Check
+        x_image, y_image = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
+        if not (0 <= x_image < w and 0 <= y_image < h): return
+
+        # Farben vergleichen (Vergleich muss im gleichen Farbraum sein)
+        # Wir nehmen an image_matrix ist RGBA
+        target_color = image_matrix[y_image, x_image].copy() 
+        fill_color_arr = np.array([self.active_color[0], self.active_color[1], self.active_color[2]], dtype=np.uint8)
+        
+        # Abbruch wenn Farbe gleich (Toleranz könnte hier eingebaut werden)
+        if np.array_equal(target_color, fill_color_arr): return
+
+        # 2. BFS Algorithmus (Numpy optimiert ist schwer für Floodfill, daher Queue)
+        # Für extrem große Bilder: skimage.segmentation.flood_fill wäre schneller, 
+        # aber hier bleiben wir bei reinem Python/Numpy Standard.
+        
+        mask = np.zeros((h, w), dtype=bool)
+        queue = collections.deque([(y_image, x_image)])
+        visited = set([(y_image, x_image)])
+        
+        while queue:
+            cy, cx = queue.popleft()
+            mask[cy, cx] = True
+            
+            # Nachbarn checken
+            for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
+                ny, nx = cy + dy, cx + dx
+                if 0 <= ny < h and 0 <= nx < w:
+                    if (ny, nx) not in visited:
+                        # Pixel Farbe prüfen
+                        if np.array_equal(image_matrix[ny, nx][:3], target_color):
+                            visited.add((ny, nx))
+                            queue.append((ny, nx))#
+
+        # 3. Overlay erstellen & zum Stack hinzufügen
+        if np.any(mask):
+            overlay_item = self._create_overlay_from_mask(mask)
+            # Position overlay at same location as main image to account for panning
+            overlay_item.setPos(self.gui.image_item.pos())
+            self.gui.image_scene.addItem(overlay_item)
+            self.active_vector_items.append(overlay_item) # Kommt auf den Undo Stack      
+
+    def replace_color(self, event):
+        """
+        Recolors all pixels matching old_color with self.active_color, regardless of connectivity.
+        Draws the replaced pixels as a scene item (path) instead of modifying the image matrix.
+        """
+        if not self.replace_color_on:
+            return
+        # disable replace color mode
+        self.replace_color_on = False
+
+        if self.data_handler.image_matrix is None:
+            return
+        
+        image_matrix = self.data_handler.image_matrix.copy()
+
+        x_canvas = event.position().x()
+        y_canvas = event.position().y()
+        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
+
+        old_color = tuple(image_matrix[y_img, x_img])
+        active_mask = None
+        mask_matrix = np.zeros_like(image_matrix)
+        
+        # Determine which pixels to consider for replacement
+        for mask in self.data_handler.masks_list:
+            if mask[y_img, x_img] == 1:
+                # Clicked inside a mask, only replace within this mask
+                active_mask = mask
+                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
+                break
+
+        if active_mask is None:
+            if self.data_handler.masks_list:
+                active_mask = self.get_background_mask()
+                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
+            else:
+                mask_matrix = image_matrix
+
+        # Find all pixels matching the old color
+        color_mask = np.all(mask_matrix == old_color, axis=-1)
+        changed_coords = np.argwhere(color_mask)  # shape: (N, 2) for row, col
+
+        if changed_coords.size == 0:
+            return
+
+        # Build path from pixel coordinates and render to scene
+        path = QPainterPath()
+        for row, col in changed_coords:
+            # Convert image coordinates to scene coordinates
+            x_scene, y_scene = self.data_handler.image_to_scene_coords(col, row)
+            # Draw pixel as a square (1x1 in image space)
+            rect = QRectF(x_scene, y_scene, 1.0, 1.0)
+            path.addRect(rect)
+        
+        # Create path item and add to scene
+        path_item = QGraphicsPathItem(path)
+        pen = QPen(QColor(*self.active_color), 1)
+        path_item.setPen(pen)
+        path_item.setZValue(10)  # Layer above image
+        self.gui.image_scene.addItem(path_item)
+        
+        # Add to vector stack for later imprinting
+        self.active_vector_items.append(path_item)
+
+    def recolor_color_from_db(self):
+        def on_profile_received(data):
+            if data is not None:
+                ids = data['identifiers']
+                self.db_color_palette = DBColorPalette(data['parameters'], data['settings'])
+                self.recolor_laser_label.setText(f"<b> {ids['laser']['name']} </b>")
+                self.recolor_material_label.setText(f"<b> {ids['material']['name']} </b>")
+                self.recolor_type_label.setText(f"<b> {ids['material_type']['name']} </b>")
+
+
+        dialog = QtWidgets.QDialog()
+        dialog.setWindowTitle("Select Profile")
+        layout = QtWidgets.QVBoxLayout(dialog)
+        navigator=DatabaseNavigatorWidget(NavigatorMode.SELECT_PROFILE,parent=dialog)
+        navigator.selection_button_box.rejected.connect(dialog.reject)
+        navigator.profileSelected.connect(on_profile_received)
+        layout.addWidget(navigator)
+        dialog.exec()
+
+        color_list = self.db_color_palette.get_color_list()
+        if not color_list:
+            print("No colors available in the database.")
+            return
+        
+        # Recolor the entire image
+        image_matrix = self.data_handler.image_matrix.copy()
+        height, width = image_matrix.shape[:2]
+        pixels = image_matrix.reshape(-1, 3)  # (num_pixels, 3)
+        palette = np.stack(color_list)        # (num_palette, 3)
+
+        # Compute squared distances: (num_pixels, num_palette)
+        dists = np.sum((pixels[:, None, :] - palette[None, :, :]) ** 2, axis=2)
+
+        # Find the index of the closest palette color for each pixel
+        closest = np.argmin(dists, axis=1)  # (num_pixels,)
+
+        # Group pixels by their assigned palette color
+        pixels_by_color = {}
+        for idx, color_idx in enumerate(closest):
+            palette_color = tuple(palette[color_idx].astype(int))
+            if palette_color not in pixels_by_color:
+                pixels_by_color[palette_color] = []
+            # Convert flat index back to (row, col)
+            row = idx // width
+            col = idx % width
+            pixels_by_color[palette_color].append((col, row))
+        
+        # Draw each color group as a separate scene item
+        for palette_color, pixel_coords in pixels_by_color.items():
+            if not pixel_coords:
+                continue
+            
+            # Build path for this color
+            path = QPainterPath()
+            for col, row in pixel_coords:
+                # Convert image coordinates to scene coordinates
+                x_scene, y_scene = self.data_handler.image_to_scene_coords(col, row)
+                # Draw pixel as a square (1x1 in image space)
+                rect = QRectF(x_scene, y_scene, 1.0, 1.0)
+                path.addRect(rect)
+            
+            # Create path item with color-specific pen
+            path_item = QGraphicsPathItem(path)
+            color_pen = QPen(QColor(*palette_color), self.pen_size)
+            color_pen.setCosmetic(False)
+            color_pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+            color_pen.setCapStyle(Qt.PenCapStyle.SquareCap)
+            path_item.setPen(color_pen)
+            path_item.setZValue(10)  # Layer above image
+            self.gui.image_scene.addItem(path_item)
+            
+            # Add to vector stack for later imprinting
+            self.active_vector_items.append(path_item)
+
+
+    def imprint(self):
+        """ Bakes the sharp aliased lines into the pixel buffer """
+        if not self.active_vector_items: 
+            return
+
+        pixmap = self.gui.image_item.pixmap()
+        painter = QPainter(pixmap)
+        
+        # IMPORTANT: Disable Antialiasing on the imprint painter too!
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        
+        for item in self.active_vector_items:
+            painter.setPen(item.pen())
+            painter.drawPath(item.path())
+            # Remove from scene
+            self.scene.removeItem(item)
+            
+        painter.end()
+
+        self.gui.image_item.setPixmap(pixmap)
+        
+        # Cleanup vector items
+        self.active_vector_items.clear()
+        self.temp_path_item = None
+        self.current_path = None
+    
+
+    def restore_uncolored_image(self):
+        if self.active_vector_items:
+            for item in self.active_vector_items:
+                self.gui.image_scene.removeItem(item)
+            self.active_vector_items.clear()
+            self.temp_path_item = None
+            self.current_path = None
+
+    def undo_coloring(self, event=None):
+        """ Handles both Vector Undo and Pixel Undo transparently. """
+        
+        # Priority 1: Undo active vector drawings (not yet imprinted)
+        if self.active_vector_items:
+            # Remove last drawn stroke
+            last_item = self.active_vector_items.pop()
+            self.gui.image_scene.removeItem(last_item)
+            return
+
+        # Priority 2: Undo Imprint (Revert pixel changes)
+        # if self.pixel_history:
+        #     # Restore last saved pixmap
+        #     previous_pixmap = self.pixel_history.pop()
+        #     self.background_item.setPixmap(previous_pixmap)
+        #     print("Undid imprint (restored pixels).")
+        # else:
+        #     print("Nothing to undo.")
+        
+
+    ### CONTOUR METHODS ###
 
     def toggle_contours(self):
         if not self.contours_visible:
@@ -711,146 +1018,6 @@ class ImageColorer(QtCore.QObject):
         if self.contours:
             self.contours[1] = self.contour_thickness_spinbox.value()
             self.data_handler.contours = self.contours
-
-    def fill_color_patch(self, event):
-        """
-        Flood-fill for all connected pixels sharing the clicked color.
-        Returns a list of [px, py] for all changed (filled) pixels.
-        """
-        if not self.fill_color_on:
-            return
-
-        if self.data_handler.image_matrix is None:
-            return []
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
-        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
-
-        image = self.data_handler.image_matrix.copy()
-        height, width = image.shape[:2]
-        if not (0 <= x_img < width and 0 <= y_img < height):
-            return []
-
-        old_color = tuple(image[y_img, x_img])
-        new_color = tuple(self.active_color)
-        if old_color == new_color:
-            return []
-
-        masked_pixels = []
-        queue = collections.deque()
-        queue.append((y_img, x_img))
-
-        while queue:
-            cy, cx = queue.popleft()
-            if 0 <= cy < height and 0 <= cx < width:
-                if tuple(image[cy, cx]) == old_color:
-                    image[cy, cx] = new_color
-                    masked_pixels.append([cx, cy])
-
-                    # 4-direction neighbors
-                    queue.append((cy + 1, cx))
-                    queue.append((cy - 1, cx))
-                    queue.append((cy, cx + 1))
-                    queue.append((cy, cx - 1))
-
-        masked_pixels = [self.active_color] + masked_pixels
-
-        self.colored_pixels_list.append(masked_pixels)
-        self.data_handler.masked_pixels_list = self.colored_pixels_list.copy()
-
-    def replace_color(self, event):
-        """
-        Recolors all pixels matching old_color with self.active_color, regardless of connectivity.
-        Returns a list of [px, py] for all changed pixels.
-        """
-        if not self.replace_color_on:
-            return
-        # disable replace color mode
-        self.replace_color_on = False
-
-        if self.data_handler.image_matrix is None:
-            return []
-        image_matrix = self.data_handler.image_matrix.copy()
-
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
-        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
-
-        old_color = tuple(image_matrix[y_img, x_img])
-        active_mask = None
-        mask_matrix = np.zeros_like(image_matrix)
-        for mask in self.data_handler.masks_list:
-            # if np.isnan(mask[y_img, x_img][0])==False:
-            if mask[y_img, x_img] == 1:
-                # Clicked inside a mask, do not replace color
-                active_mask = mask
-                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
-                break
-
-        if active_mask is None:
-            if self.data_handler.masks_list:
-                active_mask = self.get_background_mask()
-                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
-            else:
-                mask_matrix = image_matrix
-
-        color_mask = np.all(mask_matrix == old_color, axis=-1)
-        changed_coords = np.argwhere(color_mask)  # shape: (N, 2) for row, col
-
-        # Convert (row, col) -> [col, row] for consistency
-        colored_pixels = [[col, row] for row, col in changed_coords]
-        colored_pixels = [self.active_color] + colored_pixels
-
-        self.colored_pixels_list.append(colored_pixels)
-        self.data_handler.masked_pixels_list = self.colored_pixels_list.copy()
-
-    def recolor_color_from_db(self):
-        def on_profile_received(data):
-            if data is not None:
-                ids = data['identifiers']
-                self.db_color_palette = DBColorPalette(data['parameters'], data['settings'])
-                self.recolor_laser_label.setText(f"<b> {ids['laser']['name']} </b>")
-                self.recolor_material_label.setText(f"<b> {ids['material']['name']} </b>")
-                self.recolor_type_label.setText(f"<b> {ids['material_type']['name']} </b>")
-
-
-        dialog = QtWidgets.QDialog()
-        dialog.setWindowTitle("Select Profile")
-        layout = QtWidgets.QVBoxLayout(dialog)
-        navigator=DatabaseNavigatorWidget(NavigatorMode.SELECT_PROFILE,parent=dialog)
-        navigator.selection_button_box.rejected.connect(dialog.reject)
-        navigator.profileSelected.connect(on_profile_received)
-        layout.addWidget(navigator)
-        dialog.exec()
-
-        color_list = self.db_color_palette.get_color_list()
-        if not color_list:
-            print("No colors available in the database.")
-            return
-        
-        #recolor the entire image
-        image_matrix = self.data_handler.image_matrix.copy()
-        pixels = image_matrix.reshape(-1, 3)  # (num_pixels, 3)
-        palette = np.stack(color_list)        # (num_palette, 3)
-
-        # Compute squared distances: (num_pixels, num_palette)
-        dists = np.sum((pixels[:, None, :] - palette[None, :, :]) ** 2, axis=2)
-
-        # Find the index of the closest palette color for each pixel
-        closest = np.argmin(dists, axis=1)  # (num_pixels,)
-
-        # Map each pixel to its closest palette color
-        recolored_pixels = palette[closest]  # (num_pixels, 3)
-
-        # Reshape back to image
-        recolored_image = recolored_pixels.reshape(image_matrix.shape)
-        recolored_image = recolored_image.astype(np.uint8)
-        
-        # Update the data handler with the recolored image
-        self.colored_pixels_list = [[]]
-        self.data_handler.masked_pixels_list = self.colored_pixels_list.copy()
-        #self.data_handler.image_matrix = recolored_image
-        self.data_handler.image_matrix_adjusted = recolored_image
     
     def clean_up_image_colors2(self):
         """

@@ -150,18 +150,23 @@ class DataHandler:
             display_width_px = int(width_mm * zoom_scale * self.pixel_per_mm_original)
             display_height_px = int(height_mm * zoom_scale * self.pixel_per_mm_original)
             #create an Image object from the image matrix
-            image = Image.fromarray(self.image_matrix)
+            # image = Image.fromarray(self.image_matrix)
 
-            # Determine the resampling filter based on the Pillow version
-            if hasattr(Image, 'Resampling'):
-                # For Pillow 9.1.0 and above
-                resample_filter = Image.Resampling.LANCZOS
-            else:
-                # For older versions of Pillow
-                resample_filter = Image.ANTIALIAS  # Or Image.LANCZOS
+            # # Determine the resampling filter based on the Pillow version
+            # if hasattr(Image, 'Resampling'):
+            #     # For Pillow 9.1.0 and above
+            #     resample_filter = Image.Resampling.LANCZOS
+            # else:
+            #     # For older versions of Pillow
+            #     resample_filter = Image.ANTIALIAS  # Or Image.LANCZOS
 
-            #this resizes the image to account for dpi scaling
-            image_resized = image.resize((display_width_px, display_height_px), resample=resample_filter)
+            # #this resizes the image to account for dpi scaling
+            # image_resized = image.resize((display_width_px, display_height_px), resample=resample_filter)
+
+            # Fast preview resize using OpenCV
+            image_array = np.array(self.image_matrix, dtype=np.uint8)
+            image_resized_array = cv2.resize(image_array, (display_width_px, display_height_px), interpolation=cv2.INTER_LINEAR)
+            image_resized = Image.fromarray(image_resized_array)
 
             # Convert to QImage for display in PyQt6
             image_resized = image_resized.convert("RGB")

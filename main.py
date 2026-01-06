@@ -1,7 +1,9 @@
 import sys
 from pathlib import Path
-from PyQt6 import QtWidgets, uic, QtCore
+from PyQt6 import QtWidgets, uic
 from PyQt6.QtCore import QLocale
+from PyQt6.QtGui import (QImage, QPixmap, QPainter, QPen, QColor, 
+                         QPainterPath, QBrush)
 import ImageControlling
 import ImageEditing
 import NCDataGeneration
@@ -38,6 +40,18 @@ if __name__ == "__main__":
     gui.image_canvas.setScene(gui.image_scene)
     gui.image_item = QtWidgets.QGraphicsPixmapItem()
     gui.image_scene.addItem(gui.image_item)
+
+    # --- CRITICAL FOR PIXEL ART LOOK ---
+    # 1. Disable Antialiasing (No smooth edges)
+    # 2. Disable SmoothPixmapTransform (Show pixels as sharp blocks when zoomed in)
+    gui.image_canvas.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+    gui.image_canvas.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+    
+    # View navigation settings
+    # self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+    # self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+    # self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+    # self.setBackgroundBrush(QBrush(QColor(40, 40, 40)))
     
     
     gui.show()
