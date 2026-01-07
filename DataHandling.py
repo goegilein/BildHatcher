@@ -188,44 +188,21 @@ class DataHandler:
     def canvas_to_image_coords(self, x_canvas, y_canvas):
         """Convert canvas (viewport) coordinates to image coordinates"""
 
-        # Use the graphics view's built-in method to convert viewport to scene coordinates
-        scene_point = self.gui.image_canvas.mapToScene(int(x_canvas), int(y_canvas))
-        image_point = self.gui.image_item.mapFromScene(self.gui.image_canvas.mapToScene(int(x_canvas), int(y_canvas)))
-        # Get the image item position (in scene coordinates)
-        img_pos = self.gui.image_item.pos()
-        
-        # Actual click coordinates relative to the top-left of the image item in scene coords
-        click_x_display = scene_point.x() - img_pos.x()
-        click_y_display = scene_point.y() - img_pos.y()
+        # Use the graphics view's built-in method to convert viewport to image coordinates
+        image_pos = self.gui.image_item.mapFromScene(self.gui.image_canvas.mapToScene(int(x_canvas), int(y_canvas)))
 
-        # Convert display coords to original image coords (account for scale)
-        x_img = int(click_x_display / self.scale_factor)
-        y_img = int(click_y_display / self.scale_factor)
-
-        x_img = int(image_point.x())
-        y_img = int(image_point.y())
+        x_img = int(image_pos.x())
+        y_img = int(image_pos.y())
 
         return x_img, y_img
 
     def image_to_canvas_coords(self, x_img, y_img):
         """Convert image coordinates to canvas coordinates"""
         try:
-            # Calculate display coordinates from image coordinates using scale factor
-            display_x = x_img * self.scale_factor
-            display_y = y_img * self.scale_factor
+            # Use the graphics item's built-in method to convert image to scene coordinates            
+            canvas_pos = self.gui.image_canvas.mapFromScene(self.gui.image_item.mapToScene(int(x_img), int(y_img)))
 
-            # Get the image item position in scene coordinates
-            img_pos = self.gui.image_item.pos()
-
-            # Calculate scene coordinates (add image item offset)
-            scene_x = display_x + img_pos.x()
-            scene_y = display_y + img_pos.y()
-            
-            # Use the graphics view's built-in method to convert scene to viewport coordinates
-            scene_point = QtCore.QPointF(scene_x, scene_y)
-            viewport_point = self.gui.image_canvas.mapFromScene(scene_point)
-            
-            return viewport_point.x(), viewport_point.y()
+            return canvas_pos.x(), canvas_pos.y()
         
         except Exception as e:
             print(f"Error converting image to canvas coordinates: {e}")
