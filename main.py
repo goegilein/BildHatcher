@@ -4,6 +4,7 @@ from PyQt6 import QtWidgets, uic
 from PyQt6.QtCore import QLocale
 from PyQt6.QtGui import (QImage, QPixmap, QPainter, QPen, QColor, 
                          QPainterPath, QBrush)
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 import ImageControlling
 import ImageEditing
 import NCDataGeneration
@@ -46,6 +47,11 @@ if __name__ == "__main__":
     # 2. Disable SmoothPixmapTransform (Show pixels as sharp blocks when zoomed in)
     gui.image_canvas.setRenderHint(QPainter.RenderHint.Antialiasing, False)
     gui.image_canvas.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+
+    # cut all children (overlay drawings) of the image item at its edges.
+    gui.image_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape, True)
+    
+    # gui.image_canvas.fitInView(gui.image_scene.itemsBoundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
     
     # View navigation settings
     # self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
