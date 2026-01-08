@@ -693,6 +693,9 @@ QTabBar::tab:hover {
     </item>
     <item row="0" column="1">
      <widget class="QTabWidget" name="control_tabWidget">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
       <property name="currentIndex">
        <number>0</number>
       </property>
@@ -907,87 +910,274 @@ QTabBar::tab:hover {
         </item>
         <item>
          <widget class="QGroupBox" name="image_color_frame">
+          <property name="styleSheet">
+           <string notr="true"/>
+          </property>
           <property name="title">
            <string>Color Image</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_13">
-           <item row="3" column="0" rowspan="2">
-            <widget class="QPushButton" name="draw_contour_button">
-             <property name="text">
-              <string>Draw Contours</string>
+           <item row="1" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox_6">
+             <property name="styleSheet">
+              <string notr="true">QGroupBox{
+color:  rgb(80, 0, 19);  /* Text color */
+font-weight: normal;  /* Bold text */
+}</string>
              </property>
-             <property name="checkable">
-              <bool>true</bool>
+             <property name="title">
+              <string>Color Methods</string>
              </property>
-            </widget>
-           </item>
-           <item row="2" column="0">
-            <widget class="QPushButton" name="fill_color_button">
-             <property name="text">
-              <string>Fill Color Patch</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="0" rowspan="2">
-            <widget class="QPushButton" name="toggle_draw_button">
-             <property name="text">
-              <string>Toggle Draw</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QSpinBox" name="pen_width_spinbox">
-             <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
-             </property>
-             <property name="minimum">
-              <number>1</number>
-             </property>
-             <property name="maximum">
-              <number>100</number>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="2">
-            <widget class="QSpinBox" name="contour_space_spinbox">
              <property name="alignment">
               <set>Qt::AlignCenter</set>
              </property>
-             <property name="minimum">
-              <number>0</number>
-             </property>
-             <property name="maximum">
-              <number>100</number>
-             </property>
+             <layout class="QGridLayout" name="gridLayout_23">
+              <item row="0" column="1">
+               <widget class="QLabel" name="pen_width_label">
+                <property name="text">
+                 <string>Pen Width (px)</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0" rowspan="2">
+               <widget class="QPushButton" name="toggle_draw_button">
+                <property name="text">
+                 <string>Toggle Draw</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="pen_width_spinbox">
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::NoButtons</enum>
+                </property>
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <number>100</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QPushButton" name="fill_color_button">
+                <property name="text">
+                 <string>Fill Color Patch</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QPushButton" name="replace_color_button">
+                <property name="text">
+                 <string>Replace Color</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="3" rowspan="3">
+               <widget class="QGroupBox" name="groupBox_5">
+                <property name="title">
+                 <string/>
+                </property>
+                <layout class="QGridLayout" name="gridLayout_20">
+                 <item row="0" column="1">
+                  <widget class="QLabel" name="label_12">
+                   <property name="text">
+                    <string>Laser</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="1">
+                  <widget class="QLabel" name="label_13">
+                   <property name="text">
+                    <string>Material</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="2">
+                  <widget class="QLabel" name="recolor_material_label">
+                   <property name="text">
+                    <string>-None-</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="1">
+                  <widget class="QLabel" name="label_14">
+                   <property name="text">
+                    <string>Type</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="2">
+                  <widget class="QLabel" name="recolor_laser_label">
+                   <property name="text">
+                    <string>-None-</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="2">
+                  <widget class="QLabel" name="recolor_type_label">
+                   <property name="text">
+                    <string>-None-</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="0" rowspan="3">
+                  <widget class="QPushButton" name="recolor_from_database_button">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="text">
+                    <string>Recolor from Database</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+             </layout>
             </widget>
            </item>
-           <item row="3" column="1">
-            <widget class="QLabel" name="contour_thickness_label">
-             <property name="text">
-              <string>Contour Thickness (px)</string>
+           <item row="3" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox_8">
+             <property name="styleSheet">
+              <string notr="true">QGroupBox{
+color:  rgb(80, 0, 19);  /* Text color */
+font-weight: normal;  /* Bold text */
+}</string>
              </property>
+             <property name="title">
+              <string>Overlay Controls</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_25">
+              <item row="0" column="1">
+               <widget class="QPushButton" name="restore_uncolored_image_button">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>25</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Restore uncolored Image</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QPushButton" name="undo_color_button">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>25</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Undo Color Step</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0" colspan="2">
+               <widget class="QPushButton" name="imprint_color_overlays_button">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>50</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>25</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton {
+	background-color: rgb(220,120,20);  /* Background color */
+	border: 2px solid rgb(0, 0, 0);
+    color: rgb(255, 255, 255);  /* Text color */
+    font-weight: bold;
+    border-radius: 5px;  /* Rounded edges */
+	padding: 2px;
+}
+
+QPushButton:hover {
+    background-color: rgb(230,115,22);  /* Background color when hovered */
+	color: rgb(245, 245, 245);
+    border-color:rgb(40, 40, 40);  /* Border color when hovered */
+}
+
+QPushButton:pressed {
+   color:  rgb(80, 0, 19);  /* Background color when pressed */
+	border-color: rgb(0, 0, 0);
+}
+QPushButton:clicked {
+   background-color: rgb(80,0,19);  /* Background color when pressed */
+	border-color:  rgb(0,0, 0);
+}
+
+QPushButton:checked {
+    background-color: rgb(255,255,255);
+	color:  rgb(80, 0, 19);
+	border: 2px solid rgb(122, 0, 28);
+	font-weight: bold;  /* Bold text */
+}
+
+QPushButton:disabled {
+    background-color: rgb(180,180, 180);
+	border: 1px solid rgb(0, 0,0);
+	font-weight: normal;
+}</string>
+                </property>
+                <property name="text">
+                 <string>Imprint colors</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </widget>
            </item>
-           <item row="2" column="1">
-            <widget class="QPushButton" name="replace_color_button">
-             <property name="text">
-              <string>Replace Color</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="3" rowspan="3" colspan="2">
+           <item row="0" column="0">
             <widget class="QGroupBox" name="color_select_frame">
+             <property name="styleSheet">
+              <string notr="true">QGroupBox{
+color:  rgb(80, 0, 19);  /* Text color */
+font-weight: normal;  /* Bold text */
+}</string>
+             </property>
              <property name="title">
               <string>Color select</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QGridLayout" name="gridLayout_14">
               <item row="0" column="1">
@@ -1024,132 +1214,85 @@ QTabBar::tab:hover {
              </layout>
             </widget>
            </item>
-           <item row="5" column="1" colspan="2">
-            <widget class="QGroupBox" name="groupBox_5">
-             <property name="title">
-              <string/>
-             </property>
-             <layout class="QGridLayout" name="gridLayout_20">
-              <item row="0" column="0">
-               <widget class="QLabel" name="label_12">
-                <property name="text">
-                 <string>Laser</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="label_13">
-                <property name="text">
-                 <string>Material</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
-               <widget class="QLabel" name="label_14">
-                <property name="text">
-                 <string>Type</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QLabel" name="recolor_laser_label">
-                <property name="text">
-                 <string>-None-</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QLabel" name="recolor_material_label">
-                <property name="text">
-                 <string>-None-</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QLabel" name="recolor_type_label">
-                <property name="text">
-                 <string>-None-</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
            <item row="0" column="1">
-            <widget class="QLabel" name="pen_width_label">
-             <property name="text">
-              <string>Pen Width (px)</string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="2">
-            <widget class="QLabel" name="contour_space_label">
-             <property name="text">
-              <string>Contour space (px)</string>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="1">
-            <widget class="QSpinBox" name="contour_thickness_spinbox">
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
-             <property name="minimum">
-              <number>1</number>
-             </property>
-             <property name="maximum">
-              <number>100</number>
-             </property>
-            </widget>
-           </item>
-           <item row="5" column="3">
             <widget class="QPushButton" name="clean_up_image_colors_button">
              <property name="text">
               <string>clean up image colors</string>
              </property>
             </widget>
            </item>
-           <item row="5" column="0">
-            <widget class="QPushButton" name="recolor_from_database_button">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
+           <item row="2" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox_7">
+             <property name="styleSheet">
+              <string notr="true">QGroupBox{
+color:  rgb(80, 0, 19);  /* Text color */
+font-weight: normal;  /* Bold text */
+}</string>
              </property>
-             <property name="text">
-              <string>Recolor from Database</string>
+             <property name="title">
+              <string>Contouring</string>
              </property>
-            </widget>
-           </item>
-           <item row="0" column="4">
-            <widget class="QPushButton" name="restore_uncolored_image_button">
-             <property name="text">
-              <string>Restore uncolored Image</string>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
              </property>
-            </widget>
-           </item>
-           <item row="0" column="3">
-            <widget class="QPushButton" name="undo_color_button">
-             <property name="text">
-              <string>Undo Color Step</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="3" colspan="2">
-            <widget class="QPushButton" name="imprint_colors_button">
-             <property name="text">
-              <string>Imprint colors</string>
-             </property>
+             <layout class="QGridLayout" name="gridLayout_24">
+              <item row="0" column="0" rowspan="2">
+               <widget class="QPushButton" name="draw_contour_button">
+                <property name="text">
+                 <string>Draw Contours</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="contour_thickness_label">
+                <property name="text">
+                 <string>Contour Thickness (px)</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="contour_thickness_spinbox">
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <number>100</number>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="contour_space_label">
+                <property name="text">
+                 <string>Contour space (px)</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="contour_space_spinbox">
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+                <property name="minimum">
+                 <number>0</number>
+                </property>
+                <property name="maximum">
+                 <number>100</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </widget>
            </item>
           </layout>

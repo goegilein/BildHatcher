@@ -311,7 +311,6 @@ class BaseFunctions:
         self.data_handler.pixel_per_mm = self.pixel_per_mm
         self.data_handler.pixel_per_mm_original = self.pixel_per_mm_original
         self.data_handler.image_matrix = self.image_matrix.copy()
-        self.data_handler.image_matrix_adjusted = self.image_matrix.copy()
         if new_image:
             self.data_handler.image_original = self.image_original
             self.data_handler.image_matrix_original = self.image_matrix
@@ -458,13 +457,22 @@ class ImageSizer(QtCore.QObject):
         self.image_item.setPos(new_x, new_y)
         
         # Move all other items in the scene (grid lines, center cross, etc.)
+        moved_items = set()  # Track items that have already been moved
+        moved_items.add(self.image_item)
+
         for item in self.image_scene.items():
             if item != self.image_item:
+                # Skip if this item is a child of an already moved item
+                parent = item.parentItem()
+                if parent and parent in moved_items:
+                    continue
+                
                 if isinstance(item, QtWidgets.QGraphicsLineItem) and item.zValue() == 1:
                     #this is a grid line. dont move those!
                     continue
                 current_pos = item.pos()
                 item.setPos(current_pos.x() + actual_delta_x, current_pos.y() + actual_delta_y)
+                moved_items.add(item)
         
         if event is not None:
             self.drag_start_pos = event.pos()
