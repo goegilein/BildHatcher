@@ -1,0 +1,8 @@
+PyQt6
+numpy
+Pillow
+opencv-python
+scikit-learn
+pyqtgraph
+PyOpenGL
+ezdxf

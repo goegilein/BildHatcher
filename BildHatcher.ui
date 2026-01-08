@@ -1185,6 +1185,9 @@ font-weight: normal;  /* Bold text */
                 <property name="text">
                  <string>Pick from Image</string>
                 </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
                </widget>
               </item>
               <item row="0" column="0">
