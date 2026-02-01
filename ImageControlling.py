@@ -299,6 +299,39 @@ class BaseFunctions:
         img_obj = ImgObj(combined_image, combined_image, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
         self.add_listbox_item(img_obj, "combined", set_selected=True)
 
+    def cut_to_masked(self):
+
+        if self.data_handler.active_mask_index ==-1:
+            QtWidgets.QMessageBox.warning(self.gui, "No Mask Selected", "Please select a mask to cut to.")
+            return
+        
+        #store data first
+        self.get_handler_data()
+        active_mask = self.data_handler.masks_list[self.data_handler.active_mask_index]  # Assuming single active mask for simplicity
+        
+        # Find the minimum bounding rectangle containing all True (1) values
+        rows = np.where(np.any(active_mask == 1, axis=1))[0]
+        cols = np.where(np.any(active_mask == 1, axis=0))[0]
+        
+        if len(rows) == 0 or len(cols) == 0:
+            QtWidgets.QMessageBox.warning(self.gui, "Empty Mask", "The selected mask contains no pixels.")
+            return
+        
+        row_min, row_max = rows[0], rows[-1]
+        col_min, col_max = cols[0], cols[-1]
+        
+        # Extract the bounding rectangle from the mask and image
+        mask_cropped = active_mask[row_min:row_max+1, col_min:col_max+1]
+        image_cropped = self.data_handler.image_matrix[row_min:row_max+1, col_min:col_max+1]
+        
+        # Fill the output image with pixels where mask==1, white elsewhere
+        output_image = np.ones_like(image_cropped) * 255
+        output_image[mask_cropped == 1] = image_cropped[mask_cropped == 1]
+
+        image_name = self.active_image_item.text()
+        img_obj = ImgObj(output_image, output_image, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
+        self.add_listbox_item(img_obj, image_name + "_cut", set_selected=True)
+
 
     #simple getter and setter functions for active image properties
     def get_active_image_matrix(self):

@@ -28,6 +28,7 @@ class DataHandler:
 
         #masks
         self.masks_list = [] # List of mask matrices
+        self.active_mask_index = -1  # Index of the currently active mask
         self.mask_overlays = [] # List of QGraphicsRectItem overlays
 
     #create a watcher for the original image matrix. When the original image matrix is changed it means a new image was loaded.
