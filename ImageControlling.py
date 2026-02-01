@@ -72,6 +72,10 @@ class BaseFunctions:
         self.rot_image_180_button = gui.rot_image_180_button
         self.rot_image_180_button.clicked.connect(self.rot_image_180)
 
+        # Cut to masked button
+        self.cut_to_mask_button = gui.cut_to_mask_button
+        self.cut_to_mask_button.clicked.connect(self.cut_to_mask)
+
         # Monochrome check box
         self.monochrome_check = gui.monochrome_check
 
@@ -299,7 +303,7 @@ class BaseFunctions:
         img_obj = ImgObj(combined_image, combined_image, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
         self.add_listbox_item(img_obj, "combined", set_selected=True)
 
-    def cut_to_masked(self):
+    def cut_to_mask(self):
 
         if self.data_handler.active_mask_index ==-1:
             QtWidgets.QMessageBox.warning(self.gui, "No Mask Selected", "Please select a mask to cut to.")

@@ -28,6 +28,7 @@ class DataHandler:
 
         #masks
         self.masks_list = [] # List of mask matrices
+        self.mask_info = []  # List of mask info dictionaries
         self.active_mask_index = -1  # Index of the currently active mask
         self.mask_overlays = [] # List of QGraphicsRectItem overlays
 

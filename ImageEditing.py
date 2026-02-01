@@ -421,11 +421,18 @@ class ImageColorer(QtCore.QObject):
         self.mask_drawing_on = False
         self.mask_shape_mode = "rectangle"  # Can be "rectangle", "ellipse", or "polygon"
         self.data_handler.masks_list = []  # List of mask matrices
+        self.data_handler.mask_info = []  # List storing mask type and coordinates: [{'type': 'rectangle', 'coords': (x1, y1, x2, y2)}, ...]
         self.mask_start_point_scene = None
         self.mask_obj = None
         self.current_mask_overlay_item = None
         self.polygon_points = []  # List of points for polygon drawing
         self.polygon_preview_item = None  # Current polygon preview
+        
+        # Mask editing functionality
+        self.editing_mask_index = -1  # Index of the mask being edited
+        self.edit_handles = []  # List of QGraphicsEllipseItem handles for resizing
+        self.dragging_handle = None  # Current handle being dragged
+        self.mask_edit_mode = False  # Whether we're in mask edit mode
 
         # Buttons to toggle mask drawing mode for different shapes
         self.rectangle_mask_button = gui.rectangle_mask_button
@@ -450,16 +457,19 @@ class ImageColorer(QtCore.QObject):
         self.delete_all_masks_button = gui.delete_all_masks_button
         self.delete_all_masks_button.clicked.connect(self.clear_all_masks)
         
+        # Button to edit masks
+        self.edit_mask_button = gui.edit_mask_button
+        self.edit_mask_button.clicked.connect(lambda: self.set_single_toggle_state('mask_edit_mode'))
+        
         # List widget to display masks
         self.masks_list_widget = gui.masks_list_widget
-        # self.masks_list_widget.itemSelectionChanged.connect(self.on_mask_selected)
+        self.masks_list_widget.itemSelectionChanged.connect(self.on_mask_selected)
 
         #Event callbacks for handling gui interactions
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
         self.event_handler.add_global_event_callback(self.trigger_global_event)
 
-
-
+    
     ### EVENT HANDLING METHODS ###
 
     def trigger_canvas_event(self, event):
@@ -477,6 +487,14 @@ class ImageColorer(QtCore.QObject):
             self.on_key_press(event)
 
     def on_canvas_left_click(self, event):
+        # Check if clicking on an edit handle (only in edit mode)
+        if self.mask_edit_mode:
+            items_at_pos = self.gui.image_canvas.items(event.pos())
+            for item in items_at_pos:
+                if item in self.edit_handles:
+                    self.dragging_handle = item
+                    return
+        
         if self.choose_color_on:
             self.choose_color(event)
             self.pick_from_image_button.setChecked(False)
@@ -509,7 +527,10 @@ class ImageColorer(QtCore.QObject):
                 self.remove_last_polygon_point()
     
     def on_mouse_left_click_drag(self, event):
-        if self.mask_drawing_on and self.mask_start_point_scene is not None:
+        # Check if we're dragging an edit handle
+        if self.dragging_handle is not None:
+            self.drag_edit_handle(event)
+        elif self.mask_drawing_on and self.mask_start_point_scene is not None:
             if self.mask_shape_mode == "rectangle":
                 self.update_mask_rect_preview(event)
             elif self.mask_shape_mode == "ellipse":
@@ -518,7 +539,9 @@ class ImageColorer(QtCore.QObject):
             self.drag_color_drawing(event)
     
     def on_mouse_left_release(self, event):
-        if self.mask_drawing_on:
+        if self.dragging_handle is not None:
+            self.finish_drag_edit_handle(event)
+        elif self.mask_drawing_on:
             if self.mask_shape_mode == "rectangle":
                 self.finish_mask_rect(event)
             elif self.mask_shape_mode == "ellipse":
@@ -540,6 +563,7 @@ class ImageColorer(QtCore.QObject):
             self.fill_color_on = False
             self.replace_color_on = False
             self.mask_drawing_on = False
+            self.mask_edit_mode = False
             self.pick_from_image_button.setChecked(False)
             self.toggle_draw_button.setChecked(False)
             self.fill_color_button.setChecked(False)
@@ -547,6 +571,7 @@ class ImageColorer(QtCore.QObject):
             self.rectangle_mask_button.setChecked(False)
             self.ellipse_mask_button.setChecked(False)
             self.polygon_mask_button.setChecked(False)
+            self.edit_mask_button.setChecked(False)
             self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
             # Set only the desired state
@@ -556,17 +581,27 @@ class ImageColorer(QtCore.QObject):
             # Set cursor accordingly
             if state_property == 'choose_color_on':
                 self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.PointingHandCursor if state else QtCore.Qt.CursorShape.ArrowCursor)
-            else:
-                self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.CrossCursor if state else QtCore.Qt.CursorShape.ArrowCursor)
             
             # Handle special case for mask drawing mode to set correct shape
             if state_property == 'mask_drawing_on' and state:
                 if sender == self.rectangle_mask_button:
                     self.mask_shape_mode = "rectangle"
+                    self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.CrossCursor if state else QtCore.Qt.CursorShape.ArrowCursor)
                 elif sender == self.ellipse_mask_button:
                     self.mask_shape_mode = "ellipse"
+                    self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.CrossCursor if state else QtCore.Qt.CursorShape.ArrowCursor)
                 elif sender == self.polygon_mask_button:
                     self.mask_shape_mode = "polygon"
+                    self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.CrossCursor if state else QtCore.Qt.CursorShape.ArrowCursor)
+            
+            # Handle mask edit mode
+            if state_property == 'mask_edit_mode':
+                if state:
+                    # Show edit handles if a mask is already selected
+                    self.show_edit_handles_for_selected()
+            # Clear edit handles when exiting edit mode
+            if self.mask_edit_mode == False:
+                self.clear_edit_handles()
                     
         except Exception as e:
             print(f"Error in set_single_toggle_state: {e}")
@@ -1225,8 +1260,12 @@ class ImageColorer(QtCore.QObject):
             for x in range(max(0, x_min), min(width, x_max + 1)):
                 mask_matrix[y, x] = 1
 
-        # Store the mask
+        # Store the mask and its info
         self.data_handler.masks_list.append(mask_matrix)
+        self.data_handler.mask_info.append({
+            'type': 'rectangle',
+            'coords': (x_min, y_min, x_max, y_max)
+        })
         self.update_masks_list_widget()
         
         # Reset
@@ -1323,8 +1362,12 @@ class ImageColorer(QtCore.QObject):
                     if dx * dx + dy * dy <= 1.0:
                         mask_matrix[y, x] = 1
         
-        # Store the mask
+        # Store the mask and its info
         self.data_handler.masks_list.append(mask_matrix)
+        self.data_handler.mask_info.append({
+            'type': 'ellipse',
+            'coords': (x_min, y_min, x_max, y_max)
+        })
         self.update_masks_list_widget()
         
         # Reset
@@ -1431,6 +1474,10 @@ class ImageColorer(QtCore.QObject):
         cv2.fillPoly(mask_matrix, [pts], 1)
         
         self.data_handler.masks_list.append(mask_matrix)
+        self.data_handler.mask_info.append({
+            'type': 'polygon',
+            'coords': self.polygon_points.copy()
+        })
         self.update_masks_list_widget()
         
         # Reset polygon points
@@ -1458,16 +1505,315 @@ class ImageColorer(QtCore.QObject):
         self.masks_list_widget.clear()
         for idx, mask in enumerate(self.data_handler.masks_list):
             non_nan_count = np.count_nonzero(mask == 1)
-            item_text = f"Mask {idx + 1} ({non_nan_count} pixels)"
+            type = self.data_handler.mask_info[idx]['type']
+            item_text = f"{type}-mask {idx + 1} ({non_nan_count} pixels)"
             self.masks_list_widget.addItem(item_text)
 
-    # def on_mask_selected(self):
-    #     """Handle mask selection in the list widget."""
-    #     selected_items = self.masks_list_widget.selectedItems()
-    #     if selected_items:
-    #         index = self.masks_list_widget.row(selected_items[0])
-    #         # You can visualize the selected mask here if needed
-    #         print(f"Selected mask {index}")
+    def on_mask_selected(self):
+        """Handle mask selection in the list widget."""
+        # Clear any existing edit handles
+        self.clear_edit_handles()
+        
+        selected_items = self.masks_list_widget.selectedItems()
+        if selected_items:
+            index = self.masks_list_widget.row(selected_items[0])
+            self.data_handler.active_mask_index = index
+            self.editing_mask_index = index
+            
+            # Update overlay colors: selected mask in red, others in cyan
+            for i, overlay in enumerate(self.data_handler.mask_overlays):
+                pen = QtGui.QPen()
+                pen.setStyle(QtCore.Qt.PenStyle.DashLine)
+                pen.setWidth(2)
+                
+                if i == index:
+                    pen.setColor(QtCore.Qt.GlobalColor.darkCyan)  # Selected mask in red
+                else:
+                    pen.setColor(QtCore.Qt.GlobalColor.cyan)  # Other masks in cyan
+                
+                overlay.setPen(pen)
+            
+            # Show edit handles if edit mode is enabled
+            self.show_edit_handles_for_selected()
+        else:
+            self.editing_mask_index = -1
+
+    def show_edit_handles_for_selected(self):
+        """Show edit handles for the currently selected mask (if in edit mode)."""
+        if not self.mask_edit_mode or self.editing_mask_index < 0:
+            return
+        
+        self.clear_edit_handles()
+        
+        if self.editing_mask_index < len(self.data_handler.mask_overlays):
+            overlay = self.data_handler.mask_overlays[self.editing_mask_index]
+            
+            if self.editing_mask_index < len(self.data_handler.mask_info):
+                mask_info = self.data_handler.mask_info[self.editing_mask_index]
+                if mask_info['type'] in ['rectangle', 'ellipse']:
+                    self.add_resize_handles(self.editing_mask_index, overlay)
+                elif mask_info['type'] == 'polygon':
+                    self.add_polygon_handles(self.editing_mask_index, overlay)
+
+    def clear_edit_handles(self):
+        """Remove all edit handles from the scene."""
+        for handle in self.edit_handles:
+            self.gui.image_scene.removeItem(handle)
+        self.edit_handles.clear()
+        self.dragging_handle = None
+
+    def add_resize_handles(self, mask_index, overlay):
+        """Add draggable corner handles to rectangle/ellipse masks."""
+        rect = overlay.rect()
+        handle_size = 10
+        
+        # Define handle positions: corners and midpoints
+        positions = [
+            (rect.left(), rect.top(), 'tl'),      # Top-left
+            (rect.right(), rect.top(), 'tr'),     # Top-right
+            (rect.left(), rect.bottom(), 'bl'),   # Bottom-left
+            (rect.right(), rect.bottom(), 'br'),  # Bottom-right
+            (rect.center().x(), rect.top(), 'tm'),   # Top-middle
+            (rect.center().x(), rect.bottom(), 'bm'), # Bottom-middle
+            (rect.left(), rect.center().y(), 'lm'),  # Left-middle
+            (rect.right(), rect.center().y(), 'rm'),  # Right-middle
+        ]
+        
+        for x, y, handle_type in positions:
+            handle = QtWidgets.QGraphicsEllipseItem(
+                x - handle_size/2, y - handle_size/2, 
+                handle_size, handle_size
+            )
+            handle.setBrush(QtGui.QBrush(QtCore.Qt.GlobalColor.red))
+            handle.setPen(QtGui.QPen(QtCore.Qt.GlobalColor.white, 1))
+            handle.setZValue(100)  # Above the overlay
+            
+            # Store metadata
+            handle.mask_index = mask_index
+            handle.handle_type = handle_type
+            
+            self.gui.image_scene.addItem(handle)
+            self.edit_handles.append(handle)
+
+    def add_polygon_handles(self, mask_index, overlay):
+        """Add draggable point handles to polygon masks."""
+        if isinstance(overlay, QtWidgets.QGraphicsPolygonItem):
+            polygon = overlay.polygon()
+            handle_size = 10
+            
+            for i, point in enumerate(polygon):
+                handle = QtWidgets.QGraphicsEllipseItem(
+                    point.x() - handle_size/2, point.y() - handle_size/2,
+                    handle_size, handle_size
+                )
+                handle.setBrush(QtGui.QBrush(QtCore.Qt.GlobalColor.red))
+                handle.setPen(QtGui.QPen(QtCore.Qt.GlobalColor.white, 1))
+                handle.setZValue(100)  # Above the overlay
+                
+                # Store metadata
+                handle.mask_index = mask_index
+                handle.point_index = i
+                handle.handle_type = 'polygon_point'
+                
+                self.gui.image_scene.addItem(handle)
+                self.edit_handles.append(handle)
+
+    def drag_edit_handle(self, event):
+        """Handle dragging of edit handles."""
+        if self.dragging_handle is None or self.editing_mask_index < 0:
+            return
+        
+        x_canvas = event.position().x()
+        y_canvas = event.position().y()
+        x_scene, y_scene = self.data_handler.canvas_to_scene_coords(x_canvas, y_canvas)
+        
+        overlay = self.data_handler.mask_overlays[self.editing_mask_index]
+        
+        # Handle polygon point dragging
+        if hasattr(self.dragging_handle, 'point_index'):
+            polygon = overlay.polygon()
+            polygon[self.dragging_handle.point_index] = QtCore.QPointF(x_scene, y_scene)
+            overlay.setPolygon(polygon)
+        else:
+            # Handle rectangle/ellipse dragging
+            rect = overlay.rect()
+            handle_type = self.dragging_handle.handle_type
+            
+            # Update rect based on which handle is being dragged
+            if handle_type == 'tl':  # Top-left
+                rect.setTopLeft(QtCore.QPointF(x_scene, y_scene))
+            elif handle_type == 'tr':  # Top-right
+                rect.setTopRight(QtCore.QPointF(x_scene, y_scene))
+            elif handle_type == 'bl':  # Bottom-left
+                rect.setBottomLeft(QtCore.QPointF(x_scene, y_scene))
+            elif handle_type == 'br':  # Bottom-right
+                rect.setBottomRight(QtCore.QPointF(x_scene, y_scene))
+            elif handle_type == 'tm':  # Top-middle
+                rect.setTop(y_scene)
+                # center_x = rect.center().x()
+                # rect.setLeft(rect.left() + (x_scene - center_x))
+                # rect.setRight(rect.right() + (x_scene - center_x))
+            elif handle_type == 'bm':  # Bottom-middle
+                rect.setBottom(y_scene)
+                # center_x = rect.center().x()
+                # rect.setLeft(rect.left() + (x_scene - center_x))
+                # rect.setRight(rect.right() + (x_scene - center_x))
+            elif handle_type == 'lm':  # Left-middle
+                rect.setLeft(x_scene)
+            elif handle_type == 'rm':  # Right-middle
+                rect.setRight(x_scene)
+            
+            overlay.setRect(rect)
+        
+        # Move the handle
+        handle_size = 10
+        self.dragging_handle.setRect(
+            x_scene - handle_size/2, y_scene - handle_size/2,
+            handle_size, handle_size
+        )
+
+    def finish_drag_edit_handle(self, event):
+        """Finish dragging and update the mask."""
+        if self.dragging_handle is None or self.editing_mask_index < 0:
+            self.dragging_handle = None
+            return
+        
+        mask_index = self.editing_mask_index
+        overlay = self.data_handler.mask_overlays[mask_index]
+        mask_info = self.data_handler.mask_info[mask_index]
+        
+        x_canvas = event.position().x()
+        y_canvas = event.position().y()
+        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
+        
+        # Update the mask based on type
+        if mask_info['type'] in ['rectangle', 'ellipse']:
+            self.update_rect_ellipse_mask_from_drag(mask_index, overlay, mask_info)
+            # Update handle positions to match the new rect
+            self.update_resize_handles_positions(mask_index, overlay)
+        elif mask_info['type'] == 'polygon':
+            self.update_polygon_mask_from_drag(mask_index, overlay, mask_info)
+            # Update handle positions to match the new polygon
+            self.update_polygon_handles_positions(mask_index, overlay)
+        
+        self.dragging_handle = None
+
+    def update_rect_ellipse_mask_from_drag(self, mask_index, overlay, mask_info):
+        """Update rectangle/ellipse mask after handle drag."""
+        rect = overlay.rect()
+        x_min, y_min = int(rect.left()), int(rect.top())
+        x_max, y_max = int(rect.right()), int(rect.bottom())
+        
+        # Update mask info
+        self.data_handler.mask_info[mask_index]['coords'] = (x_min, y_min, x_max, y_max)
+        
+        # Regenerate mask matrix
+        image_matrix = self.data_handler.image_matrix
+        height, width = image_matrix.shape[:2]
+        mask_matrix = np.zeros((height, width), dtype=image_matrix.dtype)
+        
+        if mask_info['type'] == 'rectangle':
+            for y in range(max(0, y_min), min(height, y_max + 1)):
+                for x in range(max(0, x_min), min(width, x_max + 1)):
+                    mask_matrix[y, x] = 1
+        else:  # ellipse
+            center_x = (x_min + x_max) / 2.0
+            center_y = (y_min + y_max) / 2.0
+            radii_x = (x_max - x_min) / 2.0
+            radii_y = (y_max - y_min) / 2.0
+            
+            if radii_x > 0 and radii_y > 0:
+                for y in range(max(0, y_min), min(height, y_max + 1)):
+                    for x in range(max(0, x_min), min(width, x_max + 1)):
+                        dx = (x - center_x) / radii_x
+                        dy = (y - center_y) / radii_y
+                        if dx * dx + dy * dy <= 1.0:
+                            mask_matrix[y, x] = 1
+        
+        self.data_handler.masks_list[mask_index] = mask_matrix
+        self.update_masks_list_widget_keep_selection(mask_index)
+
+    def update_polygon_mask_from_drag(self, mask_index, overlay, mask_info):
+        """Update polygon mask after vertex drag."""
+        if isinstance(overlay, QtWidgets.QGraphicsPolygonItem):
+            polygon = overlay.polygon()
+            new_points = []
+            
+            for point in polygon:
+                x_img, y_img = self.data_handler.scene_to_image_coords(point.x(), point.y())
+                new_points.append((int(x_img), int(y_img)))
+            
+            # Update mask info
+            self.data_handler.mask_info[mask_index]['coords'] = new_points
+            
+            # Regenerate mask matrix
+            image_matrix = self.data_handler.image_matrix
+            height, width = image_matrix.shape[:2]
+            mask_matrix = np.zeros((height, width), dtype=image_matrix.dtype)
+            
+            pts = np.array(new_points, dtype=np.int32)
+            cv2.fillPoly(mask_matrix, [pts], 1)
+            
+            self.data_handler.masks_list[mask_index] = mask_matrix
+            self.update_masks_list_widget_keep_selection(mask_index)
+
+    def update_masks_list_widget_keep_selection(self, selected_index):
+        """Update the masks list widget while keeping a specific mask selected."""
+        # Block signals to prevent triggering itemSelectionChanged during update
+        self.masks_list_widget.blockSignals(True)
+        
+        self.masks_list_widget.clear()
+        for idx, mask in enumerate(self.data_handler.masks_list):
+            non_nan_count = np.count_nonzero(mask == 1)
+            item_text = f"Mask {idx + 1} ({non_nan_count} pixels)"
+            self.masks_list_widget.addItem(item_text)
+        
+        # Restore selection
+        if selected_index >= 0 and selected_index < self.masks_list_widget.count():
+            self.masks_list_widget.setCurrentRow(selected_index)
+        
+        # Re-enable signals
+        self.masks_list_widget.blockSignals(False)
+
+    def update_resize_handles_positions(self, mask_index, overlay):
+        """Update positions of resize handles to match the overlay rect."""
+        if mask_index >= len(self.edit_handles):
+            return
+        
+        rect = overlay.rect()
+        handle_size = 10
+        
+        positions = [
+            (rect.left(), rect.top()),      # Top-left
+            (rect.right(), rect.top()),     # Top-right
+            (rect.left(), rect.bottom()),   # Bottom-left
+            (rect.right(), rect.bottom()),  # Bottom-right
+            (rect.center().x(), rect.top()),   # Top-middle
+            (rect.center().x(), rect.bottom()), # Bottom-middle
+            (rect.left(), rect.center().y()),  # Left-middle
+            (rect.right(), rect.center().y()),  # Right-middle
+        ]
+        
+        handle_index = 0
+        for handle in self.edit_handles:
+            if handle.mask_index == mask_index and hasattr(handle, 'handle_type') and not hasattr(handle, 'point_index'):
+                if handle_index < len(positions):
+                    x, y = positions[handle_index]
+                    handle.setRect(x - handle_size/2, y - handle_size/2, handle_size, handle_size)
+                    handle_index += 1
+
+    def update_polygon_handles_positions(self, mask_index, overlay):
+        """Update positions of polygon handles to match the overlay polygon."""
+        if isinstance(overlay, QtWidgets.QGraphicsPolygonItem):
+            polygon = overlay.polygon()
+            handle_size = 10
+            
+            handle_index = 0
+            for handle in self.edit_handles:
+                if handle.mask_index == mask_index and hasattr(handle, 'point_index'):
+                    if handle.point_index < len(polygon):
+                        point = polygon[handle.point_index]
+                        handle.setRect(point.x() - handle_size/2, point.y() - handle_size/2, handle_size, handle_size)
 
     def delete_selected_mask(self):
         """Delete the currently selected mask."""
@@ -1477,6 +1823,9 @@ class ImageColorer(QtCore.QObject):
             self.data_handler.masks_list.pop(index)
             self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
             self.data_handler.mask_overlays.pop(index)
+            if index < len(self.data_handler.mask_info):
+                self.data_handler.mask_info.pop(index)
+            self.clear_edit_handles()
             self.update_masks_list_widget()
 
     def save_selected_mask(self):
@@ -1536,6 +1885,8 @@ class ImageColorer(QtCore.QObject):
         )
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
             self.data_handler.masks_list.clear()
+            self.data_handler.mask_info.clear()
+            self.clear_edit_handles()
             self.update_masks_list_widget()
             for overlay in self.data_handler.mask_overlays:
                 self.gui.image_scene.removeItem(overlay)
