@@ -83,8 +83,9 @@ class Point:
         )
     
 class ImgObj:
-    def __init__(self, image_matrix, pixel_per_mm, pixel_per_mm_original):
+    def __init__(self, image_matrix, original_image_matrix, pixel_per_mm, pixel_per_mm_original):
         self.image_matrix = image_matrix
+        self.original_image_matrix = original_image_matrix
         self.pixel_per_mm = pixel_per_mm
         self.pixel_per_mm_original = pixel_per_mm_original
 

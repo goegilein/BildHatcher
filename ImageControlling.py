@@ -15,11 +15,7 @@ class BaseFunctions:
         self.gui = gui
         self.image_dimension_frame = gui.image_dimension_frame
         self.image_lister_frame = gui.image_lister_frame
-        self.image_original = None
-        self.image = None
-        self.image_matrix = None
         self.default_dpi = 96  # Assuming 96 DPI by default
-        self.pixel_per_mm = self.default_dpi / 25.4  # Image scaling in real space
         self.changeing_image = False
         self.updating_dimensions = False
         self.active_image_item = None
@@ -30,8 +26,8 @@ class BaseFunctions:
         self.actionLoad_image.triggered.connect(self.load_image)
         self.actionSave_image = gui.actionSave_Image
         self.actionSave_image.triggered.connect(self.save_image)
-        self.actionReset_image = gui.actionReset_Image
-        self.actionReset_image.triggered.connect(self.reset_image)
+        # self.actionReset_image = gui.actionReset_Image
+        # self.actionReset_image.triggered.connect(self.reset_image)
 
         # Add variable, label and entry field for image width (image dimension frame)
         self.width_spinbox = gui.width_spinbox
@@ -90,24 +86,22 @@ class BaseFunctions:
         if file_path:
             try:
                 # Open and convert image to RGB
-                self.image_original = Image.open(file_path).convert('RGB')
-                self.image = Image.open(file_path).convert('RGB')
-                self.image_matrix = np.array(self.image)
+                image = Image.open(file_path).convert('RGB')
+                image_matrix = np.array(image)
                 # Ensure image_matrix is (H, W, 3)
-                if self.image_matrix.ndim == 2:
+                if image_matrix.ndim == 2:
                     # Grayscale image, convert to RGB
-                    self.image_matrix = np.stack([self.image_matrix]*3, axis=-1)
-                elif self.image_matrix.shape[-1] != 3:
+                    image_matrix = np.stack([image_matrix]*3, axis=-1)
+                elif image_matrix.shape[-1] != 3:
                     # Remove alpha or extra channels
-                    self.image_matrix = self.image_matrix[..., :3]
+                    image_matrix = image_matrix[..., :3]
 
                 # Check if image has DPI info, otherwise use default
-                dpi = self.image.info.get('dpi', (self.default_dpi, self.default_dpi))[0] if hasattr(self.image, 'info') else self.default_dpi
-                self.pixel_per_mm = dpi / 25.4  # Update image
-                self.pixel_per_mm_original = self.pixel_per_mm
+                dpi = image.info.get('dpi', (self.default_dpi, self.default_dpi))[0] if hasattr(image, 'info') else self.default_dpi
+                pixel_per_mm = dpi / 25.4  # Update image
                 filename = file_path.split("/")[-1]
                 self.changeing_image = True
-                img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+                img_obj = ImgObj(image_matrix.copy(), image_matrix.copy(), pixel_per_mm, pixel_per_mm)
                 self.add_listbox_item(img_obj, filename, set_selected=True)
                 self.changeing_image = False
                 self.set_handler_data(new_image = True)
@@ -133,22 +127,14 @@ class BaseFunctions:
         if file_path:
             try:
                 self.get_handler_data()
-                image = Image.fromarray(self.image_matrix)
+                image_matrix = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).image_matrix
+                image = Image.fromarray(image_matrix)
                 # Calculate DPI from current pixel_per_mm
-                dpi = round(self.pixel_per_mm * 25.4)
+                dpi = round(self.get_active_pixel_per_mm() * 25.4)
                 # Save with DPI metadata (works for PNG, BMP, and JPEG)
                 image.save(file_path, dpi=(dpi, dpi))
             except Exception as e:
                 print(f"Error saving image: {e}")        
-
-    def reset_image(self):
-        self.image = self.image_original.copy()
-        self.image_matrix = np.array(self.image)
-        self.pixel_per_mm = self.default_dpi / 25.4  # Update image scaling
-        self.set_handler_data(new_image=True)
-        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
-        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-        self.update_dimension_fields()
 
     def update_dimensions(self):
         sender =self.gui.sender()   
@@ -158,45 +144,44 @@ class BaseFunctions:
             self.get_handler_data()
             new_width_mm = float(self.width_spinbox.value())
             new_height_mm = float(self.height_spinbox.value())
-            # new_width = new_width_mm * self.pixel_per_mm
-            # new_height = new_height_mm * self.pixel_per_mm
+            
+            image_matrix = self.get_active_image_matrix()
             if self.lock_ratio_check.isChecked():  # If ratio is locked we simply rescale the DPI. This maintains the image information
                 if sender == self.width_spinbox:#.hasFocus():
-                    new_pixel_per_mm = self.image_matrix.shape[1] / new_width_mm
-                    self.pixel_per_mm = new_pixel_per_mm
+                    new_pixel_per_mm = image_matrix.shape[1] / new_width_mm
+                    self.set_active_pixel_per_mm(new_pixel_per_mm)
                 else:
-                    new_pixel_per_mm = self.image_matrix.shape[0] / new_height_mm
-                    self.pixel_per_mm = new_pixel_per_mm
+                    new_pixel_per_mm = image_matrix.shape[0] / new_height_mm
+                    self.set_active_pixel_per_mm(new_pixel_per_mm)
             else:
-                new_width = new_width_mm * self.pixel_per_mm
-                new_height = new_height_mm * self.pixel_per_mm
-                self.image_matrix = np.array(Image.fromarray(self.image_matrix).resize((int(new_width), int(new_height))))
+                new_width = new_width_mm * self.get_active_pixel_per_mm()
+                new_height = new_height_mm * self.get_active_pixel_per_mm()
+                image_matrix = np.array(Image.fromarray(image_matrix).resize((int(new_width), int(new_height))))
             self.set_handler_data(new_image = False)
-            img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
-            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
             self.update_dimension_fields()
         except Exception as e:
             print(f"Error updating dimensions: {e}")
 
     def update_dimension_fields(self):
-        height, width = self.image_matrix.shape[:2]
-        width_mm = width / self.pixel_per_mm
-        height_mm = height / self.pixel_per_mm
+        height, width = self.get_active_image_matrix().shape[:2]
+        width_mm = width / self.get_active_pixel_per_mm()
+        height_mm = height / self.get_active_pixel_per_mm()
         self.updating_dimensions = True
         self.width_spinbox.setValue(width_mm)
         self.height_spinbox.setValue(height_mm)
         self.updating_dimensions = False
 
     def reset_image_size(self):
-        self.pixel_per_mm = self.pixel_per_mm_original
-        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        pixel_per_mm = self.get_active_pixel_per_mm_original()
+        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        img_obj.pixel_per_mm = pixel_per_mm
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
         self.set_handler_data(new_image = False)   
         self.update_dimension_fields()
 
     def split_colors(self):
         self.get_handler_data()
-        current_image_matrix = np.array(self.image_matrix.copy())
+        current_image_matrix = self.get_active_image_matrix()
         height, width, num_colors = current_image_matrix.shape
         clusters = defaultdict(lambda: np.ones((height, width, num_colors), dtype=np.uint8) * 255)
 
@@ -224,30 +209,31 @@ class BaseFunctions:
         self.changeing_image = True
         sel_image_item = self.images_ListWidget.selectedItems()[-1]
         image_name = sel_image_item.text()
-        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        img_obj = ImgObj(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
         self.add_listbox_item(img_obj, image_name + "_unsplit", set_selected=True)
         for color, cluster in clusters.items():
-            img_obj = ImgObj(cluster, self.pixel_per_mm, self.pixel_per_mm_original)
+            img_obj = ImgObj(cluster, cluster, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
             self.add_listbox_item(img_obj, str(color))
         self.changeing_image = False
 
     def add_image(self):
         self.get_handler_data()
-        sel_image_item = self.active_image_item
-        image_name = sel_image_item.text()
-        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        image_name = self.active_image_item.text()
+        img_obj = ImgObj(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
         self.add_listbox_item(img_obj, image_name + "_edited", set_selected=True)
+
 
     def keep_changes(self):
         self.get_handler_data()
-        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        img_obj = ImgObj(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
         self.set_handler_data(new_image = True)
     
     def rot_image_180(self):
         self.get_handler_data()
-        self.image_matrix = np.flipud(np.fliplr(self.image_matrix))
-        img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
+        image_matrix = np.flipud(np.fliplr(self.get_active_image_matrix()))
+        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        img_obj.image_matrix = image_matrix.copy()
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
         self.set_handler_data(new_image = True)
 
@@ -264,21 +250,22 @@ class BaseFunctions:
     def change_image(self):
         if self.changeing_image:
             return
-
-        sel_image_item = self.images_ListWidget.selectedItems()
-        if not sel_image_item or len(sel_image_item) != 1:
+        
+        #get new selction and check if only one item is selected
+        newly_selected = self.images_ListWidget.selectedItems()
+        if not newly_selected or len(newly_selected) != 1:
             return
+        
+        #first store the current image matrix in the previously selected item
+        self.get_handler_data()
+
+        #load new item
         self.changeing_image = True
-        img_obj = sel_image_item[0].data(QtCore.Qt.ItemDataRole.UserRole)
-        self.image = Image.fromarray(img_obj.image_matrix)
-        self.image_matrix = img_obj.image_matrix.copy()
-        self.pixel_per_mm = img_obj.pixel_per_mm
-        self.pixel_per_mm_original = img_obj.pixel_per_mm_original
+        self.active_image_item = newly_selected[0]
         self.data_handler.reset_edits()
         self.set_handler_data(new_image=True)
         self.update_dimension_fields()
-        self.changeing_image = False
-        self.active_image_item = sel_image_item[0]
+        self.changeing_image = False       
 
     def combine_images(self):
         selected_images = self.images_ListWidget.selectedItems()
@@ -309,19 +296,45 @@ class BaseFunctions:
             combined_image[color_mask] = avg_color.astype(np.uint8)
 
         self.remove_image()
-        img_obj = ImgObj(combined_image, self.pixel_per_mm, self.pixel_per_mm_original)
+        img_obj = ImgObj(combined_image, combined_image, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
         self.add_listbox_item(img_obj, "combined", set_selected=True)
 
+
+    #simple getter and setter functions for active image properties
+    def get_active_image_matrix(self):
+        return self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).image_matrix.copy()
+    
+    def get_active_original_image_matrix(self):
+        return self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).original_image_matrix.copy()
+    
+    def get_active_pixel_per_mm(self):
+        return self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).pixel_per_mm
+    
+    def set_active_pixel_per_mm(self, new_pixel_per_mm):
+        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        img_obj.pixel_per_mm = new_pixel_per_mm
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+    
+    def get_active_pixel_per_mm_original(self):
+        return self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).pixel_per_mm_original
+    
+    def get_active_img_obj(self):
+        return self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+
+    # Data handler sync functions
     def set_handler_data(self, new_image = False):
-        self.data_handler.pixel_per_mm = self.pixel_per_mm
+        self.data_handler.pixel_per_mm = self.get_active_pixel_per_mm()
         self.data_handler.default_pixel_per_mm = self.default_dpi / 25.4
-        self.data_handler.image_matrix = self.image_matrix.copy()
+        self.data_handler.image_matrix = self.get_active_image_matrix().copy()
         if new_image:
-            self.data_handler.image_original = self.image_original
-            self.data_handler.image_matrix_original = self.image_matrix
+            original_image_matrix = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).original_image_matrix
+            self.data_handler.image_matrix_original = original_image_matrix.copy()
 
     def get_handler_data(self):
-        self.image_matrix = self.data_handler.image_matrix
+        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        img_obj.image_matrix = self.data_handler.image_matrix.copy()
+        img_obj.pixel_per_mm = self.data_handler.pixel_per_mm
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
     
 class ImageMover(QtCore.QObject):
     def __init__(self, data_handler, event_handler, gui):

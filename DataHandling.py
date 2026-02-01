@@ -18,7 +18,6 @@ class DataHandler:
         self.image_matrix = None
         self.image_matrix_original = None
         self._image_matrix_original = None
-        self.image_original = None
         self.center_for_hatch = None
         self.contours = None
         self._contours=None

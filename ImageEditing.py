@@ -77,7 +77,7 @@ class ImageAdjuster:
                                                                 sigma_space=self.sigma_space_spinbox.value()))
         
         # Add a callback to reste all adjuments when a  new image is loaded
-        self.data_handler.add_image_changed_callback(self.restore_original_color)
+        #self.data_handler.add_image_changed_callback(self.restore_original_color) #depreciated, now tracking correctly in main image controller
 
     ## METHODS
 
