@@ -242,7 +242,7 @@ class BaseFunctions:
         self.get_handler_data()
         img_obj = ImgObj(self.image_matrix.copy(), self.pixel_per_mm, self.pixel_per_mm_original)
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-        self.set_handler_data(new_image = False)
+        self.set_handler_data(new_image = True)
     
     def rot_image_180(self):
         self.get_handler_data()
@@ -323,7 +323,7 @@ class BaseFunctions:
     def get_handler_data(self):
         self.image_matrix = self.data_handler.image_matrix
     
-class ImageSizer(QtCore.QObject):
+class ImageMover(QtCore.QObject):
     def __init__(self, data_handler, event_handler, gui):
         super().__init__()
         self.data_handler = data_handler
