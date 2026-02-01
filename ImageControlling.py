@@ -101,7 +101,9 @@ class BaseFunctions:
                     # Remove alpha or extra channels
                     self.image_matrix = self.image_matrix[..., :3]
 
-                self.pixel_per_mm = self.default_dpi / 25.4  # Update image
+                # Check if image has DPI info, otherwise use default
+                dpi = self.image.info.get('dpi', (self.default_dpi, self.default_dpi))[0] if hasattr(self.image, 'info') else self.default_dpi
+                self.pixel_per_mm = dpi / 25.4  # Update image
                 self.pixel_per_mm_original = self.pixel_per_mm
                 filename = file_path.split("/")[-1]
                 self.changeing_image = True
@@ -126,13 +128,16 @@ class BaseFunctions:
 
     def save_image(self):
         file_path, _ = QFileDialog.getSaveFileName(
-            None, "Save Image", "", "PNG Files (*.png);;BMP Files (*.bmp);;IMG Files (*.img)"
+            None, "Save Image", "", "PNG Files (*.png);;BMP Files (*.bmp);;JPEG Files (*.jpg *.jpeg)"
         )
         if file_path:
             try:
                 self.get_handler_data()
                 image = Image.fromarray(self.image_matrix)
-                image.save(file_path)
+                # Calculate DPI from current pixel_per_mm
+                dpi = round(self.pixel_per_mm * 25.4)
+                # Save with DPI metadata (works for PNG, BMP, and JPEG)
+                image.save(file_path, dpi=(dpi, dpi))
             except Exception as e:
                 print(f"Error saving image: {e}")        
 
@@ -309,7 +314,7 @@ class BaseFunctions:
 
     def set_handler_data(self, new_image = False):
         self.data_handler.pixel_per_mm = self.pixel_per_mm
-        self.data_handler.pixel_per_mm_original = self.pixel_per_mm_original
+        self.data_handler.default_pixel_per_mm = self.default_dpi / 25.4
         self.data_handler.image_matrix = self.image_matrix.copy()
         if new_image:
             self.data_handler.image_original = self.image_original

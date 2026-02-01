@@ -147,3 +147,48 @@ class DBColorPalette:
         if self.color_palette is None:
             raise ValueError("No database values provided for automated hatch distance.")
         return [np.array([int(x) for x in color_param['color_rgb'].split(',')], dtype=np.int64) for color_param in self.color_palette]
+    
+class ObservableList(list):
+    """
+    A list subclass that notifies observers whenever the list is modified.
+    Supports append, extend, insert, remove, pop, clear, and item assignment.
+    """
+    def __init__(self, *args, on_change=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.on_change = on_change
+
+    def append(self, item):
+        super().append(item)
+        if self.on_change:
+            self.on_change()
+
+    def extend(self, iterable):
+        super().extend(iterable)
+        if self.on_change:
+            self.on_change()
+
+    def insert(self, index, item):
+        super().insert(index, item)
+        if self.on_change:
+            self.on_change()
+
+    def remove(self, item):
+        super().remove(item)
+        if self.on_change:
+            self.on_change()
+
+    def pop(self, index=-1):
+        result = super().pop(index)
+        if self.on_change:
+            self.on_change()
+        return result
+
+    def clear(self):
+        super().clear()
+        if self.on_change:
+            self.on_change()
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if self.on_change:
+            self.on_change()

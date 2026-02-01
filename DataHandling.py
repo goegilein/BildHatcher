@@ -2,7 +2,7 @@ from PIL import Image
 from PyQt6 import QtCore
 from PyQt6.QtGui import QPixmap, QImage, QPixmap
 import cv2
-from HelperClasses import HatchData
+from HelperClasses import HatchData, ObservableList
 import numpy as np
 
 class DataHandler:
@@ -14,7 +14,7 @@ class DataHandler:
         #values to handle
         self._hatch_data = HatchData(None, None)
         self.pixel_per_mm = None
-        self.pixel_per_mm_original = None
+        self.default_pixel_per_mm = 96/25.4  # Default pixel per mm value (96 DPI / 25.4 mm/inch)
         self.image_matrix = None
         self.image_matrix_original = None
         self._image_matrix_original = None
@@ -119,7 +119,8 @@ class DataHandler:
             
             # Calculate display scale based on pixel_per_mm ratio
             # This determines how large pixels appear on the canvas
-            self.scale_factor =  self.pixel_per_mm_original / self.pixel_per_mm if self.pixel_per_mm_original else 1.0
+            #self.scale_factor =  self.pixel_per_mm_original / self.pixel_per_mm if self.pixel_per_mm_original else 1.0
+            self.scale_factor =  self.default_pixel_per_mm / self.pixel_per_mm 
             
             # Apply the scale to the image item (visual zoom only, no pixel data change)
             self.gui.image_item.setScale(self.scale_factor)
@@ -271,47 +272,3 @@ class DataHandler:
             print(f"Error converting image to scene coordinates: {e}")
             return None
     
-class ObservableList(list):
-    """
-    A list subclass that notifies observers whenever the list is modified.
-    Supports append, extend, insert, remove, pop, clear, and item assignment.
-    """
-    def __init__(self, *args, on_change=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.on_change = on_change
-
-    def append(self, item):
-        super().append(item)
-        if self.on_change:
-            self.on_change()
-
-    def extend(self, iterable):
-        super().extend(iterable)
-        if self.on_change:
-            self.on_change()
-
-    def insert(self, index, item):
-        super().insert(index, item)
-        if self.on_change:
-            self.on_change()
-
-    def remove(self, item):
-        super().remove(item)
-        if self.on_change:
-            self.on_change()
-
-    def pop(self, index=-1):
-        result = super().pop(index)
-        if self.on_change:
-            self.on_change()
-        return result
-
-    def clear(self):
-        super().clear()
-        if self.on_change:
-            self.on_change()
-
-    def __setitem__(self, key, value):
-        super().__setitem__(key, value)
-        if self.on_change:
-            self.on_change()
