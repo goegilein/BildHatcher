@@ -510,6 +510,16 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
+             <item row="3" column="1">
+              <widget class="QPushButton" name="cut_to_mask_button">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>Cut to Mask</string>
+               </property>
+              </widget>
+             </item>
             </layout>
            </widget>
           </item>
@@ -1307,6 +1317,16 @@ font-weight: normal;  /* Bold text */
            <string>Draw Masks</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_22">
+           <item row="2" column="3">
+            <widget class="QPushButton" name="save_mask_button">
+             <property name="text">
+              <string>Save selected Mask as Image</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="3">
+            <widget class="QListWidget" name="masks_list_widget"/>
+           </item>
            <item row="0" column="1">
             <widget class="QPushButton" name="ellipse_mask_button">
              <property name="text">
@@ -1327,13 +1347,6 @@ font-weight: normal;  /* Bold text */
              </property>
             </widget>
            </item>
-           <item row="1" column="0">
-            <widget class="QPushButton" name="delete_mask_button">
-             <property name="text">
-              <string>Delete Mask</string>
-             </property>
-            </widget>
-           </item>
            <item row="0" column="2">
             <widget class="QPushButton" name="polygon_mask_button">
              <property name="text">
@@ -1344,13 +1357,10 @@ font-weight: normal;  /* Bold text */
              </property>
             </widget>
            </item>
-           <item row="2" column="0" colspan="3">
-            <widget class="QListWidget" name="masks_list_widget"/>
-           </item>
-           <item row="1" column="1">
-            <widget class="QPushButton" name="delete_all_masks_button">
+           <item row="1" column="0">
+            <widget class="QPushButton" name="delete_mask_button">
              <property name="text">
-              <string>Delete all Masks</string>
+              <string>Delete Mask</string>
              </property>
             </widget>
            </item>
@@ -1366,6 +1376,13 @@ font-weight: normal;  /* Bold text */
               </size>
              </property>
             </spacer>
+           </item>
+           <item row="1" column="1">
+            <widget class="QPushButton" name="delete_all_masks_button">
+             <property name="text">
+              <string>Delete all Masks</string>
+             </property>
+            </widget>
            </item>
           </layout>
          </widget>

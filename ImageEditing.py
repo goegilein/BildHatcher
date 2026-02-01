@@ -442,6 +442,10 @@ class ImageColorer(QtCore.QObject):
         self.delete_mask_button = gui.delete_mask_button
         self.delete_mask_button.clicked.connect(self.delete_selected_mask)
         
+        # Button to save selected mask
+        self.save_mask_button = gui.save_mask_button
+        self.save_mask_button.clicked.connect(self.save_selected_mask)
+        
         # Button to clear all masks
         self.delete_all_masks_button = gui.delete_all_masks_button
         self.delete_all_masks_button.clicked.connect(self.clear_all_masks)
@@ -483,7 +487,6 @@ class ImageColorer(QtCore.QObject):
             self.fill_color_patch(event)
         elif self.replace_color_on:
             self.replace_color(event)
-            self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         elif self.mask_drawing_on:
             if self.mask_shape_mode == "rectangle":
                 self.start_mask_rect(event)
@@ -708,17 +711,35 @@ class ImageColorer(QtCore.QObject):
         # Abort if color is equal (tolerance could be added here)
         if np.array_equal(target_color, fill_color_arr): return
 
-        # 2. BFS Algorithm (Numpy optimization is difficult for flood fill, so use Queue)
+        #2. see if there are any masks and if the clicked pixel is inside one
+        active_mask = None
+        mask_matrix = np.zeros_like(image_matrix)
+        for color_mask in self.data_handler.masks_list:
+            # if np.isnan(mask[y_img, x_img][0])==False:
+            if color_mask[y_image, x_image] == 1:
+                # Clicked inside a mask, do not replace color
+                active_mask = color_mask
+                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
+                break
+
+        if active_mask is None:
+            if self.data_handler.masks_list:
+                active_mask = self.get_background_mask()
+                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
+            else:
+                mask_matrix = image_matrix
+
+        # 3. BFS Algorithm (Numpy optimization is difficult for flood fill, so use Queue)
         # For extremely large images: skimage.segmentation.flood_fill would be faster,
         # but here we stick with pure Python/Numpy standard.
         
-        mask = np.zeros((h, w), dtype=bool)
+        color_mask = np.zeros((h, w), dtype=bool)
         queue = collections.deque([(y_image, x_image)])
         visited = set([(y_image, x_image)])
         
         while queue:
             cy, cx = queue.popleft()
-            mask[cy, cx] = True
+            color_mask[cy, cx] = True
             
             # Check neighbors
             for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
@@ -726,13 +747,13 @@ class ImageColorer(QtCore.QObject):
                 if 0 <= ny < h and 0 <= nx < w:
                     if (ny, nx) not in visited:
                         # Check pixel color
-                        if np.array_equal(image_matrix[ny, nx][:3], target_color):
+                        if np.array_equal(mask_matrix[ny, nx][:3], target_color):
                             visited.add((ny, nx))
                             queue.append((ny, nx))
 
-        # 3. Create overlay and add to stack
-        if np.any(mask):
-            overlay_item = self._create_overlay_from_mask(mask)
+        # 34. Create overlay and add to stack
+        if np.any(color_mask):
+            overlay_item = self._create_overlay_from_mask(color_mask)
             # # Position overlay at same location as main image to account for panning
             # overlay_item.setPos(self.gui.image_item.pos())
             # self.gui.image_scene.addItem(overlay_item)
@@ -755,21 +776,34 @@ class ImageColorer(QtCore.QObject):
 
         # Identify target color (RGB)
         target_color = image_matrix[y_image, x_image].copy() 
-        
-        # Create mask: which pixels are equal to the target color?
+
+        #see if there are any masks and if the clicked pixel is inside one
+        active_mask = None
+        mask_matrix = np.zeros_like(image_matrix)
+        for color_mask in self.data_handler.masks_list:
+            # if np.isnan(mask[y_img, x_img][0])==False:
+            if color_mask[y_image, x_image] == 1:
+                # Clicked inside a mask, do not replace color
+                active_mask = color_mask
+                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
+                break
+
+        if active_mask is None:
+            if self.data_handler.masks_list:
+                active_mask = self.get_background_mask()
+                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
+            else:
+                mask_matrix = image_matrix
+
+
+        # Create color_mask: which pixels are equal to the target color?
         # np.all checks over the last axis (Color Channels)
         # We compare only the first 3 channels (RGB), ignoring alpha
-        mask = np.all(image_matrix[:, :, :3] == target_color, axis=2)
+        color_mask = np.all(mask_matrix[:, :, :3] == target_color, axis=2)
 
-        # Optional: Insert your "DataHandler" mask logic here,
-        # to further restrict 'mask' (e.g. mask = mask & area_mask)
-        
         # Create overlay
-        if np.any(mask):
-            overlay_item = self._create_overlay_from_mask(mask)
-            # # Position overlay at same location as main image to account for panning
-            # overlay_item.setPos(self.gui.image_item.pos())
-            # self.gui.image_scene.addItem(overlay_item)
+        if np.any(color_mask):
+            overlay_item = self._create_overlay_from_mask(color_mask)
             self.data_handler.active_color_overlays.append(overlay_item)
 
     def recolor_color_from_db(self):
@@ -1187,8 +1221,8 @@ class ImageColorer(QtCore.QObject):
         mask_matrix = np.zeros((height, width), dtype=image_matrix.dtype)
         
         # Fill selected area with ones
-        for y in range(y_min, y_max):
-            for x in range(x_min, x_max):
+        for y in range(max(0, y_min), min(height, y_max + 1)):
+            for x in range(max(0, x_min), min(width, x_max + 1)):
                 mask_matrix[y, x] = 1
 
         # Store the mask
@@ -1444,6 +1478,54 @@ class ImageColorer(QtCore.QObject):
             self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
             self.data_handler.mask_overlays.pop(index)
             self.update_masks_list_widget()
+
+    def save_selected_mask(self):
+        """Save the currently selected mask as an image file with actual image pixels."""
+        selected_items = self.masks_list_widget.selectedItems()
+        if not selected_items:
+            QtWidgets.QMessageBox.warning(self.gui, "No Mask Selected", "Please select a mask to save.")
+            return
+        
+        index = self.masks_list_widget.row(selected_items[0])
+        active_mask = self.data_handler.masks_list[index]
+        
+        # Find the minimum bounding rectangle containing all True (1) values
+        rows = np.where(np.any(active_mask == 1, axis=1))[0]
+        cols = np.where(np.any(active_mask == 1, axis=0))[0]
+        
+        if len(rows) == 0 or len(cols) == 0:
+            QtWidgets.QMessageBox.warning(self.gui, "Empty Mask", "The selected mask contains no pixels.")
+            return
+        
+        row_min, row_max = rows[0], rows[-1]
+        col_min, col_max = cols[0], cols[-1]
+        
+        # Extract the bounding rectangle from the mask and image
+        mask_cropped = active_mask[row_min:row_max+1, col_min:col_max+1]
+        image_cropped = self.data_handler.image_matrix[row_min:row_max+1, col_min:col_max+1]
+        
+        # Fill the output image with pixels where mask==1, white elsewhere
+        output_image = np.ones_like(image_cropped) * 255
+        output_image[mask_cropped == 1] = image_cropped[mask_cropped == 1]
+        
+        # Get save file path from user
+        file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self.gui, 
+            "Save Mask", 
+            "", 
+            "PNG Files (*.png);;BMP Files (*.bmp);;JPEG Files (*.jpg *.jpeg)"
+        )
+        
+        if file_path:
+            try:
+                image = Image.fromarray(output_image.astype(np.uint8))
+                # Add DPI information based on current pixel_per_mm
+                dpi = round(self.data_handler.pixel_per_mm * 25.4)
+                # Save with DPI metadata
+                image.save(file_path, dpi=(dpi, dpi))
+                QtWidgets.QMessageBox.information(self.gui, "Success", f"Mask saved successfully to:\n{file_path}")
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self.gui, "Error Saving Mask", f"Error saving mask: {e}")
 
     def clear_all_masks(self):
         """Clear all masks."""
