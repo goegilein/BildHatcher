@@ -8,7 +8,7 @@ import numpy as np
 class DataHandler:
     def __init__(self, gui):
         self.gui = gui
-        self.image_changed_callback_list = []  # List to hold callbacks for image changes
+        self.image_changed_callback_list = []  # List to hold callbacks for image changes (edits to original_image_matrix)
         self.image_resized_callback_list = []  # List to hold callbacks for image resizing
 
         #values to handle
@@ -18,7 +18,6 @@ class DataHandler:
         self.image_matrix = None
         self.image_matrix_original = None
         self._image_matrix_original = None
-        self.image_original = None
         self.center_for_hatch = None
         self.contours = None
         self._contours=None
@@ -29,6 +28,8 @@ class DataHandler:
 
         #masks
         self.masks_list = [] # List of mask matrices
+        self.mask_info = []  # List of mask info dictionaries
+        self.active_mask_index = -1  # Index of the currently active mask
         self.mask_overlays = [] # List of QGraphicsRectItem overlays
 
     #create a watcher for the original image matrix. When the original image matrix is changed it means a new image was loaded.
@@ -50,17 +51,7 @@ class DataHandler:
         else:
             raise ValueError("Callback must be callable")
     
-    #create a watcher for pixel_per_mm. 
-    @property
-    def pixel_per_mm(self):
-        return self._pixel_per_mm
-    
-    @pixel_per_mm.setter
-    def pixel_per_mm(self, new_value):
-        self._pixel_per_mm = new_value
-        for callback in self.image_resized_callback_list:
-            callback()
-    
+    #add a callback list for image resized. These are called when the image display size changes (if scale factor is updated, and AFTER the image has been redrawn)
     def add_image_resized_callback(self, callback):
         """Add a callback to be called when the image is resized."""
         if callable(callback):
@@ -120,15 +111,21 @@ class DataHandler:
             # Calculate display scale based on pixel_per_mm ratio
             # This determines how large pixels appear on the canvas
             #self.scale_factor =  self.pixel_per_mm_original / self.pixel_per_mm if self.pixel_per_mm_original else 1.0
-            self.scale_factor =  self.default_pixel_per_mm / self.pixel_per_mm 
+            scale_factor =  self.default_pixel_per_mm / self.pixel_per_mm 
             
             # Apply the scale to the image item (visual zoom only, no pixel data change)
-            self.gui.image_item.setScale(self.scale_factor)
+            self.gui.image_item.setScale(scale_factor)
             
             # Update scene rect to account for the scaled display
-            display_width_px = width_px * self.scale_factor
-            display_height_px = height_px * self.scale_factor
+            display_width_px = width_px * scale_factor
+            display_height_px = height_px * scale_factor
             self.gui.image_canvas.setSceneRect(0, 0, display_width_px, display_height_px)
+
+            #notify resize if scale factor changed
+            if self.scale_factor != scale_factor:
+                self.scale_factor = scale_factor
+                for callback in self.image_resized_callback_list:
+                    callback()
 
             #update the color count label
             unique_color_count = self.get_unique_color_count()

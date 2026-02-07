@@ -65,7 +65,7 @@ if __name__ == "__main__":
     data_handler= DataHandling.DataHandler(gui)
     event_handler = EventHandling.EventHandler(gui)
     image_controller = ImageControlling.BaseFunctions(data_handler, gui)
-    image_sizer = ImageControlling.ImageSizer(data_handler, event_handler, gui)
+    image_sizer = ImageControlling.ImageMover(data_handler, event_handler, gui)
     image_adjuster = ImageEditing.ImageAdjuster(data_handler, gui)
     image_colorer = ImageEditing.ImageColorer(data_handler, event_handler, gui)
     image_hatcher = NCDataGeneration.Hatcher(data_handler, gui)
