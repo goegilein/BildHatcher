@@ -320,11 +320,13 @@ class ImageColorer(QtCore.QObject):
         self.data_handler = data_handler
         self.event_handler = event_handler
         self.gui = gui
+        self.active_color = [255, 255, 255]
+
+        #Flags and variables for contouring
         self.contours_visible = False
-        self.contours = []
         self.contours_list = []
         self.contour_pixels = []
-        self.active_color = [255, 255, 255]
+        self.contour_overlay_item = None
 
         # toggle flags for coloring and masking
         self.flood_fill_color_on = False
@@ -360,6 +362,7 @@ class ImageColorer(QtCore.QObject):
         self.flood_fill_button = gui.flood_fill_button
         self.flood_fill_button.clicked.connect(lambda: self.set_single_toggle_state('flood_fill_color_on'))
         self.flood_fill_mode_combobox = gui.flood_fill_mode_combobox
+        self.color_similarity_spinbox = gui.color_similarity_spinbox
 
         # Add a label, input field and toggle button for replacing a color in the image
         self.replace_color_button = gui.replace_color_button
@@ -467,8 +470,6 @@ class ImageColorer(QtCore.QObject):
         self.masks_list_widget = gui.masks_list_widget
         self.masks_list_widget.itemSelectionChanged.connect(self.on_mask_selected)
 
-        # Contour overlay handle for persistent visibility toggle
-        self.contour_overlay_item = None
 
         #Event callbacks for handling gui interactions
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
@@ -778,7 +779,7 @@ class ImageColorer(QtCore.QObject):
         color_mask = np.zeros((h, w), dtype=bool)
         queue = collections.deque([(y_image, x_image)])
         visited = set([(y_image, x_image)])
-        tolerance = 30  # Color similarity tolerance for "Similar Color" modes
+        tolerance = self.color_similarity_spinbox.value()
         
 
 
@@ -1061,6 +1062,11 @@ class ImageColorer(QtCore.QObject):
         arr = np.frombuffer(ptr, np.uint8).reshape((height, width, 4)).copy()
         
         self.data_handler.image_matrix = arr[:,:,:3]  # Drop alpha as we work in RGB only
+
+        #ensure to reset contours button
+        self.contours_visible = False
+        self.draw_contour_button.setText("Draw Contours")
+        self.draw_contour_button.setChecked(False)
     
 
     def restore_uncolored_image(self):
