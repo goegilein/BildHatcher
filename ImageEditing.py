@@ -399,6 +399,14 @@ class ImageColorer(QtCore.QObject):
         self.draw_contour_button = gui.draw_contour_button
         self.draw_contour_button.clicked.connect(self.toggle_contours)
 
+        #Add combobox for contour mode
+        self.contouring_mode_combobox = gui.contouring_mode_combobox
+        self.contouring_mode_combobox.currentTextChanged.connect(self.find_image_contours)
+
+        #Add spinbox for contour sensitivity
+        self.contour_sensitivity_spinbox = gui.contour_sensitivity_spinbox
+        self.contour_sensitivity_spinbox.valueChanged.connect(self.find_image_contours)
+
         # Add label and entry field for contour thickness
         self.contour_thickness_label = gui.contour_thickness_label
         self.contour_thickness_spinbox = gui.contour_thickness_spinbox
@@ -460,11 +468,15 @@ class ImageColorer(QtCore.QObject):
         
         # Button to clear all masks
         self.delete_all_masks_button = gui.delete_all_masks_button
-        self.delete_all_masks_button.clicked.connect(self.clear_all_masks)
+        self.delete_all_masks_button.clicked.connect(self.delete_all_masks)
         
         # Button to edit masks
         self.edit_mask_button = gui.edit_mask_button
         self.edit_mask_button.clicked.connect(lambda: self.set_single_toggle_state('mask_edit_mode'))
+
+        #Button to deslect mask 
+        self.unselect_mask_button = gui.unselect_mask_button
+        self.unselect_mask_button.clicked.connect(self.deselect_mask)
         
         # List widget to display masks
         self.masks_list_widget = gui.masks_list_widget
@@ -1063,8 +1075,9 @@ class ImageColorer(QtCore.QObject):
         
         self.data_handler.image_matrix = arr[:,:,:3]  # Drop alpha as we work in RGB only
 
-        #ensure to reset contours button
+        #ensure to reset contours
         self.contours_visible = False
+        self.contour_overlay_item = None
         self.draw_contour_button.setText("Draw Contours")
         self.draw_contour_button.setChecked(False)
     
@@ -1106,9 +1119,9 @@ class ImageColorer(QtCore.QObject):
             self.contours_visible = True
             self.find_image_contours()
             # Make overlay visible
-            if self.contour_overlay_item is not None:
-                self.contour_overlay_item.show()
-                self.data_handler.active_color_overlays.append(self.contour_overlay_item) # Add to undo stack so it gets removed when new contours are drawn
+            # if self.contour_overlay_item is not None:
+            #     self.contour_overlay_item.show()
+            #     self.data_handler.active_color_overlays.append(self.contour_overlay_item) # Add to undo stack so it gets removed when new contours are drawn
         else:
             # Outlines are visible; hide them
             self.draw_contour_button.setText("Draw Contours")
@@ -1116,7 +1129,8 @@ class ImageColorer(QtCore.QObject):
             # Hide overlay instead of removing it
             if self.contour_overlay_item is not None:
                 self.contour_overlay_item.hide()
-                self.data_handler.active_color_overlays.remove(self.contour_overlay_item) # Remove from undo stack when hidden
+                if self.contour_overlay_item in self.data_handler.active_color_overlays:
+                    self.data_handler.active_color_overlays.remove(self.contour_overlay_item) # Remove from undo stack when hidden
 
     def find_image_contours(self):
         """Find contours and create an overlay for display."""
@@ -1124,21 +1138,45 @@ class ImageColorer(QtCore.QObject):
             # Remove old overlay if it exists
             if self.contour_overlay_item is not None:
                 self.gui.image_scene.removeItem(self.contour_overlay_item)
+                if self.contour_overlay_item in self.data_handler.active_color_overlays:
+                    self.data_handler.active_color_overlays.remove(self.contour_overlay_item)
                 self.contour_overlay_item = None
             
-            # Get the current image data
-            image_array = self.data_handler.image_matrix.copy()
-            height, width = image_array.shape[:2]
+            
 
-            # Apply edge detection (Canny Edge Detector)
-            edges = cv2.Canny(image_array, threshold1=50, threshold2=150)
+            # Get the current image data
+            image_matrix = self.data_handler.image_matrix.copy()
+            height, width = image_matrix.shape[:2]
+
+            # Only apply edge detection to the masked region if there is one, otherwise to the whole image
+            threshold1 = self.contour_sensitivity_spinbox.value()
+            threshold2 = threshold1*3
+            if self.data_handler.active_mask_index != -1:
+                active_mask = self.data_handler.masks_list[self.data_handler.active_mask_index]
+                # Use original image for edge detection, but only inside the mask
+                edges = cv2.Canny(image_matrix, threshold1=threshold1, threshold2=threshold2)
+                # Zero out edges outside the mask
+                edges[active_mask == 0] = 0
+            else:
+                edges = cv2.Canny(image_matrix, threshold1=threshold1, threshold2=threshold2)
+
+            # threshold1: Lower = more edges detected (more sensitive)
+            # threshold2: Should be 2-3x threshold1
 
             # Make edges "wider" by dilation
             kernel = np.ones((self.contour_space_spinbox.value(), self.contour_space_spinbox.value()), np.uint8)
             edges = cv2.dilate(edges, kernel, iterations=1)
 
             # Find contours from the edges
-            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if self.contouring_mode_combobox.currentText() == "only external":
+                contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            elif self.contouring_mode_combobox.currentText() == "all":
+                contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+            
+            # cv2.RETR_EXTERNAL - Only extremnp.outerer contours (current, fastest)
+            # cv2.RETR_LIST - All contours, no hierarchy
+            # cv2.RETR_TREE - All contours with full hierarchy (parent-child relationships)
+            # cv2.RETR_CCOMP - All contours in 2-level hierarchy
             
             # Create a mask with all the actual contour pixels
             contour_mask = np.zeros((height, width), dtype=np.uint8)
@@ -1159,8 +1197,11 @@ class ImageColorer(QtCore.QObject):
             if self.contour_overlay_item is not None:
                 if self.contours_visible:
                     self.contour_overlay_item.show()
+                    self.data_handler.active_color_overlays.append(self.contour_overlay_item)
                 else:
                     self.contour_overlay_item.hide()
+                    if self.contour_overlay_item in self.data_handler.active_color_overlays:
+                        self.data_handler.active_color_overlays.remove(self.contour_overlay_item)
             
             # Finally store contours as list of polylines and pass to datahandler for NC-Data Generation
             self.contours_list = []
@@ -1919,19 +1960,6 @@ class ImageColorer(QtCore.QObject):
                         point = polygon[handle.point_index]
                         handle.setRect(point.x() - handle_size/2, point.y() - handle_size/2, handle_size, handle_size)
 
-    def delete_selected_mask(self):
-        """Delete the currently selected mask."""
-        selected_items = self.masks_list_widget.selectedItems()
-        if selected_items:
-            index = self.masks_list_widget.row(selected_items[0])
-            self.data_handler.masks_list.pop(index)
-            self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
-            self.data_handler.mask_overlays.pop(index)
-            if index < len(self.data_handler.mask_info):
-                self.data_handler.mask_info.pop(index)
-            self.clear_edit_handles()
-            self.update_masks_list_widget()
-
     def save_selected_mask(self):
         """Save the currently selected mask as an image file with actual image pixels."""
         selected_items = self.masks_list_widget.selectedItems()
@@ -1979,8 +2007,40 @@ class ImageColorer(QtCore.QObject):
                 QtWidgets.QMessageBox.information(self.gui, "Success", f"Mask saved successfully to:\n{file_path}")
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self.gui, "Error Saving Mask", f"Error saving mask: {e}")
+    
+    def deselect_mask(self):
+        """Deselect any selected mask."""
+        self.masks_list_widget.clearSelection()
+        self.data_handler.active_mask_index = -1
+        self.editing_mask_index = -1
+        
+        self.edit_mask_button.setChecked(False)
+        # Update overlay colors to all cyan
+        for overlay in self.data_handler.mask_overlays:
+            pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
+            pen.setStyle(QtCore.Qt.PenStyle.DashLine)
+            pen.setWidth(2)
+            overlay.setPen(pen)
+        
+        self.clear_edit_handles()
 
-    def clear_all_masks(self):
+    def delete_selected_mask(self):
+        """Delete the currently selected mask."""
+        selected_items = self.masks_list_widget.selectedItems()
+        if selected_items:
+            index = self.masks_list_widget.row(selected_items[0])
+            if index == self.data_handler.active_mask_index:
+                #ensure deselection and edit mode if delted mask is currently selected
+                self.deselect_mask()
+            self.data_handler.masks_list.pop(index)
+            self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
+            self.data_handler.mask_overlays.pop(index)
+            if index < len(self.data_handler.mask_info):
+                self.data_handler.mask_info.pop(index)
+            self.clear_edit_handles()
+            self.update_masks_list_widget()
+
+    def delete_all_masks(self):
         """Clear all masks."""
         reply = QtWidgets.QMessageBox.question(
             self.gui, "Clear All Masks",
@@ -1988,6 +2048,9 @@ class ImageColorer(QtCore.QObject):
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
         )
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            #ensure deselection and edit mode reset first!
+            self.deselect_mask()
+            #then delete all masks and overlays
             self.data_handler.masks_list.clear()
             self.data_handler.mask_info.clear()
             self.clear_edit_handles()
@@ -1995,6 +2058,8 @@ class ImageColorer(QtCore.QObject):
             for overlay in self.data_handler.mask_overlays:
                 self.gui.image_scene.removeItem(overlay)
             self.data_handler.mask_overlays.clear()
+
+            
 
     def get_background_mask(self):
         """
