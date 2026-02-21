@@ -273,12 +273,12 @@ class BaseFunctions:
 
     def combine_images(self):
         selected_images = self.images_ListWidget.selectedItems()
-        combined_image = np.ones_like(selected_images[0].data(QtCore.Qt.ItemDataRole.UserRole), dtype=np.uint8) * 255
+        combined_image = np.ones_like(selected_images[0].data(QtCore.Qt.ItemDataRole.UserRole).image_matrix, dtype=np.uint8) * 255
         avg_color = np.array([0, 0, 0])
 
 
         for image_item in selected_images:
-            patch = image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+            patch = image_item.data(QtCore.Qt.ItemDataRole.UserRole).image_matrix
             # Where patch is not white, compare to current combined
             mask = ~np.all(patch == 255, axis=-1)
             # For those pixels, if patch is darker, use it
@@ -625,8 +625,8 @@ class ImageMover(QtCore.QObject):
 
         if self.grid_on and self.grid_distance_spinbox.value() > 0:
             grid_distance_mm = self.grid_distance_spinbox.value()
-            pixel_per_mm_original = self.data_handler.pixel_per_mm_original  # has to work on original image scaling to account for changes in pixel size
-            grid_distance_px = grid_distance_mm * pixel_per_mm_original #* self.data_handler.image_scaling
+            default_pixel_per_mm = self.data_handler.default_pixel_per_mm  # has to work on original image scaling to account for changes in pixel size
+            grid_distance_px = grid_distance_mm * default_pixel_per_mm #* self.data_handler.image_scaling
 
             viewport_size = self.image_canvas.viewport().size()
             width = viewport_size.width()
