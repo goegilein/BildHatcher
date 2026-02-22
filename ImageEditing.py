@@ -368,20 +368,20 @@ class ImageColorer(QtCore.QObject):
         self.replace_color_button = gui.replace_color_button
         self.replace_color_button.clicked.connect(lambda: self.set_single_toggle_state('replace_color_on'))
 
-        # Button: select color from a color palette
-        self.select_color_button = gui.select_color_button
+        # Color Chooser button and display
+        self.default_color_buttons_layout = gui.default_color_buttons_layout
+        self.setup_default_color_buttons()
+
+        self.select_color_button = gui.select_color_color_button
         self.select_color_button.clicked.connect(self.select_color)
 
-        # Button: pick color from image
-        self.pick_from_image_button = gui.pick_from_image_button
-        self.pick_from_image_button.clicked.connect(lambda: self.set_single_toggle_state('choose_color_on'))
+        self.pick_color_from_image_button = gui.pick_color_from_image_button
+        self.pick_color_from_image_button.clicked.connect(lambda: self.set_single_toggle_state('choose_color_on'))
 
-        #Button: pick color from database
-        self.pick_from_db_button = gui.pick_from_db_button
-        self.pick_from_db_button.clicked.connect(self.select_color_from_db)
+        self.pick_color_from_db_button = gui.pick_color_from_db_button
+        self.pick_color_from_db_button.clicked.connect(self.select_color_from_db)
 
-        # Label to display chosen color and initialize it
-        self.color_edit = gui.color_edit
+        self.active_color_dislplay_edit = gui.active_color_dislplay_edit
         self.set_active_color(self.active_color)
 
         # Add buttons to restore and undo mask steps original image
@@ -487,6 +487,47 @@ class ImageColorer(QtCore.QObject):
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
         self.event_handler.add_global_event_callback(self.trigger_global_event)
 
+
+    #### UI SETUP METHODS ####
+    def setup_default_color_buttons(self):
+        self.default_color_buttons_layout.setContentsMargins(0, 0, 0, 0) # Removes outer padding
+
+        # Define  9 default colors (using Hex codes)
+        colors = [
+            "#FF0000", "#00FF00", "#0000FF", # Row 0: Red, Green, Blue
+            "#FFFF00", "#FF00FF", "#00FFFF", # Row 1: Yellow, Magenta, Cyan
+            "#000000", "#888888", "#FFFFFF"  # Row 2: Black, Gray, White
+        ]
+
+        def hex_to_rgb(hex_string):
+            """Converts a hex color string like '#FF0000' to an RGB list [255, 0, 0]."""
+            # Strip the '#' symbol from the start of the string
+            hex_string = hex_string.lstrip('#')
+        
+            # Grab pairs of characters (0:2, 2:4, 4:6) and convert them from base-16 to base-10 integers
+            return [int(hex_string[i:i+2], 16) for i in (0, 2, 4)]
+
+        # Generate the buttons dynamically
+        for index, hex_color in enumerate(colors):
+            btn = QtWidgets.QPushButton()
+            btn.setFixedSize(25, 25) # Forces the button to be a small square
+            
+            # Use Qt Style Sheets to set the background color
+            # Added a 1px border so lighter colors (like white) don't vanish into the background
+            btn.setStyleSheet(f"background-color: {hex_color}; border: 1px solid #444; border-radius: 3px;")
+
+            rgb_color = hex_to_rgb(hex_color)
+            
+            # 4. Connect the click event
+            # The 'c=hex_color' trick is required to capture the variable properly inside the loop
+            btn.clicked.connect(lambda checked, c=rgb_color: self.set_active_color(c))
+
+            # 5. Calculate the row and column based on the index
+            row = index // 3
+            col = index % 3
+            
+            # Add the button to the layout
+            self.default_color_buttons_layout.addWidget(btn, row, col)
     
     ### EVENT HANDLING METHODS ###
 
@@ -515,7 +556,7 @@ class ImageColorer(QtCore.QObject):
         
         if self.choose_color_on:
             self.choose_color(event)
-            self.pick_from_image_button.setChecked(False)
+            self.pick_color_from_image_button.setChecked(False)
             self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         elif self.color_drawing_on:
             self.start_color_drawing(event)
@@ -583,7 +624,7 @@ class ImageColorer(QtCore.QObject):
             self.replace_color_on = False
             self.mask_drawing_on = False
             self.mask_edit_mode = False
-            self.pick_from_image_button.setChecked(False)
+            self.pick_color_from_image_button.setChecked(False)
             self.toggle_draw_button.setChecked(False)
             self.flood_fill_button.setChecked(False)
             self.replace_color_button.setChecked(False)
@@ -683,8 +724,8 @@ class ImageColorer(QtCore.QObject):
         color = QtGui.QColor(*self.active_color)
         opposite_color = QtGui.QColor(255 - color.red(), 255 - color.green(), 255 - color.blue())
         color_string = f"R{color.red()}, G{color.green()}, B{color.blue()}"
-        self.color_edit.setText(color_string)
-        self.color_edit.setStyleSheet(f"color: {opposite_color.name()}; background-color: {color.name()}")
+        self.active_color_dislplay_edit.setText(color_string)
+        self.active_color_dislplay_edit.setStyleSheet(f"color: {opposite_color.name()}; background-color: {color.name()}")
     
 
     ### COLORING METHODS ###

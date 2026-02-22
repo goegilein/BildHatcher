@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1459</width>
-    <height>984</height>
+    <height>1038</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -1071,7 +1071,7 @@ font-weight: normal;  /* Bold text */
               <item row="6" column="0">
                <widget class="QPushButton" name="replace_color_button">
                 <property name="text">
-                 <string>Replace Color</string>
+                 <string>Replace Color ⤵️</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1087,7 +1087,7 @@ font-weight: normal;  /* Bold text */
                  </sizepolicy>
                 </property>
                 <property name="text">
-                 <string>Toggle Draw</string>
+                 <string>Toggle Draw 🖌️</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1132,7 +1132,7 @@ font-weight: normal;  /* Bold text */
                  </sizepolicy>
                 </property>
                 <property name="text">
-                 <string>Flood Fill</string>
+                 <string>Flood Fill 🫗</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1280,33 +1280,33 @@ font-weight: normal;  /* Bold text */
              <property name="alignment">
               <set>Qt::AlignCenter</set>
              </property>
-             <layout class="QGridLayout" name="gridLayout_14">
-              <item row="0" column="1">
-               <widget class="QPushButton" name="pick_from_image_button">
+             <layout class="QGridLayout" name="gridLayout_14" rowstretch="0,0,0,0" columnstretch="0,0,0">
+              <item row="0" column="2">
+               <widget class="QPushButton" name="select_color_color_button">
                 <property name="text">
-                 <string>Pick from Image</string>
+                 <string>More Colors 🎨</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QPushButton" name="pick_color_from_image_button">
+                <property name="text">
+                 <string>Pick from Image 🖼️</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
                 </property>
                </widget>
               </item>
-              <item row="0" column="0">
-               <widget class="QPushButton" name="select_color_button">
+              <item row="2" column="2">
+               <widget class="QPushButton" name="pick_color_from_db_button">
                 <property name="text">
-                 <string>Select Color</string>
+                 <string>Pick from DataBase 📤</string>
                 </property>
                </widget>
               </item>
-              <item row="0" column="2">
-               <widget class="QPushButton" name="pick_from_db_button">
-                <property name="text">
-                 <string>Pick from DataBase</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0" colspan="3">
-               <widget class="QLineEdit" name="color_edit">
+              <item row="3" column="1" colspan="2">
+               <widget class="QLineEdit" name="active_color_dislplay_edit">
                 <property name="enabled">
                  <bool>false</bool>
                 </property>
@@ -1314,6 +1314,13 @@ font-weight: normal;  /* Bold text */
                  <set>Qt::AlignCenter</set>
                 </property>
                </widget>
+              </item>
+              <item row="0" column="1" rowspan="3">
+               <layout class="QGridLayout" name="default_color_buttons_layout">
+                <property name="spacing">
+                 <number>1</number>
+                </property>
+               </layout>
               </item>
              </layout>
             </widget>
@@ -1349,7 +1356,7 @@ font-weight: normal;  /* Bold text */
                  </sizepolicy>
                 </property>
                 <property name="text">
-                 <string>Draw Contours</string>
+                 <string>Draw Contours 〰️</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1358,6 +1365,9 @@ font-weight: normal;  /* Bold text */
               </item>
               <item row="1" column="2">
                <widget class="QSpinBox" name="contour_sensitivity_spinbox">
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::NoButtons</enum>
+                </property>
                 <property name="minimum">
                  <number>1</number>
                 </property>
@@ -1383,6 +1393,9 @@ font-weight: normal;  /* Bold text */
                <widget class="QSpinBox" name="contour_thickness_spinbox">
                 <property name="alignment">
                  <set>Qt::AlignCenter</set>
+                </property>
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::NoButtons</enum>
                 </property>
                 <property name="minimum">
                  <number>1</number>
@@ -1426,6 +1439,9 @@ font-weight: normal;  /* Bold text */
                <widget class="QSpinBox" name="contour_space_spinbox">
                 <property name="alignment">
                  <set>Qt::AlignCenter</set>
+                </property>
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::NoButtons</enum>
                 </property>
                 <property name="minimum">
                  <number>0</number>
