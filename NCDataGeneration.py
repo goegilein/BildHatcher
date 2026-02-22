@@ -7,6 +7,19 @@ import random
 from HelperClasses import Point, HatchData, HatchCluster
 import ezdxf
 
+'''
+This module contains the Hatcher class, which is responsible for generating hatching patterns based on the input image and user settings. 
+It includes methods for creating different hatch patterns, calculating clusters for hatching, and managing the hatching process in a separate thread to keep the GUI responsive.
+
+DATA-ARCHITECTURE:
+The hatching data is organized in a hierarchical structure to efficiently manage the complex relationships between colors, clusters, and hatch lines. The structure is as follows:
+- HatchData: Contains a list of HatchClusters and a type description.
+- HatchCluster: Represents a cluster of pixels. Its Data contains a list of Line Collections for each color in that cluster, the original image matrix for the cluster, reference position for hatching, and additional metadata.
+- Line Collection: A list of polylines. Each line collection holds the polylines for a single color of the cluster. Each polyline represents a continuous hatch line.
+- Polyline: A list of Points that form a continuous line. Each Point contains x, y, z coordinates, move type (0 for move, 1 for draw), and color information.
+This architecture allows for efficient storage and retrieval of hatching data, enabling the application to handle complex images with multiple colors and hatch patterns while maintaining performance.
+'''
+
 class Hatcher:
     def __init__(self, data_handler, gui):
         self.data_handler = data_handler
@@ -81,18 +94,6 @@ class Hatcher:
             self.cyl_rad_spinbox.setEnabled(False)
         else:
             self.cyl_rad_spinbox.setEnabled(True)
-
-    # def find_clusters(self):
-    #     self.get_handler_data()
-    #     height, width, _ = self.image_matrix.shape
-    #     self.clusters = defaultdict(
-    #         lambda: np.zeros((height, width), dtype=np.uint8))
-
-    #     for i in range(height):
-    #         for j in range(width):
-    #             color = tuple(self.image_matrix[i, j])
-    #             # Invert the y-axis to match the image display
-    #             self.clusters[color][height-i-1, j] = 1
 
     def calculate_clusters(self, hatch_mode, workpiece_radius):
         hatch_data= HatchData([], "")
@@ -963,7 +964,7 @@ class Hatcher:
     def contour_from_image(self):
         self.get_handler_data()
         self.hatch_data.hatch_clusters=[]
-        polyline_cluster=[]
+        line_collection=[]
         height, width, _ = self.image_matrix.shape
         # center = [(width)/2, (height)/2]
         center = self.center_for_hatch
@@ -989,8 +990,10 @@ class Hatcher:
             y=((height-last_point[1]-1)-center[1])/self.pixel_per_mm
             z=0
             polyline_new.append(Point(x,y,z,1,0,0,0))
-            polyline_cluster.append(polyline_new)
-        self.hatch_data.hatch_clusters.append(polyline_cluster)
+            line_collection.append(polyline_new)
+        cluster_data = [line_collection] #need to pack it again. cluster data is a list of line collections per color (just one for contours), line collection is a list of polylines, polyline is a list of points
+        self.hatch_data.hatch_clusters.append(HatchCluster(cluster_data, self.image_matrix, ref_position=[0,0,0,0], cluster_center_for_hatch=self.center_for_hatch, cylinder_radius=0))
+        # self.hatch_data.hatch_clusters.append(polyline_cluster)
         self.hatch_data.type = "Contours"
         self.set_handler_data()
     
@@ -1102,15 +1105,17 @@ class Hatcher:
 
         # Convert to hatch_data format: list of polylines, each a list of Points
         # move_type: 0 for the first point, 1 for subsequent points
-        hatch_data = []
+        line_collection = []
         for poly in polylines_shifted:
             point_list = []
             for i, (px, py) in enumerate(poly):
                 move = 0 if i == 0 else 1
                 point_list.append(Point(px, py, 0, move, r=0, g=0, b=0))
-            hatch_data.append(point_list)
+            line_collection.append(point_list)
 
-        self.hatch_data.hatch_clusters = [hatch_data]  # store as a list of lists of polylines
+        cluster_data = [line_collection] #need to pack it again. cluster data is a list of line collections per color (just one for contours), line collection is a list of polylines, polyline is a list of points
+        self.hatch_data.hatch_clusters.append(HatchCluster(cluster_data, self.image_matrix, ref_position=[0,0,0,0], cluster_center_for_hatch=self.center_for_hatch, cylinder_radius=0))
+        # self.hatch_data.hatch_clusters = [polyline_cluster]  # store as a list of lists of polylines
         self.hatch_data.type = "DXF_Imported"
         self.set_handler_data()
 

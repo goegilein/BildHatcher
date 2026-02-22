@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1459</width>
-    <height>962</height>
+    <height>1038</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -429,9 +429,22 @@ QTabBar::tab:hover {
           <item row="1" column="2" rowspan="2">
            <widget class="QGroupBox" name="image_lister_frame">
             <property name="title">
-             <string>Store Images</string>
+             <string>Image Operations</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_8">
+             <item row="2" column="2">
+              <widget class="QCheckBox" name="monochrome_check">
+               <property name="enabled">
+                <bool>true</bool>
+               </property>
+               <property name="text">
+                <string>monochrome</string>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
              <item row="2" column="1">
               <widget class="QPushButton" name="combine_image_button">
                <property name="text">
@@ -439,14 +452,7 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
-             <item row="2" column="0">
-              <widget class="QPushButton" name="split_color_button">
-               <property name="text">
-                <string>Split  Col. Ch.</string>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="0" colspan="5">
+             <item row="5" column="0" colspan="5">
               <widget class="QListWidget" name="images_ListWidget">
                <property name="acceptDrops">
                 <bool>true</bool>
@@ -462,10 +468,10 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
-             <item row="0" column="0">
-              <widget class="QPushButton" name="add_image_button">
+             <item row="2" column="0">
+              <widget class="QPushButton" name="split_color_button">
                <property name="text">
-                <string>Add Image</string>
+                <string>Split  Col. Ch.</string>
                </property>
               </widget>
              </item>
@@ -483,16 +489,10 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
-             <item row="2" column="2">
-              <widget class="QCheckBox" name="monochrome_check">
-               <property name="enabled">
-                <bool>true</bool>
-               </property>
+             <item row="0" column="0">
+              <widget class="QPushButton" name="add_image_button">
                <property name="text">
-                <string>monochrome</string>
-               </property>
-               <property name="checked">
-                <bool>false</bool>
+                <string>Add Image</string>
                </property>
               </widget>
              </item>
@@ -503,7 +503,17 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
-             <item row="3" column="2">
+             <item row="4" column="0">
+              <widget class="QPushButton" name="cut_to_mask_button">
+               <property name="enabled">
+                <bool>true</bool>
+               </property>
+               <property name="text">
+                <string>Cut to Mask</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="2">
               <widget class="QLabel" name="number_of_colors_label">
                <property name="text">
                 <string>#Colors: 0</string>
@@ -511,12 +521,16 @@ QTabBar::tab:hover {
               </widget>
              </item>
              <item row="3" column="1">
-              <widget class="QPushButton" name="cut_to_mask_button">
-               <property name="enabled">
-                <bool>true</bool>
-               </property>
+              <widget class="QPushButton" name="mirror_image_horizontal_button">
                <property name="text">
-                <string>Cut to Mask</string>
+                <string>Mirror_horz</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="2">
+              <widget class="QPushButton" name="mirror_image_vertical_button">
+               <property name="text">
+                <string> Mirror_vert</string>
                </property>
               </widget>
              </item>
@@ -942,60 +956,7 @@ font-weight: normal;  /* Bold text */
               <set>Qt::AlignCenter</set>
              </property>
              <layout class="QGridLayout" name="gridLayout_23">
-              <item row="0" column="1">
-               <widget class="QLabel" name="pen_width_label">
-                <property name="text">
-                 <string>Pen Width (px)</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignCenter</set>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="0" rowspan="2">
-               <widget class="QPushButton" name="toggle_draw_button">
-                <property name="text">
-                 <string>Toggle Draw</string>
-                </property>
-                <property name="checkable">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QSpinBox" name="pen_width_spinbox">
-                <property name="buttonSymbols">
-                 <enum>QAbstractSpinBox::NoButtons</enum>
-                </property>
-                <property name="minimum">
-                 <number>1</number>
-                </property>
-                <property name="maximum">
-                 <number>100</number>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
-               <widget class="QPushButton" name="fill_color_button">
-                <property name="text">
-                 <string>Fill Color Patch</string>
-                </property>
-                <property name="checkable">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QPushButton" name="replace_color_button">
-                <property name="text">
-                 <string>Replace Color</string>
-                </property>
-                <property name="checkable">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="3" rowspan="3">
+              <item row="0" column="3" rowspan="6">
                <widget class="QGroupBox" name="groupBox_5">
                 <property name="title">
                  <string/>
@@ -1066,6 +1027,136 @@ font-weight: normal;  /* Bold text */
                   </widget>
                  </item>
                 </layout>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="pen_width_spinbox">
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::NoButtons</enum>
+                </property>
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <number>100</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="color_similarity_spinbox">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::NoButtons</enum>
+                </property>
+                <property name="maximum">
+                 <number>255</number>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="pen_width_label">
+                <property name="text">
+                 <string>Pen Width (px)</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="0">
+               <widget class="QPushButton" name="replace_color_button">
+                <property name="text">
+                 <string>Replace Color ⤵️</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0" rowspan="2">
+               <widget class="QPushButton" name="toggle_draw_button">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Toggle Draw 🖌️</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1" rowspan="2">
+               <widget class="QComboBox" name="flood_fill_mode_combobox">
+                <item>
+                 <property name="text">
+                  <string>Regular</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Include Diagonals</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Similar Color</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Diagonals + Similar</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>To Contours</string>
+                 </property>
+                </item>
+               </widget>
+              </item>
+              <item row="3" column="0" rowspan="3">
+               <widget class="QPushButton" name="flood_fill_button">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Flood Fill 🫗</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QLabel" name="label_17">
+                <property name="text">
+                 <string>Color Similarity</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QLabel" name="label_19">
+                <property name="text">
+                 <string>Fill Mode</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
                </widget>
               </item>
              </layout>
@@ -1189,33 +1280,33 @@ font-weight: normal;  /* Bold text */
              <property name="alignment">
               <set>Qt::AlignCenter</set>
              </property>
-             <layout class="QGridLayout" name="gridLayout_14">
-              <item row="0" column="1">
-               <widget class="QPushButton" name="pick_from_image_button">
+             <layout class="QGridLayout" name="gridLayout_14" rowstretch="0,0,0,0" columnstretch="0,0,0">
+              <item row="0" column="2">
+               <widget class="QPushButton" name="select_color_color_button">
                 <property name="text">
-                 <string>Pick from Image</string>
+                 <string>More Colors 🎨</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QPushButton" name="pick_color_from_image_button">
+                <property name="text">
+                 <string>Pick from Image 🖼️</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
                 </property>
                </widget>
               </item>
-              <item row="0" column="0">
-               <widget class="QPushButton" name="select_color_button">
+              <item row="2" column="2">
+               <widget class="QPushButton" name="pick_color_from_db_button">
                 <property name="text">
-                 <string>Select Color</string>
+                 <string>Pick from DataBase 📤</string>
                 </property>
                </widget>
               </item>
-              <item row="0" column="2">
-               <widget class="QPushButton" name="pick_from_db_button">
-                <property name="text">
-                 <string>Pick from DataBase</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0" colspan="3">
-               <widget class="QLineEdit" name="color_edit">
+              <item row="3" column="1" colspan="2">
+               <widget class="QLineEdit" name="active_color_dislplay_edit">
                 <property name="enabled">
                  <bool>false</bool>
                 </property>
@@ -1223,6 +1314,13 @@ font-weight: normal;  /* Bold text */
                  <set>Qt::AlignCenter</set>
                 </property>
                </widget>
+              </item>
+              <item row="0" column="1" rowspan="3">
+               <layout class="QGridLayout" name="default_color_buttons_layout">
+                <property name="spacing">
+                 <number>1</number>
+                </property>
+               </layout>
               </item>
              </layout>
             </widget>
@@ -1251,28 +1349,53 @@ font-weight: normal;  /* Bold text */
              <layout class="QGridLayout" name="gridLayout_24">
               <item row="0" column="0" rowspan="2">
                <widget class="QPushButton" name="draw_contour_button">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
                 <property name="text">
-                 <string>Draw Contours</string>
+                 <string>Draw Contours 〰️</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
                 </property>
                </widget>
               </item>
-              <item row="0" column="1">
-               <widget class="QLabel" name="contour_thickness_label">
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="contour_sensitivity_spinbox">
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::NoButtons</enum>
+                </property>
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <number>1000</number>
+                </property>
+                <property name="value">
+                 <number>50</number>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="label_20">
                 <property name="text">
-                 <string>Contour Thickness (px)</string>
+                 <string>Sensitivity</string>
                 </property>
                 <property name="alignment">
                  <set>Qt::AlignCenter</set>
                 </property>
                </widget>
               </item>
-              <item row="1" column="1">
+              <item row="3" column="0">
                <widget class="QSpinBox" name="contour_thickness_spinbox">
                 <property name="alignment">
                  <set>Qt::AlignCenter</set>
+                </property>
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::NoButtons</enum>
                 </property>
                 <property name="minimum">
                  <number>1</number>
@@ -1282,7 +1405,27 @@ font-weight: normal;  /* Bold text */
                 </property>
                </widget>
               </item>
-              <item row="0" column="2">
+              <item row="0" column="1">
+               <widget class="QLabel" name="label_18">
+                <property name="text">
+                 <string>Contouring Mode</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="contour_thickness_label">
+                <property name="text">
+                 <string>Contour Thickness (px)</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
                <widget class="QLabel" name="contour_space_label">
                 <property name="text">
                  <string>Contour space (px)</string>
@@ -1292,10 +1435,13 @@ font-weight: normal;  /* Bold text */
                 </property>
                </widget>
               </item>
-              <item row="1" column="2">
+              <item row="3" column="1">
                <widget class="QSpinBox" name="contour_space_spinbox">
                 <property name="alignment">
                  <set>Qt::AlignCenter</set>
+                </property>
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::NoButtons</enum>
                 </property>
                 <property name="minimum">
                  <number>0</number>
@@ -1303,6 +1449,20 @@ font-weight: normal;  /* Bold text */
                 <property name="maximum">
                  <number>100</number>
                 </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QComboBox" name="contouring_mode_combobox">
+                <item>
+                 <property name="text">
+                  <string>only external</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>all</string>
+                 </property>
+                </item>
                </widget>
               </item>
              </layout>
@@ -1317,13 +1477,6 @@ font-weight: normal;  /* Bold text */
            <string>Draw Masks</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_22">
-           <item row="2" column="3">
-            <widget class="QPushButton" name="save_mask_button">
-             <property name="text">
-              <string>Save selected Mask as Image</string>
-             </property>
-            </widget>
-           </item>
            <item row="2" column="0" colspan="3">
             <widget class="QListWidget" name="masks_list_widget"/>
            </item>
@@ -1347,24 +1500,7 @@ font-weight: normal;  /* Bold text */
              </property>
             </widget>
            </item>
-           <item row="0" column="2">
-            <widget class="QPushButton" name="polygon_mask_button">
-             <property name="text">
-              <string>Polygon</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QPushButton" name="delete_mask_button">
-             <property name="text">
-              <string>Delete Mask</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="3">
+           <item row="0" column="4">
             <spacer name="horizontalSpacer_4">
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
@@ -1377,22 +1513,70 @@ font-weight: normal;  /* Bold text */
              </property>
             </spacer>
            </item>
-           <item row="1" column="1">
-            <widget class="QPushButton" name="delete_all_masks_button">
+           <item row="0" column="2">
+            <widget class="QPushButton" name="polygon_mask_button">
              <property name="text">
-              <string>Delete all Masks</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="2">
-            <widget class="QPushButton" name="edit_mask_button">
-             <property name="text">
-              <string>Edit selected</string>
+              <string>Polygon</string>
              </property>
              <property name="checkable">
               <bool>true</bool>
              </property>
             </widget>
+           </item>
+           <item row="2" column="3">
+            <layout class="QVBoxLayout" name="verticalLayout_4">
+             <item>
+              <widget class="QPushButton" name="delete_all_masks_button">
+               <property name="text">
+                <string>Delete all Masks</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="delete_mask_button">
+               <property name="text">
+                <string>Delete selected</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="edit_mask_button">
+               <property name="text">
+                <string>Edit selected</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="save_mask_button">
+               <property name="text">
+                <string>Save selected as Image</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="unselect_mask_button">
+               <property name="text">
+                <string>Unselect Mask</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="verticalSpacer_6">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
            </item>
           </layout>
          </widget>

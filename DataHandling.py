@@ -19,8 +19,6 @@ class DataHandler:
         self.image_matrix_original = None
         self._image_matrix_original = None
         self.center_for_hatch = None
-        self.contours = None
-        self._contours=None
         self.contours_list=[]
         self.scale_factor = 1.0  # Scale factor between image and canvas display
         #overlay items from color editing are tracked here
@@ -68,16 +66,6 @@ class DataHandler:
     def image_matrix(self, new_value):
         self._image_matrix = new_value
         self.set_and_display_image()
-    
-    #create a watcher for contours
-    @property
-    def contours(self):
-        return self._contours
-    
-    @contours.setter
-    def contours(self, new_value):
-        self._contours = new_value
-        self.set_and_display_image()
 
     #create a watcher for the hatch_data type. when it is changed, update the active_hatch_label
     @property
@@ -93,10 +81,6 @@ class DataHandler:
         try:
             if self._image_matrix is None or (self._image_matrix.size == 1 and self._image_matrix.item() is None):
                 return
-
-            #then write the contours into the image
-            if self.contours:
-                cv2.drawContours(self.image_matrix, self.contours[2], contourIdx=-1, color=self.contours[0], thickness=self.contours[1])
 
             # Get the image dimensions in pixels
             height_px, width_px = self.image_matrix.shape[:2]
@@ -144,9 +128,7 @@ class DataHandler:
             self.gui.imprint_color_overlays_button.setEnabled(False)
     
     def reset_edits(self):
-        self._contours=None
         self.contours_list = []
-        #self._masked_pixels_list = []
     
     def get_unique_color_count(self):
         """Get the number of unique colors in the image matrix efficiently.

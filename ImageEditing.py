@@ -320,13 +320,16 @@ class ImageColorer(QtCore.QObject):
         self.data_handler = data_handler
         self.event_handler = event_handler
         self.gui = gui
-        self.contours_visible = False
-        self.contours = []
-        self.contours_list = []
         self.active_color = [255, 255, 255]
 
+        #Flags and variables for contouring
+        self.contours_visible = False
+        self.contours_list = []
+        self.contour_pixels = []
+        self.contour_overlay_item = None
+
         # toggle flags for coloring and masking
-        self.fill_color_on = False
+        self.flood_fill_color_on = False
         self.color_drawing_on = False  
         self.choose_color_on = False
         self.replace_color_on = False
@@ -356,27 +359,29 @@ class ImageColorer(QtCore.QObject):
         self.pen_width_spinbox.valueChanged.connect(self.set_pen_size)
 
         # Add a label, input field and toggle button for filling a color patch in the image
-        self.fill_color_button = gui.fill_color_button
-        self.fill_color_button.clicked.connect(lambda: self.set_single_toggle_state('fill_color_on'))
+        self.flood_fill_button = gui.flood_fill_button
+        self.flood_fill_button.clicked.connect(lambda: self.set_single_toggle_state('flood_fill_color_on'))
+        self.flood_fill_mode_combobox = gui.flood_fill_mode_combobox
+        self.color_similarity_spinbox = gui.color_similarity_spinbox
 
         # Add a label, input field and toggle button for replacing a color in the image
         self.replace_color_button = gui.replace_color_button
         self.replace_color_button.clicked.connect(lambda: self.set_single_toggle_state('replace_color_on'))
 
-        # Button: select color from a color palette
-        self.select_color_button = gui.select_color_button
+        # Color Chooser button and display
+        self.default_color_buttons_layout = gui.default_color_buttons_layout
+        self.setup_default_color_buttons()
+
+        self.select_color_button = gui.select_color_color_button
         self.select_color_button.clicked.connect(self.select_color)
 
-        # Button: pick color from image
-        self.pick_from_image_button = gui.pick_from_image_button
-        self.pick_from_image_button.clicked.connect(lambda: self.set_single_toggle_state('choose_color_on'))
+        self.pick_color_from_image_button = gui.pick_color_from_image_button
+        self.pick_color_from_image_button.clicked.connect(lambda: self.set_single_toggle_state('choose_color_on'))
 
-        #Button: pick color from database
-        self.pick_from_db_button = gui.pick_from_db_button
-        self.pick_from_db_button.clicked.connect(self.select_color_from_db)
+        self.pick_color_from_db_button = gui.pick_color_from_db_button
+        self.pick_color_from_db_button.clicked.connect(self.select_color_from_db)
 
-        # Label to display chosen color and initialize it
-        self.color_edit = gui.color_edit
+        self.active_color_dislplay_edit = gui.active_color_dislplay_edit
         self.set_active_color(self.active_color)
 
         # Add buttons to restore and undo mask steps original image
@@ -394,17 +399,25 @@ class ImageColorer(QtCore.QObject):
         self.draw_contour_button = gui.draw_contour_button
         self.draw_contour_button.clicked.connect(self.toggle_contours)
 
+        #Add combobox for contour mode
+        self.contouring_mode_combobox = gui.contouring_mode_combobox
+        self.contouring_mode_combobox.currentTextChanged.connect(self.find_image_contours)
+
+        #Add spinbox for contour sensitivity
+        self.contour_sensitivity_spinbox = gui.contour_sensitivity_spinbox
+        self.contour_sensitivity_spinbox.valueChanged.connect(self.find_image_contours)
+
         # Add label and entry field for contour thickness
         self.contour_thickness_label = gui.contour_thickness_label
         self.contour_thickness_spinbox = gui.contour_thickness_spinbox
         self.contour_thickness_spinbox.setValue(1)
-        self.contour_thickness_spinbox.valueChanged.connect(self.update_contours_thickness)
+        self.contour_thickness_spinbox.valueChanged.connect(self.find_image_contours)
 
         # Add label and entry field for contour space
         self.contour_space_label = gui.contour_space_label
         self.contour_space_spinbox = gui.contour_space_spinbox
         self.contour_space_spinbox.setValue(1)
-        self.contour_space_spinbox.valueChanged.connect(self.update_contours)
+        self.contour_space_spinbox.valueChanged.connect(self.find_image_contours)
 
         # Add button and labels for database recoloring
         self.recolor_from_database_button = gui.recolor_from_database_button
@@ -455,20 +468,66 @@ class ImageColorer(QtCore.QObject):
         
         # Button to clear all masks
         self.delete_all_masks_button = gui.delete_all_masks_button
-        self.delete_all_masks_button.clicked.connect(self.clear_all_masks)
+        self.delete_all_masks_button.clicked.connect(self.delete_all_masks)
         
         # Button to edit masks
         self.edit_mask_button = gui.edit_mask_button
         self.edit_mask_button.clicked.connect(lambda: self.set_single_toggle_state('mask_edit_mode'))
+
+        #Button to deslect mask 
+        self.unselect_mask_button = gui.unselect_mask_button
+        self.unselect_mask_button.clicked.connect(self.deselect_mask)
         
         # List widget to display masks
         self.masks_list_widget = gui.masks_list_widget
         self.masks_list_widget.itemSelectionChanged.connect(self.on_mask_selected)
 
+
         #Event callbacks for handling gui interactions
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
         self.event_handler.add_global_event_callback(self.trigger_global_event)
 
+
+    #### UI SETUP METHODS ####
+    def setup_default_color_buttons(self):
+        self.default_color_buttons_layout.setContentsMargins(0, 0, 0, 0) # Removes outer padding
+
+        # Define  9 default colors (using Hex codes)
+        colors = [
+            "#FF0000", "#00FF00", "#0000FF", # Row 0: Red, Green, Blue
+            "#FFFF00", "#FF00FF", "#00FFFF", # Row 1: Yellow, Magenta, Cyan
+            "#000000", "#888888", "#FFFFFF"  # Row 2: Black, Gray, White
+        ]
+
+        def hex_to_rgb(hex_string):
+            """Converts a hex color string like '#FF0000' to an RGB list [255, 0, 0]."""
+            # Strip the '#' symbol from the start of the string
+            hex_string = hex_string.lstrip('#')
+        
+            # Grab pairs of characters (0:2, 2:4, 4:6) and convert them from base-16 to base-10 integers
+            return [int(hex_string[i:i+2], 16) for i in (0, 2, 4)]
+
+        # Generate the buttons dynamically
+        for index, hex_color in enumerate(colors):
+            btn = QtWidgets.QPushButton()
+            btn.setFixedSize(25, 25) # Forces the button to be a small square
+            
+            # Use Qt Style Sheets to set the background color
+            # Added a 1px border so lighter colors (like white) don't vanish into the background
+            btn.setStyleSheet(f"background-color: {hex_color}; border: 1px solid #444; border-radius: 3px;")
+
+            rgb_color = hex_to_rgb(hex_color)
+            
+            # 4. Connect the click event
+            # The 'c=hex_color' trick is required to capture the variable properly inside the loop
+            btn.clicked.connect(lambda checked, c=rgb_color: self.set_active_color(c))
+
+            # 5. Calculate the row and column based on the index
+            row = index // 3
+            col = index % 3
+            
+            # Add the button to the layout
+            self.default_color_buttons_layout.addWidget(btn, row, col)
     
     ### EVENT HANDLING METHODS ###
 
@@ -497,12 +556,13 @@ class ImageColorer(QtCore.QObject):
         
         if self.choose_color_on:
             self.choose_color(event)
-            self.pick_from_image_button.setChecked(False)
+            self.pick_color_from_image_button.setChecked(False)
             self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         elif self.color_drawing_on:
             self.start_color_drawing(event)
-        elif self.fill_color_on:
-            self.fill_color_patch(event)
+        elif self.flood_fill_color_on:
+            mode = self.flood_fill_mode_combobox.currentText()
+            self.flood_fill(event, mode)
         elif self.replace_color_on:
             self.replace_color(event)
         elif self.mask_drawing_on:
@@ -560,13 +620,13 @@ class ImageColorer(QtCore.QObject):
             # Reset all toggle states and buttons
             self.choose_color_on = False
             self.color_drawing_on = False
-            self.fill_color_on = False
+            self.flood_fill_color_on = False
             self.replace_color_on = False
             self.mask_drawing_on = False
             self.mask_edit_mode = False
-            self.pick_from_image_button.setChecked(False)
+            self.pick_color_from_image_button.setChecked(False)
             self.toggle_draw_button.setChecked(False)
-            self.fill_color_button.setChecked(False)
+            self.flood_fill_button.setChecked(False)
             self.replace_color_button.setChecked(False)
             self.rectangle_mask_button.setChecked(False)
             self.ellipse_mask_button.setChecked(False)
@@ -664,8 +724,8 @@ class ImageColorer(QtCore.QObject):
         color = QtGui.QColor(*self.active_color)
         opposite_color = QtGui.QColor(255 - color.red(), 255 - color.green(), 255 - color.blue())
         color_string = f"R{color.red()}, G{color.green()}, B{color.blue()}"
-        self.color_edit.setText(color_string)
-        self.color_edit.setStyleSheet(f"color: {opposite_color.name()}; background-color: {color.name()}")
+        self.active_color_dislplay_edit.setText(color_string)
+        self.active_color_dislplay_edit.setStyleSheet(f"color: {opposite_color.name()}; background-color: {color.name()}")
     
 
     ### COLORING METHODS ###
@@ -720,7 +780,7 @@ class ImageColorer(QtCore.QObject):
         # self.is_currently_drawing = False
         pass
 
-    def fill_color_patch(self, event):
+    def flood_fill(self, event, mode = "Regular"):
         """
         Flood-fill adapted for overlay logic.
         event_pos: QPointF (Scene Coordinates)
@@ -767,22 +827,94 @@ class ImageColorer(QtCore.QObject):
         # 3. BFS Algorithm (Numpy optimization is difficult for flood fill, so use Queue)
         # For extremely large images: skimage.segmentation.flood_fill would be faster,
         # but here we stick with pure Python/Numpy standard.
+        # Decide which pixels are detected as being connected depending on the mode
         
         color_mask = np.zeros((h, w), dtype=bool)
         queue = collections.deque([(y_image, x_image)])
         visited = set([(y_image, x_image)])
+        tolerance = self.color_similarity_spinbox.value()
         
-        while queue:
-            cy, cx = queue.popleft()
-            color_mask[cy, cx] = True
+
+
+        if mode == "Regular":
+            while queue:
+                cy, cx = queue.popleft()
+                color_mask[cy, cx] = True
+                # Check neighbors
+                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
+                    ny, nx = cy + dy, cx + dx
+                    if 0 <= ny < h and 0 <= nx < w:
+                        if (ny, nx) not in visited:
+                            # Check pixel color
+                            if np.array_equal(mask_matrix[ny, nx][:3], target_color):
+                                visited.add((ny, nx))
+                                queue.append((ny, nx))
+
+        elif mode == "Include Diagonals":
+            while queue:
+                cy, cx = queue.popleft()
+                color_mask[cy, cx] = True
+                # Check 8 neighbors
+                for dy in [-1, 0, 1]:
+                    for dx in [-1, 0, 1]:
+                        if dy == 0 and dx == 0:
+                            continue
+                        ny, nx = cy + dy, cx + dx
+                        if 0 <= ny < h and 0 <= nx < w:
+                            if (ny, nx) not in visited:
+                                if np.array_equal(mask_matrix[ny, nx][:3], target_color):
+                                    visited.add((ny, nx))
+                                    queue.append((ny, nx))
+        
+        elif mode == "Similar Color":
+            while queue:
+                cy, cx = queue.popleft()
+                color_mask[cy, cx] = True
+                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
+                    ny, nx = cy + dy, cx + dx
+                    if 0 <= ny < h and 0 <= nx < w:
+                        if (ny, nx) not in visited:
+                            color_diff = np.linalg.norm(mask_matrix[ny, nx][:3] - target_color)
+                            if color_diff <= tolerance:
+                                visited.add((ny, nx))
+                                queue.append((ny, nx))
+        
+        elif mode == "Diagonals + Similar":
+            while queue:
+                cy, cx = queue.popleft()
+                color_mask[cy, cx] = True
+                for dy in [-1, 0, 1]:
+                    for dx in [-1, 0, 1]:
+                        if dy == 0 and dx == 0:
+                            continue
+                        ny, nx = cy + dy, cx + dx
+                        if 0 <= ny < h and 0 <= nx < w:
+                            if (ny, nx) not in visited:
+                                color_diff = np.linalg.norm(mask_matrix[ny, nx][:3] - target_color)
+                                if color_diff <= tolerance:
+                                    visited.add((ny, nx))
+                                    queue.append((ny, nx))
+        
+        elif mode == "To Contours":
+            # fill all pixels until hitting a contour 
+            if len(self.contour_pixels)<1:
+                return  # No contours, so dont do anything
+            # Pre-mark all contour pixels as visited to act as boundaries
+            for point in self.contour_pixels:
+                cx, cy = point[0], point[1]
+                if 0 <= cy < h and 0 <= cx < w:
+                    visited.add((cy, cx))
+                
             
-            # Check neighbors
-            for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                ny, nx = cy + dy, cx + dx
-                if 0 <= ny < h and 0 <= nx < w:
-                    if (ny, nx) not in visited:
-                        # Check pixel color
-                        if np.array_equal(mask_matrix[ny, nx][:3], target_color):
+            # Process the queue with contour boundary check
+            while queue:
+                cy, cx = queue.popleft()
+                color_mask[cy, cx] = True
+                
+                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
+                    ny, nx = cy + dy, cx + dx
+                    if 0 <= ny < h and 0 <= nx < w:
+                        if (ny, nx) not in visited:
                             visited.add((ny, nx))
                             queue.append((ny, nx))
 
@@ -983,6 +1115,12 @@ class ImageColorer(QtCore.QObject):
         arr = np.frombuffer(ptr, np.uint8).reshape((height, width, 4)).copy()
         
         self.data_handler.image_matrix = arr[:,:,:3]  # Drop alpha as we work in RGB only
+
+        #ensure to reset contours
+        self.contours_visible = False
+        self.contour_overlay_item = None
+        self.draw_contour_button.setText("Draw Contours")
+        self.draw_contour_button.setChecked(False)
     
 
     def restore_uncolored_image(self):
@@ -1020,55 +1158,103 @@ class ImageColorer(QtCore.QObject):
             # Outlines are currently not visible; show them
             self.draw_contour_button.setText("Delete Contours")
             self.contours_visible = True
+            self.find_image_contours()
+            # Make overlay visible
+            # if self.contour_overlay_item is not None:
+            #     self.contour_overlay_item.show()
+            #     self.data_handler.active_color_overlays.append(self.contour_overlay_item) # Add to undo stack so it gets removed when new contours are drawn
         else:
             # Outlines are visible; hide them
             self.draw_contour_button.setText("Draw Contours")
             self.contours_visible = False
-
-        self.update_contours()
-
-    def update_contours(self, event=None):
-        if self.contours_visible:
-            self.find_image_contours()
-        else:
-            self.contours = []
-            self.contours_list = []
-        self.data_handler.contours = self.contours
-        self.data_handler.contours_list = self.contours_list
+            # Hide overlay instead of removing it
+            if self.contour_overlay_item is not None:
+                self.contour_overlay_item.hide()
+                if self.contour_overlay_item in self.data_handler.active_color_overlays:
+                    self.data_handler.active_color_overlays.remove(self.contour_overlay_item) # Remove from undo stack when hidden
 
     def find_image_contours(self):
-        """Find and display the outlines of the image."""
+        """Find contours and create an overlay for display."""
         try:
-            # First delete all existing contours
-            self.data_handler.contours = []
-            # Get the current image data without any contours
-            image_array = self.data_handler.image_matrix.copy()
+            # Remove old overlay if it exists
+            if self.contour_overlay_item is not None:
+                self.gui.image_scene.removeItem(self.contour_overlay_item)
+                if self.contour_overlay_item in self.data_handler.active_color_overlays:
+                    self.data_handler.active_color_overlays.remove(self.contour_overlay_item)
+                self.contour_overlay_item = None
+            
+            
 
-            # Apply edge detection (Canny Edge Detector)
-            edges = cv2.Canny(image_array, threshold1=50, threshold2=150)
+            # Get the current image data
+            image_matrix = self.data_handler.image_matrix.copy()
+            height, width = image_matrix.shape[:2]
+
+            # Only apply edge detection to the masked region if there is one, otherwise to the whole image
+            threshold1 = self.contour_sensitivity_spinbox.value()
+            threshold2 = threshold1*3
+            if self.data_handler.active_mask_index != -1:
+                active_mask = self.data_handler.masks_list[self.data_handler.active_mask_index]
+                # Use original image for edge detection, but only inside the mask
+                edges = cv2.Canny(image_matrix, threshold1=threshold1, threshold2=threshold2)
+                # Zero out edges outside the mask
+                edges[active_mask == 0] = 0
+            else:
+                edges = cv2.Canny(image_matrix, threshold1=threshold1, threshold2=threshold2)
+
+            # threshold1: Lower = more edges detected (more sensitive)
+            # threshold2: Should be 2-3x threshold1
 
             # Make edges "wider" by dilation
             kernel = np.ones((self.contour_space_spinbox.value(), self.contour_space_spinbox.value()), np.uint8)
             edges = cv2.dilate(edges, kernel, iterations=1)
 
             # Find contours from the edges
-            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            # to find also nested contours use cv2.RETR_TREE as second argument
-            self.contours = [self.active_color, self.contour_thickness_spinbox.value(), contours]
+            if self.contouring_mode_combobox.currentText() == "only external":
+                contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            elif self.contouring_mode_combobox.currentText() == "all":
+                contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+            
+            # cv2.RETR_EXTERNAL - Only extremnp.outerer contours (current, fastest)
+            # cv2.RETR_LIST - All contours, no hierarchy
+            # cv2.RETR_TREE - All contours with full hierarchy (parent-child relationships)
+            # cv2.RETR_CCOMP - All contours in 2-level hierarchy
+            
+            # Create a mask with all the actual contour pixels
+            contour_mask = np.zeros((height, width), dtype=np.uint8)
+            # Draw contours on the mask with thickness
+            cv2.drawContours(contour_mask, contours, -1, 1, thickness=self.contour_thickness_spinbox.value())
+
+            # Extract all pixel coordinates where contours exist for flood fill boundary
+            contour_pixels = np.argwhere(contour_mask == 1)
+            # Convert from (y, x) to (x, y) tuples
+            self.contour_pixels = []
+            for y, x in contour_pixels:
+                self.contour_pixels.append((x, y))
+
+            # Create overlay from the contour mask
+            self.contour_overlay_item = self._create_overlay_from_mask(contour_mask.astype(bool))
+
+            # Set overlay visibility based on contours_visible flag
+            if self.contour_overlay_item is not None:
+                if self.contours_visible:
+                    self.contour_overlay_item.show()
+                    self.data_handler.active_color_overlays.append(self.contour_overlay_item)
+                else:
+                    self.contour_overlay_item.hide()
+                    if self.contour_overlay_item in self.data_handler.active_color_overlays:
+                        self.data_handler.active_color_overlays.remove(self.contour_overlay_item)
+            
+            # Finally store contours as list of polylines and pass to datahandler for NC-Data Generation
             self.contours_list = []
-            for idx, contour in enumerate(self.contours[2]):
+            for idx, contour in enumerate(contours):
                 # Convert contour to a list of (x, y) tuples
                 polyline = contour.squeeze().tolist()
                 # Perform further processing as needed
                 self.contours_list.append(polyline)
+            self.data_handler.contours_list = self.contours_list
 
         except Exception as e:
             print(f"Error finding image outlines: {e}")
-
-    def update_contours_thickness(self, *args):
-        if self.contours:
-            self.contours[1] = self.contour_thickness_spinbox.value()
-            self.data_handler.contours = self.contours
     
     def clean_up_image_colors2(self):
         """
@@ -1815,19 +2001,6 @@ class ImageColorer(QtCore.QObject):
                         point = polygon[handle.point_index]
                         handle.setRect(point.x() - handle_size/2, point.y() - handle_size/2, handle_size, handle_size)
 
-    def delete_selected_mask(self):
-        """Delete the currently selected mask."""
-        selected_items = self.masks_list_widget.selectedItems()
-        if selected_items:
-            index = self.masks_list_widget.row(selected_items[0])
-            self.data_handler.masks_list.pop(index)
-            self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
-            self.data_handler.mask_overlays.pop(index)
-            if index < len(self.data_handler.mask_info):
-                self.data_handler.mask_info.pop(index)
-            self.clear_edit_handles()
-            self.update_masks_list_widget()
-
     def save_selected_mask(self):
         """Save the currently selected mask as an image file with actual image pixels."""
         selected_items = self.masks_list_widget.selectedItems()
@@ -1875,8 +2048,40 @@ class ImageColorer(QtCore.QObject):
                 QtWidgets.QMessageBox.information(self.gui, "Success", f"Mask saved successfully to:\n{file_path}")
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self.gui, "Error Saving Mask", f"Error saving mask: {e}")
+    
+    def deselect_mask(self):
+        """Deselect any selected mask."""
+        self.masks_list_widget.clearSelection()
+        self.data_handler.active_mask_index = -1
+        self.editing_mask_index = -1
+        
+        self.edit_mask_button.setChecked(False)
+        # Update overlay colors to all cyan
+        for overlay in self.data_handler.mask_overlays:
+            pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
+            pen.setStyle(QtCore.Qt.PenStyle.DashLine)
+            pen.setWidth(2)
+            overlay.setPen(pen)
+        
+        self.clear_edit_handles()
 
-    def clear_all_masks(self):
+    def delete_selected_mask(self):
+        """Delete the currently selected mask."""
+        selected_items = self.masks_list_widget.selectedItems()
+        if selected_items:
+            index = self.masks_list_widget.row(selected_items[0])
+            if index == self.data_handler.active_mask_index:
+                #ensure deselection and edit mode if delted mask is currently selected
+                self.deselect_mask()
+            self.data_handler.masks_list.pop(index)
+            self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
+            self.data_handler.mask_overlays.pop(index)
+            if index < len(self.data_handler.mask_info):
+                self.data_handler.mask_info.pop(index)
+            self.clear_edit_handles()
+            self.update_masks_list_widget()
+
+    def delete_all_masks(self):
         """Clear all masks."""
         reply = QtWidgets.QMessageBox.question(
             self.gui, "Clear All Masks",
@@ -1884,6 +2089,9 @@ class ImageColorer(QtCore.QObject):
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
         )
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            #ensure deselection and edit mode reset first!
+            self.deselect_mask()
+            #then delete all masks and overlays
             self.data_handler.masks_list.clear()
             self.data_handler.mask_info.clear()
             self.clear_edit_handles()
@@ -1891,6 +2099,8 @@ class ImageColorer(QtCore.QObject):
             for overlay in self.data_handler.mask_overlays:
                 self.gui.image_scene.removeItem(overlay)
             self.data_handler.mask_overlays.clear()
+
+            
 
     def get_background_mask(self):
         """
