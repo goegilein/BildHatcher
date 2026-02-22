@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1459</width>
-    <height>980</height>
+    <height>984</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -429,9 +429,22 @@ QTabBar::tab:hover {
           <item row="1" column="2" rowspan="2">
            <widget class="QGroupBox" name="image_lister_frame">
             <property name="title">
-             <string>Store Images</string>
+             <string>Image Operations</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_8">
+             <item row="2" column="2">
+              <widget class="QCheckBox" name="monochrome_check">
+               <property name="enabled">
+                <bool>true</bool>
+               </property>
+               <property name="text">
+                <string>monochrome</string>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
              <item row="2" column="1">
               <widget class="QPushButton" name="combine_image_button">
                <property name="text">
@@ -439,14 +452,7 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
-             <item row="2" column="0">
-              <widget class="QPushButton" name="split_color_button">
-               <property name="text">
-                <string>Split  Col. Ch.</string>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="0" colspan="5">
+             <item row="5" column="0" colspan="5">
               <widget class="QListWidget" name="images_ListWidget">
                <property name="acceptDrops">
                 <bool>true</bool>
@@ -462,10 +468,10 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
-             <item row="0" column="0">
-              <widget class="QPushButton" name="add_image_button">
+             <item row="2" column="0">
+              <widget class="QPushButton" name="split_color_button">
                <property name="text">
-                <string>Add Image</string>
+                <string>Split  Col. Ch.</string>
                </property>
               </widget>
              </item>
@@ -483,16 +489,10 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
-             <item row="2" column="2">
-              <widget class="QCheckBox" name="monochrome_check">
-               <property name="enabled">
-                <bool>true</bool>
-               </property>
+             <item row="0" column="0">
+              <widget class="QPushButton" name="add_image_button">
                <property name="text">
-                <string>monochrome</string>
-               </property>
-               <property name="checked">
-                <bool>false</bool>
+                <string>Add Image</string>
                </property>
               </widget>
              </item>
@@ -503,7 +503,17 @@ QTabBar::tab:hover {
                </property>
               </widget>
              </item>
-             <item row="3" column="2">
+             <item row="4" column="0">
+              <widget class="QPushButton" name="cut_to_mask_button">
+               <property name="enabled">
+                <bool>true</bool>
+               </property>
+               <property name="text">
+                <string>Cut to Mask</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="2">
               <widget class="QLabel" name="number_of_colors_label">
                <property name="text">
                 <string>#Colors: 0</string>
@@ -511,12 +521,16 @@ QTabBar::tab:hover {
               </widget>
              </item>
              <item row="3" column="1">
-              <widget class="QPushButton" name="cut_to_mask_button">
-               <property name="enabled">
-                <bool>true</bool>
-               </property>
+              <widget class="QPushButton" name="mirror_image_horizontal_button">
                <property name="text">
-                <string>Cut to Mask</string>
+                <string>Mirror_horz</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="2">
+              <widget class="QPushButton" name="mirror_image_vertical_button">
+               <property name="text">
+                <string> Mirror_vert</string>
                </property>
               </widget>
              </item>

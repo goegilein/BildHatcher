@@ -72,6 +72,14 @@ class BaseFunctions:
         self.rot_image_180_button = gui.rot_image_180_button
         self.rot_image_180_button.clicked.connect(self.rot_image_180)
 
+        # Mirror buttons
+        self.mirror_image_horizontal_button = gui.mirror_image_horizontal_button
+        self.mirror_image_horizontal_button.clicked.connect(self.mirror_image_horizontal)
+
+        self.mirror_image_vertical_button = gui.mirror_image_vertical_button
+        self.mirror_image_vertical_button.clicked.connect(self.mirror_image_vertical)
+
+
         # Cut to masked button
         self.cut_to_mask_button = gui.cut_to_mask_button
         self.cut_to_mask_button.clicked.connect(self.cut_to_mask)
@@ -110,6 +118,8 @@ class BaseFunctions:
                 self.changeing_image = False
                 self.set_handler_data(new_image = True)
                 self.update_dimension_fields()
+                #center image on loading
+                self.gui.image_canvas.centerOn(self.gui.image_item)
             except Exception as e:
                 print(f"Error loading image: {e}")
 
@@ -226,7 +236,6 @@ class BaseFunctions:
         img_obj = ImgObj(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
         self.add_listbox_item(img_obj, image_name + "_edited", set_selected=True)
 
-
     def keep_changes(self):
         self.get_handler_data()
         img_obj = ImgObj(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
@@ -236,6 +245,22 @@ class BaseFunctions:
     def rot_image_180(self):
         self.get_handler_data()
         image_matrix = np.flipud(np.fliplr(self.get_active_image_matrix()))
+        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        img_obj.image_matrix = image_matrix.copy()
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+        self.set_handler_data(new_image = True)
+    
+    def mirror_image_horizontal(self):
+        self.get_handler_data()
+        image_matrix = np.fliplr(self.get_active_image_matrix())
+        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        img_obj.image_matrix = image_matrix.copy()
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+        self.set_handler_data(new_image = True)
+
+    def mirror_image_vertical(self):
+        self.get_handler_data()
+        image_matrix = np.flipud(self.get_active_image_matrix())
         img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
         img_obj.image_matrix = image_matrix.copy()
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
@@ -366,6 +391,9 @@ class BaseFunctions:
         if new_image:
             original_image_matrix = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).original_image_matrix
             self.data_handler.image_matrix_original = original_image_matrix.copy()
+        
+        #ensure to reset the image bounds
+        self.gui.image_scene.setSceneRect(self.gui.image_item.boundingRect())
 
     def get_handler_data(self):
         img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
@@ -381,6 +409,7 @@ class ImageMover(QtCore.QObject):
         self.gui = gui
         self.image_canvas = gui.image_canvas
         self.image_scene = gui.image_scene
+        self.image_item = gui.image_item
         self.updating_scaling = False  # Flag to control trace callback
         self.grid_on = False  # Flag to control grid drawing
         self.masking_on = False  # toggle flag for masking
@@ -421,8 +450,6 @@ class ImageMover(QtCore.QObject):
         self.grid_toggle_button = gui.grid_toggle_button
         self.grid_toggle_button.clicked.connect(self.toggle_grid)
 
-        self.image_item = gui.image_item
-
         #Image Center
         self.h_center_spinbox = gui.h_center_spinbox
         self.v_center_spinbox = gui.v_center_spinbox
@@ -440,11 +467,11 @@ class ImageMover(QtCore.QObject):
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
 
     def trigger_canvas_event(self, event):
-        if event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.RightButton:
+        if event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.MiddleButton:
             self.start_drag(event)
-        elif event.type() == QtCore.QEvent.Type.MouseMove and event.buttons() == QtCore.Qt.MouseButton.RightButton:
+        elif event.type() == QtCore.QEvent.Type.MouseMove and event.buttons() == QtCore.Qt.MouseButton.MiddleButton:
             self.drag(event)
-        elif event.type() == QtCore.QEvent.Type.MouseButtonRelease and event.button() == QtCore.Qt.MouseButton.RightButton:
+        elif event.type() == QtCore.QEvent.Type.MouseButtonRelease and event.button() == QtCore.Qt.MouseButton.MiddleButton:
             self.stop_drag(event)
         elif event.type() == QtCore.QEvent.Type.Wheel:
             self.on_mouse_wheel(event)
@@ -452,113 +479,182 @@ class ImageMover(QtCore.QObject):
             self.set_image_center(event)
 
 
+    # def start_drag(self, event):
+    #     self.image_canvas.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
+    #     self.drag_start_pos = event.pos()
+
+    # def drag(self, event, dx=0, dy=0):
+    #     if event is not None:
+    #         # Use the actual mouse event
+    #         delta = event.pos() - self.drag_start_pos
+    #     else:
+    #         # Use passed-in deltas or default to zero
+    #         delta = QtCore.QPoint(dx, dy)
+    #     new_x = self.image_item.x() + delta.x()
+    #     new_y = self.image_item.y() + delta.y()
+
+    #     # Get item and viewport sizes
+    #     item_rect = self.image_item.boundingRect()
+    #     viewport_size = self.image_canvas.viewport().size()
+        
+    #     # Get the zoom scale from the canvas transform
+    #     transform = self.image_canvas.transform()
+    #     zoom_scale = transform.m11()  # Get the scale factor
+        
+    #     # Calculate dimensions
+    #     unscaled_width = item_rect.width()
+    #     unscaled_height = item_rect.height()
+    #     scaled_width = unscaled_width * zoom_scale
+    #     scaled_height = unscaled_height * zoom_scale
+        
+    #     viewport_width = viewport_size.width()
+    #     viewport_height = viewport_size.height()
+
+    #     # Clamp to prevent dragging off-canvas, ensuring canvas is always filled
+    #     if scaled_width > viewport_width:
+    #         # Image is larger than viewport - no gaps allowed
+    #         # Convert viewport bounds to scene coordinates by dividing by zoom_scale
+    #         max_x = (viewport_width - scaled_width) / zoom_scale
+    #         new_x = max(max_x, min(new_x, 0))
+    #     else:
+    #         # Image is smaller than viewport - center it
+    #         max_x = (viewport_width - scaled_width) / 2 / zoom_scale
+    #         new_x = max(-max_x, min(new_x, max_x))
+            
+    #     if scaled_height > viewport_height:
+    #         # Image is larger than viewport - no gaps allowed
+    #         # Convert viewport bounds to scene coordinates by dividing by zoom_scale
+    #         max_y = (viewport_height - scaled_height) / zoom_scale
+    #         new_y = max(max_y, min(new_y, 0))
+    #     else:
+    #         # Image is smaller than viewport - center it
+    #         max_y = (viewport_height - scaled_height) / 2 / zoom_scale
+    #         new_y = max(-max_y, min(new_y, max_y))
+
+    #     # Calculate the actual delta applied after clamping
+    #     actual_delta_x = new_x - self.image_item.x()
+    #     actual_delta_y = new_y - self.image_item.y()
+
+    #     # Move the image item
+    #     self.image_item.setPos(new_x, new_y)
+        
+    #     # Move all other items in the scene (grid lines, center cross, etc.)
+    #     moved_items = set()  # Track items that have already been moved
+    #     moved_items.add(self.image_item)
+
+    #     for item in self.image_scene.items():
+    #         if item != self.image_item:
+    #             # Skip if this item is a child of an already moved item
+    #             parent = item.parentItem()
+    #             if parent and parent in moved_items:
+    #                 continue
+                
+    #             if isinstance(item, QtWidgets.QGraphicsLineItem) and item.zValue() == 1:
+    #                 #this is a grid line. dont move those!
+    #                 continue
+    #             current_pos = item.pos()
+    #             item.setPos(current_pos.x() + actual_delta_x, current_pos.y() + actual_delta_y)
+    #             moved_items.add(item)
+        
+    #     if event is not None:
+    #         self.drag_start_pos = event.pos()
+
+    # def stop_drag(self, event):
+    #     self.image_canvas.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+
     def start_drag(self, event):
         self.image_canvas.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
         self.drag_start_pos = event.pos()
 
-    def drag(self, event, dx=0, dy=0):
-        if event is not None:
-            # Use the actual mouse event
-            delta = event.pos() - self.drag_start_pos
-        else:
-            # Use passed-in deltas or default to zero
-            delta = QtCore.QPoint(dx, dy)
-        new_x = self.image_item.x() + delta.x()
-        new_y = self.image_item.y() + delta.y()
-
-        # Get item and viewport sizes
-        item_rect = self.image_item.boundingRect()
-        viewport_size = self.image_canvas.viewport().size()
+    def drag(self, event):
+        if event is None: return
         
-        # Get the zoom scale from the canvas transform
-        transform = self.image_canvas.transform()
-        zoom_scale = transform.m11()  # Get the scale factor
+        # Calculate how many pixels the mouse moved in the viewport
+        delta = event.pos() - self.drag_start_pos
         
-        # Calculate dimensions
-        unscaled_width = item_rect.width()
-        unscaled_height = item_rect.height()
-        scaled_width = unscaled_width * zoom_scale
-        scaled_height = unscaled_height * zoom_scale
+        # Grab the view's scrollbars (the "camera" controls)
+        h_bar = self.image_canvas.horizontalScrollBar()
+        v_bar = self.image_canvas.verticalScrollBar()
         
-        viewport_width = viewport_size.width()
-        viewport_height = viewport_size.height()
-
-        # Clamp to prevent dragging off-canvas, ensuring canvas is always filled
-        if scaled_width > viewport_width:
-            # Image is larger than viewport - no gaps allowed
-            # Convert viewport bounds to scene coordinates by dividing by zoom_scale
-            max_x = (viewport_width - scaled_width) / zoom_scale
-            new_x = max(max_x, min(new_x, 0))
-        else:
-            # Image is smaller than viewport - center it
-            max_x = (viewport_width - scaled_width) / 2 / zoom_scale
-            new_x = max(-max_x, min(new_x, max_x))
-            
-        if scaled_height > viewport_height:
-            # Image is larger than viewport - no gaps allowed
-            # Convert viewport bounds to scene coordinates by dividing by zoom_scale
-            max_y = (viewport_height - scaled_height) / zoom_scale
-            new_y = max(max_y, min(new_y, 0))
-        else:
-            # Image is smaller than viewport - center it
-            max_y = (viewport_height - scaled_height) / 2 / zoom_scale
-            new_y = max(-max_y, min(new_y, max_y))
-
-        # Calculate the actual delta applied after clamping
-        actual_delta_x = new_x - self.image_item.x()
-        actual_delta_y = new_y - self.image_item.y()
-
-        # Move the image item
-        self.image_item.setPos(new_x, new_y)
+        # Move the scrollbars in the opposite direction of the mouse drag
+        h_bar.setValue(h_bar.value() - delta.x())
+        v_bar.setValue(v_bar.value() - delta.y())
         
-        # Move all other items in the scene (grid lines, center cross, etc.)
-        moved_items = set()  # Track items that have already been moved
-        moved_items.add(self.image_item)
-
-        for item in self.image_scene.items():
-            if item != self.image_item:
-                # Skip if this item is a child of an already moved item
-                parent = item.parentItem()
-                if parent and parent in moved_items:
-                    continue
-                
-                if isinstance(item, QtWidgets.QGraphicsLineItem) and item.zValue() == 1:
-                    #this is a grid line. dont move those!
-                    continue
-                current_pos = item.pos()
-                item.setPos(current_pos.x() + actual_delta_x, current_pos.y() + actual_delta_y)
-                moved_items.add(item)
-        
-        if event is not None:
-            self.drag_start_pos = event.pos()
+        # Update the start position for the next movement frame
+        self.drag_start_pos = event.pos()
 
     def stop_drag(self, event):
         self.image_canvas.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
+    # def recenter_image(self):
+    #     item_rect = self.image_item.boundingRect()
+    #     viewport_size = self.image_canvas.viewport().size()
+        
+    #     # Get the zoom scale from the canvas transform
+    #     transform = self.image_canvas.transform()
+    #     zoom_scale = transform.m11()  # Get the scale factor
+        
+    #     # Calculate dimensions
+    #     unscaled_width = item_rect.width()
+    #     unscaled_height = item_rect.height()
+    #     scaled_width = unscaled_width * zoom_scale
+    #     scaled_height = unscaled_height * zoom_scale
+        
+    #     viewport_width = viewport_size.width()
+    #     viewport_height = viewport_size.height()
+        
+    #     # Calculate center position for each axis (mirroring the drag clamping logic)
+    #     if scaled_width > viewport_width:
+    #         # Image is larger than viewport - center it by positioning at mid-point
+    #         max_x = (viewport_width - scaled_width) / zoom_scale
+    #         center_x = max_x / 2
+    #     else:
+    #         # Image is smaller than viewport - center it at 0
+    #         center_x = 0
+            
+    #     if scaled_height > viewport_height:
+    #         # Image is larger than viewport - center it by positioning at mid-point
+    #         max_y = (viewport_height - scaled_height) / zoom_scale
+    #         center_y = max_y / 2
+    #     else:
+    #         # Image is smaller than viewport - center it at 0
+    #         center_y = 0
+        
+    #     # Calculate delta for repositioning
+    #     actual_delta_x = center_x - self.image_item.x()
+    #     actual_delta_y = center_y - self.image_item.y()
+        
+    #     # Move the image item
+    #     self.image_item.setPos(center_x, center_y)
+        
+    #     # Move all other items in the scene (grid lines, center cross, etc.)
+    #     moved_items = set()
+    #     moved_items.add(self.image_item)
+        
+    #     for item in self.image_scene.items():
+    #         if item != self.image_item:
+    #             # Skip if this item is a child of an already moved item
+    #             parent = item.parentItem()
+    #             if parent and parent in moved_items:
+    #                 continue
+                
+    #             if isinstance(item, QtWidgets.QGraphicsLineItem) and item.zValue() == 1:
+    #                 # this is a grid line. dont move those!
+    #                 continue
+    #             current_pos = item.pos()
+    #             item.setPos(current_pos.x() + actual_delta_x, current_pos.y() + actual_delta_y)
+    #             moved_items.add(item)
+    #     for item in self.image_scene.items():
+    #         if item != self.image_item:
+    #             if isinstance(item, QtWidgets.QGraphicsLineItem) and item.zValue() == 1:
+    #                 #this is a grid line. dont move those!
+    #                 continue
+    #             current_pos = item.pos()
+    #             item.setPos(current_pos.x() + actual_delta_x, current_pos.y() + actual_delta_y)
+        
     def recenter_image(self):
-        item_rect = self.image_item.boundingRect()
-        viewport_size = self.image_canvas.viewport().size()
-        max_x = viewport_size.width() - item_rect.width()
-        max_y = viewport_size.height() - item_rect.height()
-
-        if max_x>0: #case: image is smaller than viewport
-            actual_delta_x = -self.image_item.x()
-            actual_delta_y = -self.image_item.y()
-            self.image_item.setPos(0, 0)
-        else:
-            actual_delta_x = (max_x/2) - self.image_item.x()
-            actual_delta_y = (max_y/2) - self.image_item.y()
-            self.image_item.setPos(max_x/2, max_y/2)
-        
-        # Move all other items in the scene (grid lines, center cross, etc.)
-        for item in self.image_scene.items():
-            if item != self.image_item:
-                if isinstance(item, QtWidgets.QGraphicsLineItem) and item.zValue() == 1:
-                    #this is a grid line. dont move those!
-                    continue
-                current_pos = item.pos()
-                item.setPos(current_pos.x() + actual_delta_x, current_pos.y() + actual_delta_y)
-        
+        # Simply tell the camera to look at the center of the image item
+        self.image_canvas.centerOn(self.image_item)
 
     def update_zoom_from_slider(self):
         if not self.updating_scaling:
@@ -602,11 +698,21 @@ class ImageMover(QtCore.QObject):
 
             self.updating_scaling = False
             
+    # def reset_zoom(self):
+    #     self.updating_scaling = True
+    #     self.zoom_slider.setValue(100)  # Reset the slider to 100%
+    #     self.zoom_spinbox.setValue(100)  # Reset the spinbox to 100%
+    #     self.apply_scene_zoom()  # Apply the reset zoom to the scene
+    #     self.updating_scaling = False
+
     def reset_zoom(self):
         self.updating_scaling = True
-        self.zoom_slider.setValue(100)  # Reset the slider to 100%
-        self.zoom_spinbox.setValue(100)  # Reset the spinbox to 100%
-        self.apply_scene_zoom()  # Apply the reset zoom to the scene
+        self.zoom_slider.setValue(100) 
+        self.zoom_spinbox.setValue(100) 
+        self.apply_scene_zoom() 
+        
+        # Snap the camera back to the center after resetting the scale
+        self.recenter_image()
         self.updating_scaling = False
 
     def toggle_grid(self):
