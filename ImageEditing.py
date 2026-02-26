@@ -75,9 +75,6 @@ class ImageAdjuster:
                                                                 median_blur=self.median_blur_spinbox.value(),
                                                                 sigma_color=self.sigma_color_spinbox.value(),
                                                                 sigma_space=self.sigma_space_spinbox.value()))
-        
-        # Add a callback to reste all adjuments when a  new image is loaded
-        #self.data_handler.add_image_changed_callback(self.restore_original_color) #depreciated, now tracking correctly in main image controller
 
     ## METHODS
 
@@ -335,6 +332,16 @@ class ImageColorer(QtCore.QObject):
         self.replace_color_on = False
         self.mask_drawing_on = False
 
+        # Mask Moving functionality
+        self.move_mask_on = False
+        self.detached_mask_index = -1  # Tracks which mask is currently floating
+        self.moving_mask_item = None
+        self.white_cutout_item = None
+        
+        self.mask_drag_start_canvas = None
+        self.moving_item_start_pos = None
+        self.mask_boundary_start_pos = None
+
         #Setup for pixel drawing
         self.pen_size = 1 # 1 pixel width
 
@@ -474,14 +481,17 @@ class ImageColorer(QtCore.QObject):
         self.edit_mask_button = gui.edit_mask_button
         self.edit_mask_button.clicked.connect(lambda: self.set_single_toggle_state('mask_edit_mode'))
 
-        #Button to deslect mask 
+        #Button to deselect mask 
         self.unselect_mask_button = gui.unselect_mask_button
         self.unselect_mask_button.clicked.connect(self.deselect_mask)
+
+        #Button to move masked area
+        self.move_masked_area_button = gui.move_masked_area_button
+        self.move_masked_area_button.clicked.connect(lambda: self.set_single_toggle_state('move_mask_on'))
         
         # List widget to display masks
         self.masks_list_widget = gui.masks_list_widget
         self.masks_list_widget.itemSelectionChanged.connect(self.on_mask_selected)
-
 
         #Event callbacks for handling gui interactions
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
@@ -572,6 +582,8 @@ class ImageColorer(QtCore.QObject):
                 self.start_mask_ellipse(event)
             elif self.mask_shape_mode == "polygon":
                 self.add_polygon_point(event)
+        elif self.move_mask_on:
+            self.on_move_mask_press(event)
     
     def on_key_press(self, event):
         if event.key() == QtCore.Qt.Key.Key_Z and (event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
@@ -597,6 +609,8 @@ class ImageColorer(QtCore.QObject):
                 self.update_mask_ellipse_preview(event)
         elif self.color_drawing_on:
             self.drag_color_drawing(event)
+        elif self.move_mask_on:
+            self.on_move_mask_drag(event)
     
     def on_mouse_left_release(self, event):
         if self.dragging_handle is not None:
@@ -609,6 +623,8 @@ class ImageColorer(QtCore.QObject):
             # Note: polygon doesn't use drag, only clicks
         elif self.color_drawing_on:
             self.stop_color_drawing(event)
+        elif self.move_mask_on:
+            self.on_move_mask_release(event)
 
     def set_single_toggle_state(self, state_property):
         '''sets a single toggle state and resets all others, based on the passed state_property string and the sending button'''
@@ -624,6 +640,7 @@ class ImageColorer(QtCore.QObject):
             self.replace_color_on = False
             self.mask_drawing_on = False
             self.mask_edit_mode = False
+            self.move_mask_on = False
             self.pick_color_from_image_button.setChecked(False)
             self.toggle_draw_button.setChecked(False)
             self.flood_fill_button.setChecked(False)
@@ -632,6 +649,7 @@ class ImageColorer(QtCore.QObject):
             self.ellipse_mask_button.setChecked(False)
             self.polygon_mask_button.setChecked(False)
             self.edit_mask_button.setChecked(False)
+            self.move_masked_area_button.setChecked(False)
             self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
             # Set only the desired state
@@ -1072,6 +1090,9 @@ class ImageColorer(QtCore.QObject):
         if not self.data_handler.active_color_overlays:
             return 
         
+        # Update the logical mask geometry if one was being moved
+        self.update_logical_mask_matrices()
+        
         # 1. get copy of current pixmap
         current_pixmap = self.gui.image_item.pixmap()
         result_pixmap = current_pixmap.copy()
@@ -1088,7 +1109,9 @@ class ImageColorer(QtCore.QObject):
                 painter.drawPath(item.path())
             
             elif isinstance(item, QGraphicsPixmapItem):
-                painter.drawPixmap(item.offset().toPoint(), item.pixmap())
+                # FIXED: Calculate the actual drop position by adding pos() and offset()
+                draw_point = (item.pos() + item.offset()).toPoint()
+                painter.drawPixmap(draw_point, item.pixmap())
             
             # remove items from secene as they are now baked in
             self.gui.image_scene.removeItem(item)
@@ -1121,7 +1144,9 @@ class ImageColorer(QtCore.QObject):
         self.contour_overlay_item = None
         self.draw_contour_button.setText("Draw Contours")
         self.draw_contour_button.setChecked(False)
-    
+
+        #ensure to restet mask moving
+        self.disable_move_mask_mode()
 
     def restore_uncolored_image(self):
         if self.data_handler.active_color_overlays:
@@ -1136,9 +1161,25 @@ class ImageColorer(QtCore.QObject):
         
         # Priority 1: Undo active vector drawings (not yet imprinted)
         if self.data_handler.active_color_overlays:
-            # Remove last drawn stroke
+            # Remove last drawn stroke/item
             last_item = self.data_handler.active_color_overlays.pop()
             self.gui.image_scene.removeItem(last_item)
+            
+            # If the item we just undid was the moving mask...
+            if last_item == self.moving_mask_item:
+                # 1. Pop and remove the white cutout
+                white_cutout = self.data_handler.active_color_overlays.pop()
+                self.gui.image_scene.removeItem(white_cutout)
+                
+                # 2. Reset the dotted mask boundary back to its original position
+                if self.detached_mask_index >= 0:
+                    boundary_item = self.data_handler.mask_overlays[self.detached_mask_index]
+                    boundary_item.setPos(0, 0)
+                
+                # 3. Clear the tracking variables
+                self.detached_mask_index = -1
+                self.moving_mask_item = None
+                self.white_cutout_item = None
             return
 
         # Priority 2: Undo Imprint (Revert pixel changes)
@@ -1159,10 +1200,7 @@ class ImageColorer(QtCore.QObject):
             self.draw_contour_button.setText("Delete Contours")
             self.contours_visible = True
             self.find_image_contours()
-            # Make overlay visible
-            # if self.contour_overlay_item is not None:
-            #     self.contour_overlay_item.show()
-            #     self.data_handler.active_color_overlays.append(self.contour_overlay_item) # Add to undo stack so it gets removed when new contours are drawn
+
         else:
             # Outlines are visible; hide them
             self.draw_contour_button.setText("Draw Contours")
@@ -1724,6 +1762,9 @@ class ImageColorer(QtCore.QObject):
         else:
             self.editing_mask_index = -1
 
+        #ensure to reset mask moving
+        self.disable_move_mask_mode()
+
     def show_edit_handles_for_selected(self):
         """Show edit handles for the currently selected mask (if in edit mode)."""
         if not self.mask_edit_mode or self.editing_mask_index < 0:
@@ -2100,8 +2141,6 @@ class ImageColorer(QtCore.QObject):
                 self.gui.image_scene.removeItem(overlay)
             self.data_handler.mask_overlays.clear()
 
-            
-
     def get_background_mask(self):
         """
         Get the mask matrix containing all pixels NOT covered by any other masks.
@@ -2134,5 +2173,137 @@ class ImageColorer(QtCore.QObject):
             all_masks[f'mask_{idx}'] = mask
         all_masks['background'] = self.get_background_mask()
         return all_masks
+    
 
+
+
+    #MOVE MASK FUNCTIONALITY
+    def _extract_mask_for_moving(self, mask_index):
+        """Creates the overlays and hands them over to the existing imprint system."""
+        mask = self.data_handler.masks_list[mask_index]
+        image = self.data_handler.image_matrix
+        h, w = mask.shape
+        
+        # 1. Create the White Cutout 
+        temp_white_rgba = np.zeros((h, w, 4), dtype=np.uint8)
+        temp_white_rgba[mask == 1] = [255, 255, 255, 255]
+        white_img = QImage(temp_white_rgba.data, w, h, QImage.Format.Format_RGBA8888)
+        self.white_cutout_item = QtWidgets.QGraphicsPixmapItem(QPixmap.fromImage(white_img.copy()), self.gui.image_item)
+        self.white_cutout_item.setZValue(11)
+
+        # 2. Create the Moving Pixels
+        temp_moving_rgba = np.zeros((h, w, 4), dtype=np.uint8)
+        temp_moving_rgba[mask == 1, :3] = image[mask == 1]
+        temp_moving_rgba[mask == 1, 3] = 255
+        moving_img = QImage(temp_moving_rgba.data, w, h, QImage.Format.Format_RGBA8888)
+        self.moving_mask_item = QtWidgets.QGraphicsPixmapItem(QPixmap.fromImage(moving_img.copy()), self.gui.image_item)
+        self.moving_mask_item.setZValue(12) 
+        
+        # 3. Add to your existing undo/imprint stack! 
+        # (This automatically triggers your imprint button visibility if you have it linked to this list)
+        self.data_handler.active_color_overlays.append(self.white_cutout_item)
+        self.data_handler.active_color_overlays.append(self.moving_mask_item)
+        
+        self.detached_mask_index = mask_index
+
+    def on_move_mask_press(self, event):
+        """Prepares for dragging. Detaches mask if it hasn't been detached yet."""
+        idx = self.data_handler.active_mask_index
+        if idx < 0:
+            return 
+            
+        if self.detached_mask_index != idx:
+            self._extract_mask_for_moving(idx)
+        
+        # Record starting coordinates for smooth delta calculation
+        self.mask_drag_start_canvas = event.pos()
+        self.moving_item_start_pos = self.moving_mask_item.pos()
+        self.mask_boundary_start_pos = self.data_handler.mask_overlays[idx].pos()
+
+    def on_move_mask_drag(self, event):
+        """Updates the visual position of the pixel overlay and dashed boundary."""
+        idx = self.data_handler.active_mask_index
+        if idx < 0:
+            return 
+        if self.moving_mask_item is None or self.detached_mask_index < 0:
+            return
+            
+        idx = self.detached_mask_index
+        start_x = self.mask_drag_start_canvas.x()
+        start_y = self.mask_drag_start_canvas.y()
+        curr_x = event.position().x()
+        curr_y = event.position().y()
+        
+        # Calculate Image-space delta (for the Pixmap)
+        start_img = self.data_handler.canvas_to_image_coords(start_x, start_y)
+        curr_img = self.data_handler.canvas_to_image_coords(curr_x, curr_y)
+        dx_img = curr_img[0] - start_img[0]
+        dy_img = curr_img[1] - start_img[1]
+        
+        # Calculate Scene-space delta (for the dashed boundary)
+        start_scene = self.data_handler.canvas_to_scene_coords(start_x, start_y)
+        curr_scene = self.data_handler.canvas_to_scene_coords(curr_x, curr_y)
+        dx_scene = curr_scene[0] - start_scene[0]
+        dy_scene = curr_scene[1] - start_scene[1]
+        
+        # Move items
+        self.moving_mask_item.setPos(self.moving_item_start_pos.x() + dx_img, self.moving_item_start_pos.y() + dy_img)
+        self.data_handler.mask_overlays[idx].setPos(self.mask_boundary_start_pos.x() + dx_scene, self.mask_boundary_start_pos.y() + dy_scene)
+
+    def on_move_mask_release(self, event):
+        """Clears drag variables. Items stay exactly where left."""
+        self.mask_drag_start_canvas = None
+        self.moving_item_start_pos = None
+        self.mask_boundary_start_pos = None
+
+    def update_logical_mask_matrices(self):
+        """Shifts the logical mask array to match the visual item before imprinting."""
+        if self.detached_mask_index < 0 or self.moving_mask_item is None:
+            return
+            
+        idx = self.detached_mask_index
+        dx_img = int(self.moving_mask_item.pos().x())
+        dy_img = int(self.moving_mask_item.pos().y())
+        
+        if dx_img != 0 or dy_img != 0:
+            mask = self.data_handler.masks_list[idx]
+            h, w = mask.shape
+            
+            # Calculate new valid coordinates
+            y, x = np.where(mask == 1)
+            ny, nx = y + dy_img, x + dx_img
+            valid = (ny >= 0) & (ny < h) & (nx >= 0) & (nx < w)
+
+            # Generate and save new mask array
+            new_mask = np.zeros_like(mask)
+            new_mask[ny[valid], nx[valid]] = 1
+            self.data_handler.masks_list[idx] = new_mask
+
+            # Update internal mask_info coordinate tracking
+            info = self.data_handler.mask_info[idx]
+            if info['type'] in ['rectangle', 'ellipse']:
+                x1, y1, x2, y2 = info['coords']
+                info['coords'] = (x1 + dx_img, y1 + dy_img, x2 + dx_img, y2 + dy_img)
+            elif info['type'] == 'polygon':
+                info['coords'] = [(px + dx_img, py + dy_img) for px, py in info['coords']]
+                
+            # Permanently translate the dashed boundary overlay's geometry so its pos can be reset to 0,0
+            boundary_item = self.data_handler.mask_overlays[idx]
+            dx_scene = boundary_item.pos().x()
+            dy_scene = boundary_item.pos().y()
+            boundary_item.setPos(0, 0)
+            if isinstance(boundary_item, (QtWidgets.QGraphicsRectItem, QtWidgets.QGraphicsEllipseItem)):
+                boundary_item.setRect(boundary_item.rect().translated(dx_scene, dy_scene))
+            elif isinstance(boundary_item, QtWidgets.QGraphicsPolygonItem):
+                boundary_item.setPolygon(boundary_item.polygon().translated(dx_scene, dy_scene))
+
+        # Reset state tracking
+        self.detached_mask_index = -1
+        self.moving_mask_item = None
+        self.white_cutout_item = None
+    
+    def disable_move_mask_mode(self):
+        #disable move mask mode and reset state
+        self.move_masked_area_button.setChecked(False)
+        self.move_mask_on = False
         
