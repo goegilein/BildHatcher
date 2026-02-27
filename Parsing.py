@@ -12,7 +12,6 @@ class Parser:
         self.post_processor = PostProcessing.PostProcessor()
         self.gui = gui
         self.hatch_data = HatchData(None, None)
-        self.laser_mode = ""
         self.feedrate_default = 6000
 
         # Initialize GUI elements from the preloaded PyQt6 GUI
@@ -34,6 +33,7 @@ class Parser:
         self.add_process_block_button = gui.add_process_block_button
         self.remove_process_block_button = gui.remove_process_block_button
         self.process_listWidget = gui.process_listWidget
+        self.air_assist_combobox = gui.air_assist_combobox
 
         # Set default values for spinboxes and comboboxes
         self.post_processing_combobox.addItems(["None", "Maximize Lines", "Constant Drive", "Over Drive"])
@@ -41,6 +41,7 @@ class Parser:
         self.power_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
         self.speed_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
         self.export_format_combobox.addItems([".jcode", ".gcode", ".txt"])
+        self.air_assist_combobox.addItems(["on", "off"])
 
         self.white_threshold_parsing_spinbox.setValue(255)
         self.min_power_spinbox.setValue(0)
@@ -324,17 +325,6 @@ class Parser:
 
     
     def automatic_jcode(self, db_color_palette, white_threshold=255, offset = [0,0,0]):
-        # # Open a save file dialog
-        # savepath, _ = QFileDialog.getSaveFileName(
-        #     #parent=self.gui,
-        #     caption="Save G-code File",
-        #     filter="G-code files (*.nc);;All files (*.*)",
-        #     directory="",
-        #     #selectedFilter="*.nc"
-        # )
-        # if not savepath:
-        #     return
-
         post_processing = db_color_palette.post_processing
         laser_mode = db_color_palette.laser_mode
         enclosure_fan = db_color_palette.enclosure_fan
@@ -364,6 +354,7 @@ class Parser:
         '''Creates a process block from the active hatch data and puts it into the processListWidget'''
         post_processing = self.post_processing_combobox.currentText()
         laser_mode = self.laser_mode_combobox.currentText()
+        air_assist = self.air_assist_combobox.currentText()
         offset = [
             self.offset_x_spinbox.value(),
             self.offset_y_spinbox.value(),
@@ -376,7 +367,7 @@ class Parser:
                                             white_threshold=self.white_threshold_parsing_spinbox.value(), 
                                             mode="manual")
         #process_block = ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset)
-        process_block = self.post_processor.process_block(ProcessBlock(hatch_data, iterations, post_processing, laser_mode, offset=offset))
+        process_block = self.post_processor.process_block(ProcessBlock(hatch_data, iterations, post_processing, laser_mode, air_assist=air_assist, offset=offset))
         list_item = QtWidgets.QListWidgetItem(f"{iterations}x {self.hatch_data.type}")
         list_item.setData(QtCore.Qt.ItemDataRole.UserRole, process_block)  # Store the process block in the item's data
         self.process_listWidget.addItem(list_item)
