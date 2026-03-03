@@ -83,7 +83,7 @@ class PostProcessor:
             for polyline in hatch_lines:
                 #always start with a constant drive motion
                 A_new, A_pre, B_new, B_post = self.elongate_line(polyline[0].pos, polyline[1].pos, const_drive_len)
-                polyline_new = [polyline[0].clone_with(x=A_pre[0], y=A_pre[1], z=A_pre[2],move_type=0), polyline[0]]
+                polyline_new = [polyline[0].clone_with(x=A_pre[0], y=A_pre[1], z=A_pre[2],move_type=0, speed = 100), polyline[0]] #these are two G0 commands as first command from Hatcher is ALWAYS G0. we can maximize speed on first G0 command for efficiency
                 point_prev = polyline[0]
                 for i in range(1,len(polyline)-1):
                     point_now = polyline[i]
