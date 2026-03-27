@@ -826,7 +826,7 @@ class ImageColorer(QtCore.QObject):
 
         #2. see if there are any masks and if the clicked pixel is inside one
         active_mask = None
-        mask_matrix = np.zeros_like(image_matrix)
+        mask_matrix = np.zeros_like(image_matrix)-1 # Start with invalid mask to easily check later if we found one. We will fill it with the image pixels of the active mask to preserve details in the masked area.
         for color_mask in self.data_handler.masks_list:
             # if np.isnan(mask[y_img, x_img][0])==False:
             if color_mask[y_image, x_image] == 1:
@@ -964,7 +964,7 @@ class ImageColorer(QtCore.QObject):
 
         #see if there are any masks and if the clicked pixel is inside one
         active_mask = None
-        mask_matrix = np.zeros_like(image_matrix)
+        mask_matrix = np.zeros_like(image_matrix)-1 # Start with invalid mask to easily check later if we found one. We will fill it with the image pixels of the active mask to preserve details in the masked area.
         for color_mask in self.data_handler.masks_list:
             # if np.isnan(mask[y_img, x_img][0])==False:
             if color_mask[y_image, x_image] == 1:

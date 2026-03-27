@@ -422,7 +422,7 @@ class ImageMover(QtCore.QObject):
 
         # Add a slider to control the display size
         self.zoom_slider = gui.zoom_slider
-        self.zoom_slider.setRange(10, 1000)
+        self.zoom_slider.setRange(1, 1000)
         self.zoom_slider.setValue(100)  # Default to 100%
         self.zoom_slider.valueChanged.connect(self.update_zoom_from_slider)
 
@@ -432,7 +432,7 @@ class ImageMover(QtCore.QObject):
 
         # Add an entry field to control the display size
         self.zoom_spinbox = gui.zoom_spinbox
-        self.zoom_spinbox.setRange(10, 1000)
+        self.zoom_spinbox.setRange(1, 1000)
         self.zoom_spinbox.setValue(100)
         self.zoom_spinbox.valueChanged.connect(self.update_zoom_from_spinbox)
 
@@ -688,8 +688,8 @@ class ImageMover(QtCore.QObject):
 
             # Calculate the new zoom value
             delta = event.angleDelta().y() / 120  # Typically, event.angleDelta().y() is a multiple of 120
-            new_value = int(self.zoom_spinbox.value() * (1 + delta * 0.1))  # Adjust zoom step as needed
-            new_value = max(10, min(1000, new_value))  # Ensure the value stays within bounds
+            new_value = int(np.ceil(self.zoom_spinbox.value() * (1 + delta * 0.1)))  # Adjust zoom step as needed
+            new_value = max(1, min(1000, new_value))  # Ensure the value stays within bounds
             self.zoom_spinbox.setValue(new_value)
             self.zoom_slider.setValue(new_value)
 
