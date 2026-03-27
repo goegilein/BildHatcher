@@ -1928,10 +1928,14 @@ class ImageColorer(QtCore.QObject):
     def update_rect_ellipse_mask_from_drag(self, mask_index, overlay, mask_info):
         """Update rectangle/ellipse mask after handle drag."""
         rect = overlay.rect()
-        x_min, y_min = int(rect.left()), int(rect.top())
-        x_max, y_max = int(rect.right()), int(rect.bottom())
+        x_min_scene, y_min_scene = rect.left(), rect.top()
+        x_max_scene, y_max_scene = rect.right(), rect.bottom()
         
-        # Update mask info
+        # Convert scene coordinates to image coordinates
+        x_min, y_min = self.data_handler.scene_to_image_coords(x_min_scene, y_min_scene)
+        x_max, y_max = self.data_handler.scene_to_image_coords(x_max_scene, y_max_scene)
+        
+        # Update mask info with image coordinates
         self.data_handler.mask_info[mask_index]['coords'] = (x_min, y_min, x_max, y_max)
         
         # Regenerate mask matrix
