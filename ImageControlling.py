@@ -39,6 +39,15 @@ class BaseFunctions:
         self.height_spinbox.setRange(0, 10000)
         self.height_spinbox.editingFinished.connect(self.update_dimensions)
 
+        #Add variable, label and entry field for pixel size (image dimension frame)
+        self.pixel_size_spinbox = gui.pixel_size_spinbox
+        self.pixel_size_spinbox.setRange(0, 10000)
+        self.pixel_size_spinbox.editingFinished.connect(self.update_dimensions)
+
+        # Add variable and entry field for image resolution (image dimension frame)
+        self.image_resolution_edit = gui.image_resolution_edit
+        self.image_resolution_edit.setReadOnly(True)
+
         # Add variable and check box for image ratio (image dimension frame)
         self.lock_ratio_check = gui.lock_ratio_check
         self.lock_ratio_check.setChecked(True)
@@ -156,21 +165,26 @@ class BaseFunctions:
             return
         try:
             self.get_handler_data()
-            new_width_mm = float(self.width_spinbox.value())
-            new_height_mm = float(self.height_spinbox.value())
-            
-            image_matrix = self.get_active_image_matrix()
-            if self.lock_ratio_check.isChecked():  # If ratio is locked we simply rescale the DPI. This maintains the image information
-                if sender == self.width_spinbox:#.hasFocus():
-                    new_pixel_per_mm = image_matrix.shape[1] / new_width_mm
-                    self.set_active_pixel_per_mm(new_pixel_per_mm)
-                else:
-                    new_pixel_per_mm = image_matrix.shape[0] / new_height_mm
-                    self.set_active_pixel_per_mm(new_pixel_per_mm)
+
+            if sender == self.pixel_size_spinbox:
+                new_pixel_per_mm = 1 / float(self.pixel_size_spinbox.value())
+                self.set_active_pixel_per_mm(new_pixel_per_mm)
             else:
-                new_width = new_width_mm * self.get_active_pixel_per_mm()
-                new_height = new_height_mm * self.get_active_pixel_per_mm()
-                image_matrix = np.array(Image.fromarray(image_matrix).resize((int(new_width), int(new_height))))
+                new_width_mm = float(self.width_spinbox.value())
+                new_height_mm = float(self.height_spinbox.value())
+                
+                image_matrix = self.get_active_image_matrix()
+                if self.lock_ratio_check.isChecked():  # If ratio is locked we simply rescale the DPI. This maintains the image information
+                    if sender == self.width_spinbox:#.hasFocus():
+                        new_pixel_per_mm = image_matrix.shape[1] / new_width_mm
+                        self.set_active_pixel_per_mm(new_pixel_per_mm)
+                    else:
+                        new_pixel_per_mm = image_matrix.shape[0] / new_height_mm
+                        self.set_active_pixel_per_mm(new_pixel_per_mm)
+                else:
+                    new_width = new_width_mm * self.get_active_pixel_per_mm()
+                    new_height = new_height_mm * self.get_active_pixel_per_mm()
+                    image_matrix = np.array(Image.fromarray(image_matrix).resize((int(new_width), int(new_height))))
             self.set_handler_data(new_image = False)
             self.update_dimension_fields()
         except Exception as e:
@@ -183,7 +197,10 @@ class BaseFunctions:
         self.updating_dimensions = True
         self.width_spinbox.setValue(width_mm)
         self.height_spinbox.setValue(height_mm)
+        self.pixel_size_spinbox.setValue(1/ self.get_active_pixel_per_mm())
         self.updating_dimensions = False
+
+        self.image_resolution_edit.setText(f"{width} x {height}")
 
     def reset_image_size(self):
         pixel_per_mm = self.get_active_pixel_per_mm_original()
