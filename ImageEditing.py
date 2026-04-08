@@ -493,6 +493,10 @@ class ImageColorer(QtCore.QObject):
         self.masks_list_widget = gui.masks_list_widget
         self.masks_list_widget.itemSelectionChanged.connect(self.on_mask_selected)
 
+        # Ensure all image editing is disabled when switching to another tab
+        control_tabWidget = gui.control_tabWidget
+        control_tabWidget.currentChanged.connect(lambda: self.set_single_toggle_state(''))  # Passing empty string to only reset states
+
         #Event callbacks for handling gui interactions
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
         self.event_handler.add_global_event_callback(self.trigger_global_event)
@@ -651,6 +655,10 @@ class ImageColorer(QtCore.QObject):
             self.edit_mask_button.setChecked(False)
             self.move_masked_area_button.setChecked(False)
             self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+
+            #use emptty string to only reset all states
+            if not state_property:
+                return
 
             # Set only the desired state
             setattr(self, state_property, state)
@@ -1102,24 +1110,46 @@ class ImageColorer(QtCore.QObject):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         # CompositionMode is SourceOver by default, which is correct for overlays.
         
-        for item in self.data_handler.active_color_overlays:
-            # as items are children of image item, their coordinates are relative to it
+        overlay_items = list(self.data_handler.active_color_overlays)
+        overlay_items.extend(self.data_handler.text_overlays)
+        overlay_items.extend(self.data_handler.geometry_overlays)
+
+        for item in overlay_items:
             if isinstance(item, QGraphicsPathItem):
                 painter.setPen(item.pen())
                 painter.drawPath(item.path())
-            
             elif isinstance(item, QGraphicsPixmapItem):
-                # FIXED: Calculate the actual drop position by adding pos() and offset()
                 draw_point = (item.pos() + item.offset()).toPoint()
                 painter.drawPixmap(draw_point, item.pixmap())
-            
-            # remove items from secene as they are now baked in
-            self.gui.image_scene.removeItem(item)
-            
+                
+            #this is text and geometries that do not have a direct painter method, but implement a custom one
+            elif hasattr(item, 'paint_to_painter'):
+                painter.save()
+                painter.translate(item.pos())
+                painter.setTransform(item.transform(), True)
+                item.paint_to_painter(painter)
+                painter.restore()
+            else:
+                # Fall back to a generic scene render if no direct painter method exists.
+                try:
+                    painter.save()
+                    painter.translate(item.pos())
+                    painter.setTransform(item.transform(), True)
+                    if hasattr(item, 'paint'):
+                        item.paint(painter, None, None)
+                    painter.restore()
+                except Exception:
+                    pass
+
+            if item.scene() is not None:
+                self.gui.image_scene.removeItem(item)
+
         painter.end()
 
-        # 3. ensure list is cleared
+        # 3. ensure lists are cleared
         self.data_handler.active_color_overlays.clear()
+        self.data_handler.text_overlays.clear()
+        self.data_handler.geometry_overlays.clear()
         
         # 4. QPixmap -> QImage -> Numpy Array conversion
         image = result_pixmap.toImage()

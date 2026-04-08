@@ -21,10 +21,12 @@ class DataHandler:
         self.center_for_hatch = None
         self.contours_list=[]
         self.scale_factor = 1.0  # Scale factor between image and canvas display
-        #overlay items from color editing are tracked here
+        # overlay items from color editing and drawable overlays are tracked here
         self.active_color_overlays = ObservableList(on_change=self.update_imprint_button)
+        self.text_overlays = ObservableList(on_change=self.update_imprint_button)
+        self.geometry_overlays = ObservableList(on_change=self.update_imprint_button)
 
-        #masks
+        # masks
         self.masks_list = [] # List of mask matrices
         self.mask_info = []  # List of mask info dictionaries
         self.active_mask_index = -1  # Index of the currently active mask
@@ -122,7 +124,7 @@ class DataHandler:
         self.gui.active_hatch_label.setText("Active: " + self._hatch_data.type)
     
     def update_imprint_button(self):
-        if self.active_color_overlays:
+        if self.active_color_overlays or self.text_overlays or self.geometry_overlays:
             self.gui.imprint_color_overlays_button.setEnabled(True)
         else:
             self.gui.imprint_color_overlays_button.setEnabled(False)

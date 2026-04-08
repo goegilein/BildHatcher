@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1459</width>
+    <width>1360</width>
     <height>1044</height>
    </rect>
   </property>
@@ -770,7 +770,7 @@ QTabBar::tab:hover {
        <bool>true</bool>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="image_controls_tab">
        <attribute name="title">
@@ -1655,6 +1655,240 @@ font-weight: normal;  /* Bold text */
            </size>
           </property>
          </spacer>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab">
+       <attribute name="title">
+        <string>Text and Geometries</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_5">
+        <item>
+         <widget class="QGroupBox" name="groupBox_9">
+          <property name="title">
+           <string>Text Fields</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_26">
+           <item row="12" column="0">
+            <widget class="QDoubleSpinBox" name="text_outline_width_spinbox">
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="13" column="0">
+            <widget class="QLabel" name="label_31">
+             <property name="text">
+              <string>Text Input</string>
+             </property>
+            </widget>
+           </item>
+           <item row="14" column="0">
+            <widget class="QLineEdit" name="text_input_lineedit"/>
+           </item>
+           <item row="9" column="0">
+            <widget class="QPushButton" name="text_color_button">
+             <property name="text">
+              <string>text color</string>
+             </property>
+            </widget>
+           </item>
+           <item row="10" column="0">
+            <widget class="QPushButton" name="text_outline_color_button">
+             <property name="text">
+              <string>text outline color</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QCheckBox" name="text_bold_checkbox">
+             <property name="text">
+              <string>Bold</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QCheckBox" name="text_italic_checkbox">
+             <property name="text">
+              <string>Italic</string>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="0">
+            <widget class="QCheckBox" name="text_strike_checkbox">
+             <property name="text">
+              <string>Cross-out</string>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="0">
+            <widget class="QCheckBox" name="text_underline_checkbox">
+             <property name="text">
+              <string>Unterline</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_26">
+             <property name="text">
+              <string>Font Size</string>
+             </property>
+            </widget>
+           </item>
+           <item row="11" column="0">
+            <widget class="QLabel" name="label_27">
+             <property name="text">
+              <string>Outline width</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QSpinBox" name="font_size_spinbox">
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>1000</number>
+             </property>
+            </widget>
+           </item>
+           <item row="19" column="0">
+            <spacer name="verticalSpacer_8">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item row="0" column="0">
+            <widget class="QPushButton" name="add_text_button">
+             <property name="text">
+              <string>add text</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_25">
+             <property name="text">
+              <string>Font Family</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QComboBox" name="font_family_combobox"/>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="groupBox_10">
+          <property name="title">
+           <string>Simple Geometries</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_27">
+           <item row="9" column="0">
+            <widget class="QLabel" name="label_29">
+             <property name="text">
+              <string>Geometry height</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_30">
+             <property name="text">
+              <string>Outline width</string>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="0">
+            <widget class="QLabel" name="label_28">
+             <property name="text">
+              <string>Geometry width</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_24">
+             <property name="text">
+              <string>Geometry Type</string>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="0">
+            <widget class="QDoubleSpinBox" name="width_mm_spinbox">
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="11" column="0">
+            <spacer name="verticalSpacer_7">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item row="10" column="0">
+            <widget class="QDoubleSpinBox" name="height_mm_spinbox">
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QPushButton" name="outline_color_button">
+             <property name="text">
+              <string>outline_color</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QPushButton" name="fill_color_button">
+             <property name="text">
+              <string>fill color</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QDoubleSpinBox" name="outline_width_spinbox">
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QPushButton" name="add_geometry_button">
+             <property name="text">
+              <string>add geoemtry</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QComboBox" name="geometry_type_combobox"/>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QListWidget" name="overlay_list_widget"/>
+        </item>
+        <item>
+         <widget class="QPushButton" name="delete_overlay_button">
+          <property name="text">
+           <string>delete overlay</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -2659,7 +2893,7 @@ font-weight: normal;  /* Bold text */
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1459</width>
+     <width>1360</width>
      <height>21</height>
     </rect>
    </property>
