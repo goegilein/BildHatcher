@@ -15,8 +15,12 @@ class EventHandler(QtCore.QObject):
     def eventFilter(self, source, event):
         # Handle canvas viewport events
         if source == self.gui.image_canvas.viewport():
+            consumed = False
             for callback in self.canvas_event_callbacks:
-                callback(event)
+                if callback(event) is True:
+                    consumed = True
+            if consumed:
+                return True
         # Handle global GUI events
         else:
             for callback in self.global_event_callbacks:

@@ -635,6 +635,9 @@ class ImageColorer(QtCore.QObject):
         try:
             # Get sender button and its state to be set
             sender = self.sender()
+            #chekc if sender has isChecked method (it should, but just to be safe)
+            if not hasattr(sender, 'isChecked'):
+                return
             state = sender.isChecked()
 
             # Reset all toggle states and buttons

@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Form</class>
+ <widget class="QWidget" name="Form">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>223</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QWidget{
+background-color: rgb(230,230,230);
+}
+
+QGroupBox{
+color:  rgb(80, 0, 19);  /* Text color */
+font-weight: bold;  /* Bold text */
+}
+
+QLabel{
+color:  rgb(80, 0, 19);;  /* Text color */
+}
+
+QPushButton {
+	background-color: rgb(122,0,28);  /* Background color */
+	border: 1px solid rgb(0, 0, 0);
+    color: rgb(255, 255, 255);  /* Text color */
+    border-radius: 5px;  /* Rounded edges */
+	padding: 2px;
+}
+
+QPushButton:hover {
+    background-color: rgb(142, 0, 38);  /* Background color when hovered */
+	color: rgb(245, 245, 245);
+    border-color:rgb(40, 40, 40);  /* Border color when hovered */
+}
+
+QPushButton:pressed {
+   color:  rgb(80, 0, 19);  /* Background color when pressed */
+	border-color: rgb(0, 0, 0);
+}
+QPushButton:clicked {
+   background-color: rgb(80,0,19);  /* Background color when pressed */
+	border-color:  rgb(0,0, 0);
+}
+
+QPushButton:checked {
+    background-color: rgb(255,255,255);
+	color:  rgb(80, 0, 19);
+	border: 2px solid rgb(122, 0, 28);
+	font-weight: bold;  /* Bold text */
+}
+
+QPushButton:disabled {
+    background-color: rgb(180,180, 180);
+	border: 1px solid rgb(0, 0,0);
+}
+
+QDoubleSpinBox:enabled{
+background-color: rgb(255,255,255);
+color:  rgb(80, 0, 19);  /* Text color */
+border: 1px solid  rgb(122, 0, 28);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+QDoubleSpinBox:disabled{
+color: rgb(80, 0, 19);  /* Text color */
+border: 1px solid rgb(255,255,255);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+
+QSpinBox:enabled{
+background-color: rgb(255,255,255);
+color:  rgb(80, 0, 19);  /* Text color */
+border: 1px solid  rgb(122, 0, 28);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+
+}
+QSpinBox:disabled{
+color: rgb(80, 0, 19);  /* Text color */
+border: 1px solid rgb(255,255,255);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+
+QPlainTextEdit{
+background-color: rgb(255,255,255);
+border-radius: 5px;  /* Rounded edges */
+}
+
+QLineEdit:endabled{
+background-color: rgb(255,255,255);
+color:  rgb(80, 0, 19);  /* Text color */
+border: 1px solid rgb(0,0,0);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+
+QLineEdit:disabled{
+background-color: rgb(230,230,230);
+color:  rgb(80, 0, 19);  /* Text color */
+border: 1px solid rgb(0,0,0);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+
+QComboBox{
+background-color: rgb(255,255,255);
+color:  rgb(80, 0, 19);  /* Text color */
+border: 1px solid rgb(0,0,0);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+
+QTabBar::tab {
+    color:  rgb(80, 0, 19); 
+    border: 1px solid rgb(122,0,28);
+    padding: 5px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+	min-width:80px;
+}
+
+QTabBar::tab:selected {
+    color:  rgb(80, 0, 19); 
+    background-color: rgb(255, 255, 255); ;
+    font-weight: bold;
+	border: 2px solid rgb(122, 0, 28);
+}
+
+QTabBar::tab:hover {
+    color:  rgb(122, 0, 28); /* Slightly lighter orange */
+	background-color: rgb(245, 245, 245); ;
+}
+</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string>Create a new Blank</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="4" column="0">
+       <widget class="QLabel" name="label_4">
+        <property name="text">
+         <string>Pixels Height</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="0" colspan="3">
+       <widget class="QPushButton" name="create_blank_button">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>25</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Create Blank</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QDoubleSpinBox" name="width_mm_spinbox">
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::NoButtons</enum>
+        </property>
+        <property name="decimals">
+         <number>3</number>
+        </property>
+        <property name="maximum">
+         <double>1000.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>50.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QSpinBox" name="height_pixel_spinbox">
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::NoButtons</enum>
+        </property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>16000</number>
+        </property>
+        <property name="value">
+         <number>189</number>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Height (mm)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>Width (mm)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QDoubleSpinBox" name="height_mm_spinbox">
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::NoButtons</enum>
+        </property>
+        <property name="decimals">
+         <number>3</number>
+        </property>
+        <property name="maximum">
+         <double>1000.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>50.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QSpinBox" name="wight_pixel_spinbox">
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::NoButtons</enum>
+        </property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>16000</number>
+        </property>
+        <property name="value">
+         <number>189</number>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLabel" name="label_5">
+        <property name="text">
+         <string>Pixels Width</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0" colspan="3">
+       <widget class="QLabel" name="label_7">
+        <property name="font">
+         <font>
+          <italic>true</italic>
+          <underline>true</underline>
+         </font>
+        </property>
+        <property name="text">
+         <string>Blank Size in mm</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="3">
+       <widget class="QLabel" name="label_8">
+        <property name="font">
+         <font>
+          <weight>50</weight>
+          <italic>true</italic>
+          <bold>false</bold>
+          <underline>true</underline>
+         </font>
+        </property>
+        <property name="text">
+         <string>Blank Size in pixels</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>Pixels per mm</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QDoubleSpinBox" name="pixels_per_mm_spinbox">
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::NoButtons</enum>
+        </property>
+        <property name="minimum">
+         <double>0.010000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>1000.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>3.790000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="2">
+       <widget class="QLabel" name="label_3">
+        <property name="text">
+         <string>Pixel Size (mm)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="2">
+       <widget class="QDoubleSpinBox" name="pixel_size_spinbox">
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::NoButtons</enum>
+        </property>
+        <property name="decimals">
+         <number>3</number>
+        </property>
+        <property name="minimum">
+         <double>0.001000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>100.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>1.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
