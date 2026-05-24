@@ -16,8 +16,12 @@ import Settings
 import AutomatedProcessing
 import EventHandling
 import TextandGeometries
+from PathManager import get_gui_file_path, get_settings_path
 import CustomUiElements #this import is necessary to register custom ui elements for compilation
 
+
+#Define paths using PathManager
+MAIN_GUI_PATH = get_gui_file_path("BildHatcher.ui")
 
 if __name__ == "__main__":
 
@@ -25,17 +29,17 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
 
     # Set the locale to use a dot as the decimal separator
-    QLocale.setDefault(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
+    # QLocale.setDefault(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
 
-    def resource_path(relative: str) -> Path:
-        # When frozen, data files are in sys._MEIPASS
-        if hasattr(sys, "_MEIPASS"):
-            return Path(sys._MEIPASS) / relative
-        # When running from source
-        return Path(__file__).resolve().parent / relative
+    # def resource_path(relative: str) -> Path:
+    #     # When frozen, data files are in sys._MEIPASS
+    #     if hasattr(sys, "_MEIPASS"):
+    #         return Path(sys._MEIPASS) / relative
+    #     # When running from source
+    #     return Path(__file__).resolve().parent / relative
 
-    ui_path = resource_path("BildHatcher.ui")
-    gui = uic.loadUi(ui_path)
+    # ui_path = resource_path("BildHatcher.ui")
+    gui = uic.loadUi(MAIN_GUI_PATH)
     
     #create the image canvas. has to be done programmatically as there is no QtDesigner element for it
     gui.image_scene = QtWidgets.QGraphicsScene()

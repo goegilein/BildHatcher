@@ -5,8 +5,8 @@ from datetime import datetime
 
 # Version configuration
 VERSION_MAJOR = 1
-VERSION_MINOR = 1
-VERSION_PATCH = 3
+VERSION_MINOR = 2
+VERSION_PATCH = 0
 VERSION_STRING = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH}"
 
 # Project configuration
@@ -30,7 +30,10 @@ def build_executable():
         "--name", exe_name,
         "--onefile",
         "--windowed",
-        "--add-data", "BildHatcher.ui;.",
+        "--add-data", "GUI_files;GUI_files",  # Include GUI files
+        "--add-data", "settings;settings",    # Include settings
+        "--add-data", "libraries;libraries",  # Include libraries
+        # "--add-data", "Drivers;Drivers",      # Include drivers
         "--distpath", OUTPUT_DIR,
         "--workpath", "build",   # ← FIXED HERE
     ]

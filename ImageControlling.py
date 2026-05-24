@@ -9,6 +9,7 @@ import numpy as np
 import io
 from collections import defaultdict
 from HelperClasses import ImgObj
+from PathManager import get_gui_file_path
 
 class BaseFunctions:
     def __init__(self, data_handler, gui):
@@ -587,13 +588,6 @@ class ImageMover(QtCore.QObject):
 
             self.updating_scaling = False
             
-    # def reset_zoom(self):
-    #     self.updating_scaling = True
-    #     self.zoom_slider.setValue(100)  # Reset the slider to 100%
-    #     self.zoom_spinbox.setValue(100)  # Reset the spinbox to 100%
-    #     self.apply_scene_zoom()  # Apply the reset zoom to the scene
-    #     self.updating_scaling = False
-
     def reset_zoom(self):
         self.updating_scaling = True
         self.zoom_slider.setValue(100) 
@@ -767,12 +761,11 @@ class NewBlankDialog(QtWidgets.QDialog):
         from pathlib import Path
         import sys
         
-        def resource_path(relative: str) -> Path:
-            if hasattr(sys, "_MEIPASS"):
-                return Path(sys._MEIPASS) / relative
-            return Path(__file__).resolve().parent / relative
-        
-        ui_path = resource_path("NewBlank.ui")
+        # def resource_path(relative: str) -> Path:
+        #     if hasattr(sys, "_MEIPASS"):
+        #         return Path(sys._MEIPASS) / relative
+        #     return Path(__file__).resolve().parent / relative
+        ui_path = get_gui_file_path("NewBlank.ui")
         uic.loadUi(ui_path, self)
         
         # Connect the spinboxes
