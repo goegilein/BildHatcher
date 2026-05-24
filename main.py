@@ -15,6 +15,7 @@ import DataHandling
 import Settings
 import AutomatedProcessing
 import EventHandling
+import TextandGeometries
 import CustomUiElements #this import is necessary to register custom ui elements for compilation
 
 
@@ -68,6 +69,9 @@ if __name__ == "__main__":
     image_sizer = ImageControlling.ImageMover(data_handler, event_handler, gui)
     image_adjuster = ImageEditing.ImageAdjuster(data_handler, gui)
     image_colorer = ImageEditing.ImageColorer(data_handler, event_handler, gui)
+    overlay_store = TextandGeometries.OverlayStore(gui.image_item)
+    overlay_manager = TextandGeometries.TextGeometryOverlayManager(data_handler, overlay_store, gui, event_handler)
+
     image_hatcher = NCDataGeneration.Hatcher(data_handler, gui)
     hatch_line_plotter = Plotting.HatchLinePlotter(data_handler, gui)
     test_structure = TestStructures.Teststructures(data_handler, gui)

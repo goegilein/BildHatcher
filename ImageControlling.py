@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QFileDialog, QListWidgetItem
 from PyQt6.QtWidgets import QGraphicsLineItem
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QPen, QColor
+from PyQt6 import uic
 from PIL import Image
 import numpy as np
 import io
@@ -26,6 +27,8 @@ class BaseFunctions:
         self.actionLoad_image.triggered.connect(self.load_image)
         self.actionSave_image = gui.actionSave_Image
         self.actionSave_image.triggered.connect(self.save_image)
+        self.actionNew_Blank = gui.actionNew_Blank
+        self.actionNew_Blank.triggered.connect(self.open_new_blank)
         # self.actionReset_image = gui.actionReset_Image
         # self.actionReset_image.triggered.connect(self.reset_image)
 
@@ -131,6 +134,11 @@ class BaseFunctions:
                 self.gui.image_canvas.centerOn(self.gui.image_item)
             except Exception as e:
                 print(f"Error loading image: {e}")
+
+    def open_new_blank(self):
+        """Open the New Blank dialog to create a blank image."""
+        dialog = NewBlankDialog(self.gui, self)
+        dialog.show()
 
     def add_listbox_item(self, img_obj:ImgObj, name:str, set_selected=False):
         item = QListWidgetItem(name)
@@ -292,6 +300,20 @@ class BaseFunctions:
             self.images_ListWidget.takeItem(row)
         if self.images_ListWidget.count() > 0:
             self.images_ListWidget.setCurrentRow(self.images_ListWidget.count() - 1)
+        
+        if self.images_ListWidget.count() == 0:
+            self.active_image_item = None
+
+            # Clear the image canvas
+            self.gui.image_item.setPixmap(QtGui.QPixmap())
+
+            #reset the data handler as well
+            self.data_handler.image_matrix = None
+            self.data_handler.pixel_per_mm = None
+            self.data_handler.image_matrix_original = None
+        
+        #ensure to reset the image bounds
+        self.gui.image_scene.setSceneRect(self.gui.image_item.boundingRect())
 
     def change_image(self):
         if self.changeing_image:
@@ -731,6 +753,211 @@ class ImageMover(QtCore.QObject):
             
         except Exception as e:
             print(f"Error drawing center cross: {e}")
+
+
+class NewBlankDialog(QtWidgets.QDialog):
+    """Dialog for creating a new blank image with user-defined dimensions."""
+    
+    def __init__(self, parent, image_controller):
+        super().__init__(parent)
+        self.image_controller = image_controller
+        self.updating_fields = False  # Flag to prevent recursive updates
+        
+        # Load the UI file
+        from pathlib import Path
+        import sys
+        
+        def resource_path(relative: str) -> Path:
+            if hasattr(sys, "_MEIPASS"):
+                return Path(sys._MEIPASS) / relative
+            return Path(__file__).resolve().parent / relative
+        
+        ui_path = resource_path("NewBlank.ui")
+        uic.loadUi(ui_path, self)
+        
+        # Connect the spinboxes
+        self.height_mm_spinbox.valueChanged.connect(self.on_height_mm_changed)
+        self.width_mm_spinbox.valueChanged.connect(self.on_width_mm_changed)
+        self.pixel_size_spinbox.valueChanged.connect(self.on_pixel_size_changed)
+        
+        self.height_pixel_spinbox.valueChanged.connect(self.on_height_pixels_changed)
+        self.wight_pixel_spinbox.valueChanged.connect(self.on_width_pixels_changed)
+        self.pixels_per_mm_spinbox.valueChanged.connect(self.on_pixels_per_mm_changed)
+        
+        # Connect the create button
+        self.create_blank_button.clicked.connect(self.create_blank_image)
+        
+        # Set initial values
+        self.height_mm_spinbox.setValue(50.0)
+        self.width_mm_spinbox.setValue(50.0)
+        self.pixel_size_spinbox.setValue(0.264)
+        self.update_pixel_dimensions()
+    
+    def on_height_mm_changed(self, value):
+        """Update pixel height when height in mm changes."""
+        if self.updating_fields:
+            return
+        self.updating_fields = True
+        try:
+            pixels_per_mm = self.pixels_per_mm_spinbox.value()
+            if pixels_per_mm > 0:
+                pixel_height = int(value * pixels_per_mm)
+                self.height_pixel_spinbox.setValue(pixel_height)
+        finally:
+            self.updating_fields = False
+    
+    def on_width_mm_changed(self, value):
+        """Update pixel width when width in mm changes."""
+        if self.updating_fields:
+            return
+        self.updating_fields = True
+        try:
+            pixels_per_mm = self.pixels_per_mm_spinbox.value()
+            if pixels_per_mm > 0:
+                pixel_width = int(value * pixels_per_mm)
+                self.wight_pixel_spinbox.setValue(pixel_width)
+        finally:
+            self.updating_fields = False
+    
+    def on_pixel_size_changed(self, value):
+        """Update pixels_per_mm and mm dimensions when pixel size in mm changes.
+        Keeps pixel dimensions fixed, updates mm dimensions."""
+        if self.updating_fields:
+            return
+        self.updating_fields = True
+        try:
+            if value > 0:
+                # Calculate new pixels_per_mm
+                pixels_per_mm = 1.0 / value
+                
+                # Keep pixels fixed, update mm dimensions accordingly
+                height_pixel = self.height_pixel_spinbox.value()
+                width_pixel = self.wight_pixel_spinbox.value()
+                
+                height_mm = height_pixel / pixels_per_mm
+                width_mm = width_pixel / pixels_per_mm
+                
+                # Update spinboxes
+                self.height_mm_spinbox.setValue(height_mm)
+                self.width_mm_spinbox.setValue(width_mm)
+                self.pixels_per_mm_spinbox.setValue(round(pixels_per_mm, 1))
+        finally:
+            self.updating_fields = False
+    
+    def on_height_pixels_changed(self, value):
+        """Update height in mm when pixel height changes."""
+        if self.updating_fields:
+            return
+        self.updating_fields = True
+        try:
+            pixels_per_mm = self.pixels_per_mm_spinbox.value()
+            if pixels_per_mm > 0:
+                height_mm = value / pixels_per_mm
+                self.height_mm_spinbox.setValue(height_mm)
+        finally:
+            self.updating_fields = False
+    
+    def on_width_pixels_changed(self, value):
+        """Update width in mm when pixel width changes."""
+        if self.updating_fields:
+            return
+        self.updating_fields = True
+        try:
+            pixels_per_mm = self.pixels_per_mm_spinbox.value()
+            if pixels_per_mm > 0:
+                width_mm = value / pixels_per_mm
+                self.width_mm_spinbox.setValue(width_mm)
+        finally:
+            self.updating_fields = False
+    
+    def on_pixels_per_mm_changed(self, value):
+        """Update pixel size and pixel dimensions when pixels_per_mm changes.
+        Keeps mm dimensions fixed, recalculates pixel dimensions."""
+        if self.updating_fields:
+            return
+        self.updating_fields = True
+        try:
+            if value > 0:
+                # Update pixel size (reciprocal)
+                pixel_size = 1.0 / value
+                self.pixel_size_spinbox.setValue(pixel_size)
+                
+                # Keep mm dimensions fixed, recalculate pixel dimensions
+                height_mm = self.height_mm_spinbox.value()
+                width_mm = self.width_mm_spinbox.value()
+                
+                pixel_height = int(height_mm * value)
+                pixel_width = int(width_mm * value)
+                
+                self.height_pixel_spinbox.setValue(pixel_height)
+                self.wight_pixel_spinbox.setValue(pixel_width)
+        finally:
+            self.updating_fields = False
+    
+    def update_pixel_dimensions(self):
+        """Update pixel dimensions based on mm dimensions and pixels_per_mm."""
+        if self.updating_fields:
+            return
+        self.updating_fields = True
+        try:
+            pixels_per_mm = self.pixels_per_mm_spinbox.value()
+            if pixels_per_mm > 0:
+                height_mm = self.height_mm_spinbox.value()
+                width_mm = self.width_mm_spinbox.value()
+                
+                pixel_height = int(height_mm * pixels_per_mm)
+                pixel_width = int(width_mm * pixels_per_mm)
+                
+                self.height_pixel_spinbox.setValue(pixel_height)
+                self.wight_pixel_spinbox.setValue(pixel_width)
+        finally:
+            self.updating_fields = False
+    
+    def create_blank_image(self):
+        """Create a blank white image with the specified dimensions."""
+        try:
+            # Get the dimensions
+            pixel_width = self.wight_pixel_spinbox.value()
+            pixel_height = self.height_pixel_spinbox.value()
+            pixels_per_mm = self.pixels_per_mm_spinbox.value()
+            
+            # Validate dimensions
+            if pixel_width < 1 or pixel_height < 1 or pixels_per_mm <= 0:
+                QtWidgets.QMessageBox.warning(
+                    self, "Invalid Dimensions",
+                    "Please ensure all dimensions are valid (positive values)."
+                )
+                return
+            
+            # Create a white image
+            image_matrix = np.ones((pixel_height, pixel_width, 3), dtype=np.uint8) * 255
+            
+            # Create ImgObj and add to list
+            img_obj = ImgObj(image_matrix.copy(), image_matrix.copy(), pixels_per_mm, pixels_per_mm)
+            
+            # Generate a name for the blank image
+            width_mm = self.width_mm_spinbox.value()
+            height_mm = self.height_mm_spinbox.value()
+            name = f"Blank_{width_mm:.1f}x{height_mm:.1f}mm"
+            
+            # Add to image list
+            self.image_controller.changeing_image = True
+            self.image_controller.add_listbox_item(img_obj, name, set_selected=True)
+            self.image_controller.changeing_image = False
+            
+            # Update display
+            self.image_controller.set_handler_data(new_image=True)
+            self.image_controller.update_dimension_fields()
+            
+            # Center the image
+            self.image_controller.gui.image_canvas.centerOn(self.image_controller.gui.image_item)
+            
+            # Close the dialog
+            self.close()
+            
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Error creating blank image: {e}")
+            print(f"Error creating blank image: {e}")
         
 
 
