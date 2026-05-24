@@ -61,6 +61,11 @@ class BaseFunctions:
         self.reset_image_size_button = gui.reset_image_size_button
         self.reset_image_size_button.clicked.connect(self.reset_image_size)
 
+        # Upscale button
+        self.upscale_button = getattr(gui, "upscale_button", None)
+        if self.upscale_button:
+            self.upscale_button.clicked.connect(self.upscale_active_image)
+
         # Add image button
         self.add_image_button = gui.add_image_button
         self.add_image_button.clicked.connect(self.add_image)
@@ -400,6 +405,103 @@ class BaseFunctions:
         image_name = self.active_image_item.text()
         img_obj = ImgObj(output_image, output_image, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
         self.add_listbox_item(img_obj, image_name + "_cut", set_selected=True)
+
+    def upscale_active_image(self):
+        """Upscale the currently selected active image by 2x using the ImageUpscaler module."""
+        import os
+        if not self.active_image_item:
+            QtWidgets.QMessageBox.warning(self.gui, "Upscale Image", "No image is currently selected.")
+            return
+
+        from ImageUpscaling import ImageUpscaler
+
+        # 1. Retrieve the active item's ImgObj
+        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if not img_obj or img_obj.image_matrix is None:
+            QtWidgets.QMessageBox.warning(self.gui, "Upscale Image", "Invalid active image data.")
+            return
+
+        # Get original filename
+        active_name = self.active_image_item.text()
+        if active_name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
+            base, ext = os.path.splitext(active_name)
+            upscaled_name = f"{base}_2x{ext}"
+        else:
+            upscaled_name = f"{active_name}_2x"
+
+        # Initialize progress feedback dialog
+        progress_dialog = QtWidgets.QProgressDialog(
+            "Initializing upscaling...", "Cancel", 0, 100, self.gui
+        )
+        progress_dialog.setWindowTitle("AI Image Upscaling (2x)")
+        progress_dialog.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
+        progress_dialog.show()
+        QtWidgets.QApplication.processEvents()
+
+        def status_callback(msg):
+            progress_dialog.setLabelText(msg)
+            if "Downloading" in msg and "%" in msg:
+                try:
+                    pct = int(msg.split("%")[0].split()[-1])
+                    progress_dialog.setValue(pct)
+                except Exception:
+                    pass
+            elif "upscaling" in msg:
+                progress_dialog.setValue(50)
+            elif "completed" in msg:
+                progress_dialog.setValue(100)
+            QtWidgets.QApplication.processEvents()
+
+        # Backup current handler image matrix
+        old_matrix = self.data_handler.image_matrix
+
+        try:
+            # Temporarily feed source matrix to data_handler for upscaling
+            self.data_handler.image_matrix = img_obj.image_matrix.copy()
+
+            # Instantiate and run upscaler
+            upscaler = ImageUpscaler(self.data_handler)
+            upscaled_rgb = upscaler.upscale(scale=2, model="realesrgan-x4plus", use_gpu=True, status_callback=status_callback)
+
+            if upscaled_rgb is None:
+                QtWidgets.QMessageBox.critical(self.gui, "Upscale Image", "Upscaling failed.")
+                self.data_handler.image_matrix = old_matrix
+                return
+
+            # Double the pixel density so physical dimensions in millimeters are perfectly preserved
+            new_pixel_per_mm = img_obj.pixel_per_mm * 2
+            # new_pixel_per_mm_orig = img_obj.pixel_per_mm_original * 2
+
+            # Create new ImgObj with upscaled parameters
+            upscaled_img_obj = ImgObj(
+                upscaled_rgb.copy(),
+                upscaled_rgb.copy(),
+                new_pixel_per_mm,
+                new_pixel_per_mm
+            )
+
+            # Prevent recursive selection change locks
+            self.changeing_image = True
+            self.add_listbox_item(upscaled_img_obj, upscaled_name, set_selected=True)
+            self.changeing_image = False
+
+            # Set handler data and display new image
+            self.set_handler_data(new_image=True)
+            self.update_dimension_fields()
+
+            # Center canvas on the upscaled image
+            self.gui.image_canvas.centerOn(self.gui.image_item)
+
+            QtWidgets.QMessageBox.information(
+                self.gui, "Upscale Image",
+                f"Image upscaled successfully by 2x!\nNew size: {upscaled_rgb.shape[1]}x{upscaled_rgb.shape[0]} pixels."
+            )
+
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self.gui, "Upscale Image", f"An error occurred during upscaling: {str(e)}")
+            self.data_handler.image_matrix = old_matrix
+        finally:
+            progress_dialog.close()
 
 
     #simple getter and setter functions for active image properties
