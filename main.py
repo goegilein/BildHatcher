@@ -28,17 +28,6 @@ if __name__ == "__main__":
     #load the GUI
     app = QtWidgets.QApplication(sys.argv)
 
-    # Set the locale to use a dot as the decimal separator
-    # QLocale.setDefault(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
-
-    # def resource_path(relative: str) -> Path:
-    #     # When frozen, data files are in sys._MEIPASS
-    #     if hasattr(sys, "_MEIPASS"):
-    #         return Path(sys._MEIPASS) / relative
-    #     # When running from source
-    #     return Path(__file__).resolve().parent / relative
-
-    # ui_path = resource_path("BildHatcher.ui")
     gui = uic.loadUi(MAIN_GUI_PATH)
     
     #create the image canvas. has to be done programmatically as there is no QtDesigner element for it
@@ -55,14 +44,6 @@ if __name__ == "__main__":
 
     # cut all children (overlay drawings) of the image item at its edges.
     gui.image_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape, True)
-    
-    # gui.image_canvas.fitInView(gui.image_scene.itemsBoundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
-    
-    # View navigation settings
-    # self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-    # self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-    # self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-    # self.setBackgroundBrush(QBrush(QColor(40, 40, 40)))
     
     
     gui.show()

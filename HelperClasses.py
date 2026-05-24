@@ -193,3 +193,30 @@ class ObservableList(list):
         super().__setitem__(key, value)
         if self.on_change:
             self.on_change()
+
+    def __delitem__(self, key):
+        super().__delitem__(key)
+        if self.on_change:
+            self.on_change()
+
+    def __iadd__(self, other):
+        result = super().__iadd__(other)
+        if self.on_change:
+            self.on_change()
+        return result
+
+    def __imul__(self, other):
+        result = super().__imul__(other)
+        if self.on_change:
+            self.on_change()
+        return result
+
+    def sort(self, *args, **kwargs):
+        super().sort(*args, **kwargs)
+        if self.on_change:
+            self.on_change()
+
+    def reverse(self):
+        super().reverse()
+        if self.on_change:
+            self.on_change()

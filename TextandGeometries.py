@@ -168,6 +168,11 @@ class OverlayItem(QtWidgets.QGraphicsItem):
         self._drag_start_item_positions = {}
         super().mouseReleaseEvent(event)
 
+        # Trigger a full UI update on release to ensure everything is perfectly synced
+        scene = self.scene()
+        if scene and hasattr(scene, 'tg_manager') and scene.tg_manager:
+            scene.tg_manager._update_ui_from_selected()
+
     def do_rotate(self, pos: QtCore.QPointF):
         center = self._rect.center()
         delta_angle = math.degrees(math.atan2(pos.y() - center.y(), pos.x() - center.x()) -
@@ -197,11 +202,21 @@ class OverlayItem(QtWidgets.QGraphicsItem):
         self.update_transform_origin()
         self.update()
 
+        # Update the UI spinboxes in real time while dragging
+        scene = self.scene()
+        if scene and hasattr(scene, 'tg_manager') and scene.tg_manager:
+            scene.tg_manager._update_ui_dimensions_only(self)
+
     def paint_to_painter(self, painter: QtGui.QPainter):
-        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        if self.fill_color.alpha() > 0:
-            painter.fillRect(self._rect, QBrush(self.fill_color))
-        pen = QPen(self.outline_color, self.outline_width)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, False)
+        fill_color = QColor(self.fill_color)
+        if fill_color.alpha() > 0:
+            fill_color.setAlpha(255)
+            painter.fillRect(self._rect, QBrush(fill_color))
+        outline_color = QColor(self.outline_color)
+        if outline_color.alpha() > 0:
+            outline_color.setAlpha(255)
+        pen = QPen(outline_color, self.outline_width)
         painter.setPen(pen)
         painter.drawRect(self._rect)
 
@@ -280,19 +295,30 @@ class TextFieldOverlay(OverlayItem):
             painter.drawText(text_rect, QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignTop, self.text)
 
     def paint_to_painter(self, painter: QtGui.QPainter):
-        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        if self.fill_color.alpha() > 0:
-            painter.fillRect(self._rect, QBrush(self.fill_color))
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.TextAntialiasing, False)
+        fill_color = QColor(self.fill_color)
+        if fill_color.alpha() > 0:
+            fill_color.setAlpha(255)
+            painter.fillRect(self._rect, QBrush(fill_color))
         # Draw text
         if self.text:
-            painter.setFont(self.font)
+            font = QFont(self.font)
+            font.setStyleStrategy(QFont.StyleStrategy.NoAntialias)
+            painter.setFont(font)
             text_rect = self._rect.adjusted(2, 2, -2, -2)
-            if self.text_outline_width > 0 and self.text_outline_color.alpha() > 0:
+            text_outline_color = QColor(self.text_outline_color)
+            if text_outline_color.alpha() > 0:
+                text_outline_color.setAlpha(255)
+            if self.text_outline_width > 0 and text_outline_color.alpha() > 0:
                 # Draw outline
-                painter.setPen(QPen(self.text_outline_color, self.text_outline_width))
+                painter.setPen(QPen(text_outline_color, self.text_outline_width))
                 painter.drawText(text_rect, QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignTop, self.text)
             # Draw fill
-            painter.setPen(QPen(self.text_color, 0))
+            text_color = QColor(self.text_color)
+            if text_color.alpha() > 0:
+                text_color.setAlpha(255)
+            painter.setPen(QPen(text_color, 0))
             painter.drawText(text_rect, QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignTop, self.text)
 
     def text_path(self) -> QPainterPath:
@@ -394,6 +420,7 @@ class GeometryOverlay(OverlayItem):
             ]
             polygon = QtGui.QPolygonF(points)
             path.addPolygon(polygon)
+            path.closeSubpath()
         elif self.shape_type == 'line':
             path.moveTo(self._rect.topLeft())
             path.lineTo(self._rect.bottomRight())
@@ -413,11 +440,16 @@ class GeometryOverlay(OverlayItem):
             self.paint_selection(painter)
 
     def paint_to_painter(self, painter: QtGui.QPainter):
-        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, False)
         path = self.shape_path()
-        if self.shape_type != 'line' and self.fill_color.alpha() > 0:
-            painter.fillPath(path, QBrush(self.fill_color))
-        pen = QPen(self.outline_color, self.outline_width)
+        fill_color = QColor(self.fill_color)
+        if self.shape_type != 'line' and fill_color.alpha() > 0:
+            fill_color.setAlpha(255)
+            painter.fillPath(path, QBrush(fill_color))
+        outline_color = QColor(self.outline_color)
+        if outline_color.alpha() > 0:
+            outline_color.setAlpha(255)
+        pen = QPen(outline_color, self.outline_width)
         painter.setPen(pen)
         painter.drawPath(path)
 
@@ -511,6 +543,10 @@ class TextGeometryOverlayManager:
         self.drag_start_pos = QtCore.QPointF()
         self.drag_item = None
 
+        # Register this manager on the scene so overlays can easily communicate with it
+        if hasattr(gui, "image_scene") and gui.image_scene:
+            gui.image_scene.tg_manager = self
+
         # add text button
         self.add_text_button = gui.add_text_button
         self.add_text_button.clicked.connect(lambda: self.set_add_text_mode(self.add_text_button.isChecked()))
@@ -551,21 +587,6 @@ class TextGeometryOverlayManager:
         if self.text_strike_checkbox is not None:
             self.text_strike_checkbox.toggled.connect(self._on_strike_toggled)
 
-        #color buttons and spinboxes (safely resolve optional buttons)
-        self.text_color_button = getattr(gui, "text_color_button", None)
-        if self.text_color_button is not None:
-            self.text_color_button.clicked.connect(lambda: self.set_text_color(select_color()))
-
-        #text outline color button and width
-        self.text_outline_color_button = getattr(gui, "text_outline_color_button", None)
-        if self.text_outline_color_button is not None:
-            self.text_outline_color_button.clicked.connect(lambda: self.set_text_outline_color(select_color()))
-
-        #text outline width spinbox
-        self.text_outline_width_spinbox = getattr(gui, "text_outline_width_spinbox", None)
-        if self.text_outline_width_spinbox is not None:
-            self.text_outline_width_spinbox.valueChanged.connect(self._on_text_outline_width_changed)
-
         #fill color button
         self.fill_color_button = gui.fill_color_button
         self.fill_color_button.clicked.connect(lambda: self.set_fill_color(select_color()))
@@ -579,20 +600,21 @@ class TextGeometryOverlayManager:
         self.outline_width_spinbox.valueChanged.connect(self._on_outline_width_changed)
 
         #overlay list widget
-        self.overlay_list_widget = getattr(gui, "tg_overlay_list_widget", getattr(gui, "overlay_list_widget", None))
-        if self.overlay_list_widget is not None:
-            self.overlay_list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
-            self.overlay_list_widget.itemSelectionChanged.connect(self._on_overlay_selected)
+        self.tg_overlay_list_widget = gui.tg_overlay_list_widget
+        self.tg_overlay_list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.tg_overlay_list_widget.itemSelectionChanged.connect(self._on_overlay_selected)
 
         #delete overlay button
-        self.delete_overlay_button = getattr(gui, "delete_tg_overlay_button", getattr(gui, "delete_overlay_button", None))
-        if self.delete_overlay_button is not None:
-            self.delete_overlay_button.clicked.connect(self.delete_active_overlay)
+        self.delete_tg_overlay_button = gui.delete_tg_overlay_button
+        self.delete_tg_overlay_button.clicked.connect(self.delete_active_overlay)
 
         #delete all overlays button
-        self.delete_all_tg_overlays_button = getattr(gui, "delete_all_tg_overlays_button", None)
-        if self.delete_all_tg_overlays_button is not None:
-            self.delete_all_tg_overlays_button.clicked.connect(self.delete_all_overlays)
+        self.delete_all_tg_overlays_button = gui.delete_all_tg_overlays_button
+        self.delete_all_tg_overlays_button.clicked.connect(self.delete_all_overlays)
+
+        # imprint selected tg overlays button
+        self.imprint_selected_tg_overlays_button = gui.imprint_selected_tg_overlays_button
+        self.imprint_selected_tg_overlays_button.clicked.connect(self.imprint_selected_overlays)
 
         # Wire up scene selection changed signal
         self._updating_selection = False
@@ -613,8 +635,8 @@ class TextGeometryOverlayManager:
 
 
         # Current colors (defaults)
-        self.current_text_color = QtGui.QColor(0, 0, 0)
-        self.current_text_outline_color = QtGui.QColor(0, 0, 0, 0)
+        # self.current_text_color = QtGui.QColor(0, 0, 0)
+        # self.current_text_outline_color = QtGui.QColor(0, 0, 0, 0)
         self.current_fill_color = QtGui.QColor(0, 0, 0, 0)
         self.current_outline_color = QtGui.QColor(0, 0, 0)
 
@@ -681,7 +703,10 @@ class TextGeometryOverlayManager:
             self.drag_start_pos_scene = QtCore.QPointF(x_scene, y_scene)
             self.drag_item = self.overlay_store.add_text_field(
                 rect=QtCore.QRectF(0, 0, 1, 1),
-                text=self.text_input_lineedit.text() if self.text_input_lineedit else "Text"
+                text=self.text_input_lineedit.text() if self.text_input_lineedit else "Text",
+                text_color=self.current_fill_color,
+                outline_color=self.current_outline_color,
+                outline_width=self.outline_width_spinbox.value() if self.outline_width_spinbox else 0.0
             )
             self.drag_item.setPos(self.drag_start_pos_scene)
             self._apply_text_formatting()
@@ -722,6 +747,19 @@ class TextGeometryOverlayManager:
         self.drag_item.update_transform_origin()
         self.drag_item.update()
         self.gui.image_canvas.update()
+
+        # Update the UI spinboxes in real time while drawing
+        if self.data_handler.pixel_per_mm:
+            w_mm, h_mm = self.drag_item.dimensions_in_mm(self.data_handler.pixel_per_mm)
+            self._block_property_signals(True)
+            try:
+                if self.width_mm_spinbox:
+                    self.width_mm_spinbox.setValue(w_mm)
+                if self.height_mm_spinbox:
+                    self.height_mm_spinbox.setValue(h_mm)
+            finally:
+                self._block_property_signals(False)
+
         event.accept()  # Consume the event to prevent ItemIsMovable from handling it
 
     def on_canvas_release(self, event):
@@ -743,6 +781,8 @@ class TextGeometryOverlayManager:
                 self.add_text_button.setChecked(False)
             if self.add_geometry_button:
                 self.add_geometry_button.setChecked(False)
+
+            self._update_ui_from_selected()
 
     def _apply_text_formatting(self):
         """Apply current text formatting to the active text overlay."""
@@ -800,27 +840,27 @@ class TextGeometryOverlayManager:
             if isinstance(self.overlay_store.active_item, GeometryOverlay):
                 self.overlay_store.active_item.set_shape_type(geom_type)
 
-    def set_text_color(self, color: QtGui.QColor):
-        """Set the active text color (for backwards compatibility/fallbacks)."""
-        self.current_text_color = color
-        selected_items = self.gui.image_scene.selectedItems() if hasattr(self.gui, "image_scene") else []
-        overlays_to_color = [item for item in selected_items if item in self.overlay_store.all_items()]
-        if not overlays_to_color and self.overlay_store.active_item:
-            overlays_to_color = [self.overlay_store.active_item]
-        for item in overlays_to_color:
-            if isinstance(item, TextFieldOverlay):
-                item.set_text_color(color)
+    # def set_text_color(self, color: QtGui.QColor):
+    #     """Set the active text color (for backwards compatibility/fallbacks)."""
+    #     self.current_text_color = color
+    #     selected_items = self.gui.image_scene.selectedItems() if hasattr(self.gui, "image_scene") else []
+    #     overlays_to_color = [item for item in selected_items if item in self.overlay_store.all_items()]
+    #     if not overlays_to_color and self.overlay_store.active_item:
+    #         overlays_to_color = [self.overlay_store.active_item]
+    #     for item in overlays_to_color:
+    #         if isinstance(item, TextFieldOverlay):
+    #             item.set_text_color(color)
 
-    def set_text_outline_color(self, color: QtGui.QColor, width: float = 1.0):
-        """Set the active text outline color (for backwards compatibility/fallbacks)."""
-        self.current_text_outline_color = color
-        selected_items = self.gui.image_scene.selectedItems() if hasattr(self.gui, "image_scene") else []
-        overlays_to_color = [item for item in selected_items if item in self.overlay_store.all_items()]
-        if not overlays_to_color and self.overlay_store.active_item:
-            overlays_to_color = [self.overlay_store.active_item]
-        for item in overlays_to_color:
-            if isinstance(item, TextFieldOverlay):
-                item.set_text_outline(color, width)
+    # def set_text_outline_color(self, color: QtGui.QColor, width: float = 1.0):
+    #     """Set the active text outline color (for backwards compatibility/fallbacks)."""
+    #     self.current_text_outline_color = color
+    #     selected_items = self.gui.image_scene.selectedItems() if hasattr(self.gui, "image_scene") else []
+    #     overlays_to_color = [item for item in selected_items if item in self.overlay_store.all_items()]
+    #     if not overlays_to_color and self.overlay_store.active_item:
+    #         overlays_to_color = [self.overlay_store.active_item]
+    #     for item in overlays_to_color:
+    #         if isinstance(item, TextFieldOverlay):
+    #             item.set_text_outline(color, width)
 
     def set_fill_color(self, color: QtGui.QColor):
         """Set the active fill color for all selected overlays."""
@@ -864,8 +904,8 @@ class TextGeometryOverlayManager:
         overlays_to_delete = [item for item in selected_items if item in self.overlay_store.all_items()]
         
         # If nothing is selected in the scene, check the list widget selection as fallback
-        if not overlays_to_delete and self.overlay_list_widget is not None:
-            for list_item in self.overlay_list_widget.selectedItems():
+        if not overlays_to_delete and self.tg_overlay_list_widget is not None:
+            for list_item in self.tg_overlay_list_widget.selectedItems():
                 overlay_item = list_item.data(QtCore.Qt.ItemDataRole.UserRole)
                 if overlay_item and overlay_item not in overlays_to_delete:
                     overlays_to_delete.append(overlay_item)
@@ -875,8 +915,8 @@ class TextGeometryOverlayManager:
                 self.overlay_store.remove_item(item)
                 
             # Also remove them from data_handler lists
-            self.data_handler.text_overlays = [x for x in self.data_handler.text_overlays if x in self.overlay_store.text_items]
-            self.data_handler.geometry_overlays = [x for x in self.data_handler.geometry_overlays if x in self.overlay_store.geometry_items]
+            self.data_handler.text_overlays[:] = [x for x in self.data_handler.text_overlays if x in self.overlay_store.text_items]
+            self.data_handler.geometry_overlays[:] = [x for x in self.data_handler.geometry_overlays if x in self.overlay_store.geometry_items]
             
             self._update_overlay_list()
 
@@ -896,15 +936,102 @@ class TextGeometryOverlayManager:
             
             self._update_overlay_list()
 
+    def imprint_selected_overlays(self):
+        """Bakes only the currently selected text and geometry overlays into the background image."""
+        if not hasattr(self.gui, "image_scene") or not self.gui.image_item:
+            return
+
+        import numpy as np
+
+        # 1. Retrieve selected overlays
+        selected_items = self.gui.image_scene.selectedItems()
+        overlays_to_imprint = [item for item in selected_items if item in self.overlay_store.all_items()]
+
+        if not overlays_to_imprint:
+            QtWidgets.QMessageBox.information(
+                self.gui, "Imprint Overlays",
+                "No overlays are currently selected to imprint."
+            )
+            return
+
+        # 2. Get copy of current background image pixmap
+        current_pixmap = self.gui.image_item.pixmap()
+        if current_pixmap.isNull():
+            return
+            
+        result_pixmap = current_pixmap.copy()
+
+        # 3. Create painter on the copy to draw the overlays on it
+        painter = QtGui.QPainter(result_pixmap)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, False)
+
+        for item in overlays_to_imprint:
+            if hasattr(item, 'paint_to_painter'):
+                painter.save()
+                painter.translate(item.pos())
+                painter.setTransform(item.transform(), True)
+                item.paint_to_painter(painter)
+                painter.restore()
+            else:
+                try:
+                    painter.save()
+                    painter.translate(item.pos())
+                    painter.setTransform(item.transform(), True)
+                    if hasattr(item, 'paint'):
+                        item.paint(painter, None, None)
+                    painter.restore()
+                except Exception:
+                    pass
+
+        painter.end()
+
+        # 4. Remove imprinted overlays from scene and overlay store
+        for item in overlays_to_imprint:
+            self.overlay_store.remove_item(item)
+
+        # Clear them from data_handler lists
+        self.data_handler.text_overlays[:] = [x for x in self.data_handler.text_overlays if x in self.overlay_store.text_items]
+        self.data_handler.geometry_overlays[:] = [x for x in self.data_handler.geometry_overlays if x in self.overlay_store.geometry_items]
+
+        # Refresh overlay list display and clear properties panel selection
+        self._update_overlay_list()
+        self._update_ui_from_selected()
+
+        # 5. QPixmap -> QImage -> Numpy Array conversion to update the logical matrix
+        image = result_pixmap.toImage()
+        if image.format() != QtGui.QImage.Format.Format_RGBA8888:
+            image = image.convertToFormat(QtGui.QImage.Format.Format_RGBA8888)
+
+        width = image.width()
+        height = image.height()
+
+        ptr = image.bits()
+        ptr.setsize(height * width * 4)
+
+        # copy buffer so python owns the data
+        arr = np.frombuffer(ptr, np.uint8).reshape((height, width, 4)).copy()
+        
+        # Drop alpha as we work in RGB only
+        self.data_handler.image_matrix = arr[:,:,:3]
+
+        # Update the active list item's ImgObj in gui if one exists
+        images_list_widget = getattr(self.gui, "images_ListWidget", None)
+        if images_list_widget is not None and images_list_widget.currentItem() is not None:
+            active_item = images_list_widget.currentItem()
+            img_obj = active_item.data(QtCore.Qt.ItemDataRole.UserRole)
+            if img_obj is not None:
+                img_obj.image_matrix = self.data_handler.image_matrix.copy()
+                active_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+
     def _update_overlay_list(self):
         """Refresh the overlay list widget display."""
-        if self.overlay_list_widget is None:
+        if self.tg_overlay_list_widget is None:
             return
 
         # Temporarily block signals to avoid triggering selection updates during list population
-        self.overlay_list_widget.blockSignals(True)
+        self.tg_overlay_list_widget.blockSignals(True)
         try:
-            self.overlay_list_widget.clear()
+            self.tg_overlay_list_widget.clear()
             
             text_count = 0
             geom_counts = {}
@@ -919,7 +1046,7 @@ class TextGeometryOverlayManager:
                 name = f"textbox #{text_count}"
                 list_item = QtWidgets.QListWidgetItem(name)
                 list_item.setData(QtCore.Qt.ItemDataRole.UserRole, item)
-                self.overlay_list_widget.addItem(list_item)
+                self.tg_overlay_list_widget.addItem(list_item)
                 if item in selected_in_scene:
                     list_item.setSelected(True)
 
@@ -929,11 +1056,11 @@ class TextGeometryOverlayManager:
                 name = f"{shape} #{geom_counts[shape]}"
                 list_item = QtWidgets.QListWidgetItem(name)
                 list_item.setData(QtCore.Qt.ItemDataRole.UserRole, item)
-                self.overlay_list_widget.addItem(list_item)
+                self.tg_overlay_list_widget.addItem(list_item)
                 if item in selected_in_scene:
                     list_item.setSelected(True)
         finally:
-            self.overlay_list_widget.blockSignals(False)
+            self.tg_overlay_list_widget.blockSignals(False)
 
     def _on_font_size_changed(self):
         """Update font size of all selected text overlays."""
@@ -990,23 +1117,23 @@ class TextGeometryOverlayManager:
         if hasattr(self.gui, "image_scene"):
             self.gui.image_scene.update()
 
-    def _on_text_outline_width_changed(self):
-        """Update text outline width of active/selected text overlays (deprecated/fallback)."""
-        if not self.text_outline_width_spinbox:
-            return
-        width = self.text_outline_width_spinbox.value()
-        selected_items = self.gui.image_scene.selectedItems() if hasattr(self.gui, "image_scene") else []
-        overlays_to_update = [item for item in selected_items if item in self.overlay_store.all_items()]
-        if not overlays_to_update and self.overlay_store.active_item:
-            overlays_to_update = [self.overlay_store.active_item]
-        for item in overlays_to_update:
-            if isinstance(item, TextFieldOverlay):
-                color = item.text_outline_color
-                if width > 0 and color.alpha() == 0:
-                    color = QColor(0, 0, 0)
-                item.set_text_outline(color, width)
-        if hasattr(self.gui, "image_scene"):
-            self.gui.image_scene.update()
+    # def _on_text_outline_width_changed(self):
+    #     """Update text outline width of active/selected text overlays (deprecated/fallback)."""
+    #     if not self.text_outline_width_spinbox:
+    #         return
+    #     width = self.text_outline_width_spinbox.value()
+    #     selected_items = self.gui.image_scene.selectedItems() if hasattr(self.gui, "image_scene") else []
+    #     overlays_to_update = [item for item in selected_items if item in self.overlay_store.all_items()]
+    #     if not overlays_to_update and self.overlay_store.active_item:
+    #         overlays_to_update = [self.overlay_store.active_item]
+    #     for item in overlays_to_update:
+    #         if isinstance(item, TextFieldOverlay):
+    #             color = item.text_outline_color
+    #             if width > 0 and color.alpha() == 0:
+    #                 color = QColor(0, 0, 0)
+    #             item.set_text_outline(color, width)
+    #     if hasattr(self.gui, "image_scene"):
+    #         self.gui.image_scene.update()
 
     def _on_outline_width_changed(self):
         """Update outline width of all selected overlays."""
@@ -1025,13 +1152,13 @@ class TextGeometryOverlayManager:
 
     def _on_overlay_selected(self):
         """Handle overlay selection from list widget (List -> Canvas)."""
-        if self.overlay_list_widget is None or self._updating_selection or not hasattr(self.gui, "image_scene"):
+        if self.tg_overlay_list_widget is None or self._updating_selection or not hasattr(self.gui, "image_scene"):
             return
 
         self._updating_selection = True
         try:
             self.gui.image_scene.clearSelection()
-            selected_items = self.overlay_list_widget.selectedItems()
+            selected_items = self.tg_overlay_list_widget.selectedItems()
             active_item = None
             for list_item in selected_items:
                 overlay_item = list_item.data(QtCore.Qt.ItemDataRole.UserRole)
@@ -1051,17 +1178,17 @@ class TextGeometryOverlayManager:
 
     def _on_scene_selection_changed(self):
         """Handle overlay selection from scene (Canvas -> List)."""
-        if self.overlay_list_widget is None or self._updating_selection or not hasattr(self.gui, "image_scene"):
+        if self.tg_overlay_list_widget is None or self._updating_selection or not hasattr(self.gui, "image_scene"):
             return
 
         self._updating_selection = True
         try:
-            self.overlay_list_widget.clearSelection()
+            self.tg_overlay_list_widget.clearSelection()
             selected_in_scene = self.gui.image_scene.selectedItems()
             
             # Select matching list items
-            for i in range(self.overlay_list_widget.count()):
-                list_item = self.overlay_list_widget.item(i)
+            for i in range(self.tg_overlay_list_widget.count()):
+                list_item = self.tg_overlay_list_widget.item(i)
                 overlay_item = list_item.data(QtCore.Qt.ItemDataRole.UserRole)
                 if overlay_item in selected_in_scene:
                     list_item.setSelected(True)
@@ -1080,6 +1207,28 @@ class TextGeometryOverlayManager:
         """Update text content of active text overlay."""
         if isinstance(self.overlay_store.active_item, TextFieldOverlay) and self.text_input_lineedit:
             self.overlay_store.active_item.set_text(self.text_input_lineedit.text())
+
+    def _update_ui_dimensions_only(self, item):
+        """Update only the width and height spinboxes in real-time without refreshing other inputs."""
+        if not self.width_mm_spinbox and not self.height_mm_spinbox:
+            return
+        if not self.data_handler.pixel_per_mm:
+            return
+
+        selected_items = self.gui.image_scene.selectedItems() if hasattr(self.gui, "image_scene") else []
+        selected_overlays = [x for x in selected_items if x in self.overlay_store.all_items()]
+
+        # Only update if this is the single selected item
+        if len(selected_overlays) == 1 and selected_overlays[0] is item:
+            w_mm, h_mm = item.dimensions_in_mm(self.data_handler.pixel_per_mm)
+            self._block_property_signals(True)
+            try:
+                if self.width_mm_spinbox:
+                    self.width_mm_spinbox.setValue(w_mm)
+                if self.height_mm_spinbox:
+                    self.height_mm_spinbox.setValue(h_mm)
+            finally:
+                self._block_property_signals(False)
 
     def _update_ui_from_selected(self):
         """Update UI controls to reflect active overlay properties and selection state."""
@@ -1175,13 +1324,11 @@ class TextGeometryOverlayManager:
                         self.text_input_lineedit.setText(item.text)
                     if self.outline_width_spinbox:
                         self.outline_width_spinbox.setValue(item.text_outline_width)
-                    if self.text_outline_width_spinbox:
-                        self.text_outline_width_spinbox.setValue(item.text_outline_width)
                     
                     self.current_fill_color = item.text_color
                     self.current_outline_color = item.text_outline_color
-                    self.current_text_color = item.text_color
-                    self.current_text_outline_color = item.text_outline_color
+                    # self.current_text_color = item.text_color
+                    # self.current_text_outline_color = item.text_outline_color
 
                 if isinstance(item, GeometryOverlay):
                     if self.geometry_type_combobox:
@@ -1243,8 +1390,8 @@ class TextGeometryOverlayManager:
                 self.height_mm_spinbox.setEnabled(False)
                 self.height_mm_spinbox.setValue(0.0)
             # Reset color buttons
-            self._style_color_button(self.fill_color_button, QColor(0, 0, 0, 0))
-            self._style_color_button(self.outline_color_button, QColor(0, 0, 0, 0))
+            # self._style_color_button(self.fill_color_button, QColor(0, 0, 0, 0))
+            # self._style_color_button(self.outline_color_button, QColor(0, 0, 0, 0))
         finally:
             self._block_property_signals(False)
 
@@ -1256,7 +1403,7 @@ class TextGeometryOverlayManager:
             self.text_underline_checkbox, self.text_strike_checkbox,
             self.text_input_lineedit, self.outline_width_spinbox,
             self.width_mm_spinbox, self.height_mm_spinbox,
-            self.text_outline_width_spinbox, self.geometry_type_combobox
+            self.geometry_type_combobox
         ]
         for w in widgets:
             if w is not None:

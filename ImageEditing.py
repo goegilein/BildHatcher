@@ -635,11 +635,13 @@ class ImageColorer(QtCore.QObject):
         try:
             # Get sender button and its state to be set
             sender = self.sender()
-            #chekc if sender has isChecked method (it should, but just to be safe)
-            if not hasattr(sender, 'isChecked'):
-                return
-            state = sender.isChecked()
 
+            #check if sender has isChecked method (it should, but just to be safe)
+            if hasattr(sender, 'isChecked'):
+                state = sender.isChecked()
+            else:
+                state = None
+            
             # Reset all toggle states and buttons
             self.choose_color_on = False
             self.color_drawing_on = False
@@ -660,8 +662,11 @@ class ImageColorer(QtCore.QObject):
             self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
             #use emptty string to only reset all states
-            if not state_property:
+            if not state_property or state is None:
                 return
+            
+            
+
 
             # Set only the desired state
             setattr(self, state_property, state)
@@ -1114,8 +1119,8 @@ class ImageColorer(QtCore.QObject):
         # CompositionMode is SourceOver by default, which is correct for overlays.
         
         overlay_items = list(self.data_handler.active_color_overlays)
-        overlay_items.extend(self.data_handler.text_overlays)
-        overlay_items.extend(self.data_handler.geometry_overlays)
+        # overlay_items.extend(self.data_handler.text_overlays)
+        # overlay_items.extend(self.data_handler.geometry_overlays)
 
         for item in overlay_items:
             if isinstance(item, QGraphicsPathItem):

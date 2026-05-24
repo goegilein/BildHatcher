@@ -22,15 +22,57 @@ class DataHandler:
         self.contours_list=[]
         self.scale_factor = 1.0  # Scale factor between image and canvas display
         # overlay items from color editing and drawable overlays are tracked here
-        self.active_color_overlays = ObservableList(on_change=self.update_imprint_button)
-        self.text_overlays = ObservableList(on_change=self.update_imprint_button)
-        self.geometry_overlays = ObservableList(on_change=self.update_imprint_button)
+        self.active_color_overlays = ObservableList(on_change=self.update_color_ovleray_imprint_button)
+        self.text_overlays = ObservableList(on_change=self.update_tg_ovleray_imprint_button)
+        self.geometry_overlays = ObservableList(on_change=self.update_tg_ovleray_imprint_button)
 
         # masks
         self.masks_list = [] # List of mask matrices
         self.mask_info = []  # List of mask info dictionaries
         self.active_mask_index = -1  # Index of the currently active mask
         self.mask_overlays = [] # List of QGraphicsRectItem overlays
+
+    # @property
+    # def active_color_overlays(self):
+    #     return self._active_color_overlays
+
+    # @active_color_overlays.setter
+    # def active_color_overlays(self, new_value):
+    #     if not isinstance(new_value, ObservableList):
+    #         self._active_color_overlays = ObservableList(new_value, on_change=self.update_color_ovleray_imprint_button)
+    #     else:
+    #         self._active_color_overlays = new_value
+    #         if getattr(self._active_color_overlays, 'on_change', None) is None:
+    #             self._active_color_overlays.on_change = self.update_color_ovleray_imprint_button
+    #     self.update_color_ovleray_imprint_button()
+
+    # @property
+    # def text_overlays(self):
+    #     return self._text_overlays
+
+    # @text_overlays.setter
+    # def text_overlays(self, new_value):
+    #     if not isinstance(new_value, ObservableList):
+    #         self._text_overlays = ObservableList(new_value, on_change=self.update_tg_ovleray_imprint_button)
+    #     else:
+    #         self._text_overlays = new_value
+    #         if getattr(self._text_overlays, 'on_change', None) is None:
+    #             self._text_overlays.on_change = self.update_tg_ovleray_imprint_button
+    #     self.update_tg_ovleray_imprint_button()
+
+    # @property
+    # def geometry_overlays(self):
+    #     return self._geometry_overlays
+
+    # @geometry_overlays.setter
+    # def geometry_overlays(self, new_value):
+    #     if not isinstance(new_value, ObservableList):
+    #         self._geometry_overlays = ObservableList(new_value, on_change=self.update_tg_ovleray_imprint_button)
+    #     else:
+    #         self._geometry_overlays = new_value
+    #         if getattr(self._geometry_overlays, 'on_change', None) is None:
+    #             self._geometry_overlays.on_change = self.update_tg_ovleray_imprint_button
+    #     self.update_tg_ovleray_imprint_button()
 
     #create a watcher for the original image matrix. When the original image matrix is changed it means a new image was loaded.
     @property
@@ -123,11 +165,18 @@ class DataHandler:
     def update_active_hatch_label(self):
         self.gui.active_hatch_label.setText("Active: " + self._hatch_data.type)
     
-    def update_imprint_button(self):
-        if self.active_color_overlays or self.text_overlays or self.geometry_overlays:
+    def update_color_ovleray_imprint_button(self):
+        # if self.active_color_overlays or self.text_overlays or self.geometry_overlays:
+        if self.active_color_overlays:
             self.gui.imprint_color_overlays_button.setEnabled(True)
         else:
             self.gui.imprint_color_overlays_button.setEnabled(False)
+    
+    def update_tg_ovleray_imprint_button(self):
+        if self.text_overlays or self.geometry_overlays:
+            self.gui.imprint_selected_tg_overlays_button.setEnabled(True)
+        else:
+            self.gui.imprint_selected_tg_overlays_button.setEnabled(False)
     
     def reset_edits(self):
         self.contours_list = []
