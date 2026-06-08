@@ -1789,6 +1789,11 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                      <string>To Contours</string>
                     </property>
                    </item>
+                   <item>
+                    <property name="text">
+                     <string>Fill Lines</string>
+                    </property>
+                   </item>
                   </widget>
                  </item>
                  <item row="3" column="0" rowspan="3">

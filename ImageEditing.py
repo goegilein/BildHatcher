@@ -951,6 +951,28 @@ class ImageColorer(QtCore.QObject):
                         if (ny, nx) not in visited:
                             visited.add((ny, nx))
                             queue.append((ny, nx))
+        
+        elif mode == "Fill Lines":
+            #fill all colors that match the selected color AND have a matching color with the active color within R pixels distance
+            radius = 10
+            while queue:
+                cy, cx = queue.popleft()
+                color_mask[cy, cx] = True
+                # Check neighbors
+                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
+                    ny, nx = cy + dy, cx + dx
+                    if 0 <= ny < h and 0 <= nx < w:
+                        if (ny, nx) not in visited:
+                            # Check pixel color
+                            if np.array_equal(mask_matrix[ny, nx][:3], target_color):
+                                for ry in range(-radius, radius+1):
+                                    for rx in range(-radius, radius+1):
+                                        check_y, check_x = ny + ry, nx + rx
+                                        if 0 <= check_y < h and 0 <= check_x < w:
+                                            if np.array_equal(mask_matrix[check_y, check_x][:3], fill_color_arr):
+                                                visited.add((ny, nx))
+                                                queue.append((ny, nx))
+
 
         # 34. Create overlay and add to stack
         if np.any(color_mask):
