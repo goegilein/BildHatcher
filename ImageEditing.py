@@ -954,7 +954,7 @@ class ImageColorer(QtCore.QObject):
         
         elif mode == "Fill Lines":
             #fill all colors that match the selected color AND have a matching color with the active color within R pixels distance
-            radius = 10
+            radius = tolerance
             while queue:
                 cy, cx = queue.popleft()
                 color_mask[cy, cx] = True
