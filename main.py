@@ -1,4 +1,5 @@
 import sys
+import json
 from pathlib import Path
 from PyQt6 import QtWidgets, uic
 from PyQt6.QtCore import QLocale
@@ -18,6 +19,18 @@ import EventHandling
 import TextandGeometries
 from PathManager import get_gui_file_path, get_settings_path
 import CustomUiElements #this import is necessary to register custom ui elements for compilation
+
+# Load version - handle both frozen and non-frozen environments
+if getattr(sys, 'frozen', False):
+    # Running as compiled executable from PyInstaller
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    # Running as normal Python script
+    BASE_DIR = Path(__file__).resolve().parent
+
+with open(BASE_DIR / "version.json") as f:
+    version_data = json.load(f)
+    VERSION = f"{version_data['major']}.{version_data['minor']}.{version_data['patch']}"
 
 
 #Define paths using PathManager
@@ -45,6 +58,8 @@ if __name__ == "__main__":
     # cut all children (overlay drawings) of the image item at its edges.
     gui.image_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape, True)
     
+    # Set window title with version
+    gui.setWindowTitle(f"BildHatcher - v{VERSION}")
     
     gui.show()
         

@@ -519,6 +519,16 @@ padding : 2px;
       <item row="4" column="3">
        <widget class="QComboBox" name="air_assist_combobox"/>
       </item>
+      <item row="3" column="4">
+       <widget class="QLabel" name="label_5">
+        <property name="text">
+         <string>Power Mode</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="4">
+       <widget class="QComboBox" name="power_mode_combobox"/>
+      </item>
      </layout>
     </widget>
    </item>

@@ -85,6 +85,8 @@ class Settings:
                         self.gui.post_processing_combobox.setCurrentIndex(value)
                     elif key == 'power_format':
                         self.gui.power_format_combobox.setCurrentIndex(value)
+                    elif key == 'power_mode':
+                        self.gui.power_mode_combobox.setCurrentIndex(value)
                     elif key == 'speed_format':
                         self.gui.speed_format_combobox.setCurrentIndex(value)
                     elif key == 'iterations':
@@ -161,6 +163,7 @@ class Settings:
             settings['export_format'] = gui.export_format_combobox.currentIndex()
             settings['post_processing'] = gui.post_processing_combobox.currentIndex()
             settings['power_format'] = gui.power_format_combobox.currentIndex()
+            settings['power_mode'] = gui.power_mode_combobox.currentIndex()
             settings['speed_format'] = gui.speed_format_combobox.currentIndex()
             settings['iterations'] = gui.iterations_spinbox.value()
             # Add more hatching tab settings as needed

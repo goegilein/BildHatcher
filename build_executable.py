@@ -1,13 +1,63 @@
 import subprocess
 import sys
+import json
 from pathlib import Path
 from datetime import datetime
 
-# Version configuration
-VERSION_MAJOR = 1
-VERSION_MINOR = 2
-VERSION_PATCH = 0
-VERSION_STRING = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH}"
+
+class VersionManager:
+    """Manage version numbers for the executable."""
+    
+    def __init__(self, version_file="version.json"):
+        self.version_file = Path(version_file)
+        self.version_data = self._load_version()
+    
+    def _load_version(self):
+        """Load version from file or create default."""
+        if self.version_file.exists():
+            try:
+                with open(self.version_file, 'r') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Error loading version file: {e}")
+                return {"major": 1, "minor": 0, "patch": 0}
+        else:
+            return {"major": 1, "minor": 0, "patch": 0}
+    
+    def _save_version(self):
+        """Save version to file."""
+        with open(self.version_file, 'w') as f:
+            json.dump(self.version_data, f, indent=2)
+    
+    def get_version_string(self):
+        """Get version as string (e.g., '1.0.0')."""
+        return f"{self.version_data['major']}.{self.version_data['minor']}.{self.version_data['patch']}"
+    
+    def bump_patch(self):
+        """Increment patch version (1.0.0 -> 1.0.1)."""
+        self.version_data['patch'] += 1
+        self._save_version()
+        return self.get_version_string()
+    
+    def bump_minor(self):
+        """Increment minor version and reset patch (1.0.5 -> 1.1.0)."""
+        self.version_data['minor'] += 1
+        self.version_data['patch'] = 0
+        self._save_version()
+        return self.get_version_string()
+    
+    def bump_major(self):
+        """Increment major version and reset minor/patch (1.5.3 -> 2.0.0)."""
+        self.version_data['major'] += 1
+        self.version_data['minor'] = 0
+        self.version_data['patch'] = 0
+        self._save_version()
+        return self.get_version_string()
+
+
+# Get version for build
+version_manager = VersionManager()
+VERSION_STRING = version_manager.get_version_string()
 
 # Project configuration
 PROJECT_NAME = "BildHatcher"
@@ -18,8 +68,7 @@ OUTPUT_DIR = "dist"
 def build_executable():
     """Build the executable using PyInstaller with versioning."""
     
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    exe_name = f"{PROJECT_NAME}_v{VERSION_STRING}_{timestamp}"
+    exe_name = f"{PROJECT_NAME}_v{VERSION_STRING}"
     
     print(f"Building {PROJECT_NAME} v{VERSION_STRING}...")
     print(f"Output: {exe_name}.exe")

@@ -3768,6 +3768,19 @@ QPushButton:disabled {
                 </property>
                </widget>
               </item>
+              <item row="3" column="1">
+               <widget class="QComboBox" name="power_mode_combobox"/>
+              </item>
+              <item row="2" column="1">
+               <widget class="QLabel" name="label_27">
+                <property name="text">
+                 <string>Laser Power Mode</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
              </layout>
             </widget>
            </item>
@@ -4062,7 +4075,7 @@ QGroupBox::title {
               <item row="2" column="0">
                <widget class="QLabel" name="label_10">
                 <property name="text">
-                 <string>Hatcb Mode</string>
+                 <string>Hatch Mode</string>
                 </property>
                </widget>
               </item>

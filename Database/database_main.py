@@ -84,7 +84,8 @@ class DatabaseManager:
             'post_processing': "TEXT NOT NULL DEFAULT 'None'",
             'laser_mode': "TEXT NOT NULL DEFAULT 'constant'",
             'enclosure_fan': "INTEGER NOT NULL DEFAULT 0",
-            'air_assist': "TEXT NOT NULL DEFAULT 'off'"
+            'air_assist': "TEXT NOT NULL DEFAULT 'off'",
+            'power_mode': "TEXT NOT NULL DEFAULT 'half'"
         }
 
         for col, col_type in migrations.items():
@@ -111,6 +112,7 @@ class DatabaseManager:
                     laser_mode TEXT NOT NULL,
                     enclosure_fan INTEGER NOT NULL,
                     air_assist TEXT NOT NULL,
+                    power_mode TEXT NOT NULL,
                     FOREIGN KEY (material_id) REFERENCES materials (id) ON DELETE CASCADE,
                     UNIQUE (material_id, name)
                 );""")
@@ -133,22 +135,22 @@ class DatabaseManager:
                 );""")
         print("Database schema is up to date.")
 
-    def add_material_type(self, mat_id, name, post='None', mode='constant', fan=0, air='off'):
+    def add_material_type(self, mat_id, name, post='None', mode='constant', fan=0, air='off', power='half'):
         try:
             with self.conn:
                 self.cursor.execute("""
-                    INSERT INTO material_types(material_id, name, post_processing, laser_mode, enclosure_fan, air_assist) 
-                    VALUES (?,?,?,?,?,?)""", 
-                    (mat_id, name, post, mode, fan, air))
+                    INSERT INTO material_types(material_id, name, post_processing, laser_mode, enclosure_fan, air_assist, power_mode) 
+                    VALUES (?,?,?,?,?,?,?)""", 
+                    (mat_id, name, post, mode, fan, air, power))
                 return self.cursor.lastrowid
         except sqlite3.IntegrityError:return None
 
-    def update_material_type_properties(self, type_id, post, mode, fan, air):
+    def update_material_type_properties(self, type_id, post, mode, fan, air, power='half'):
         with self.conn:
             self.cursor.execute("""
-                UPDATE material_types SET post_processing=?, laser_mode=?, enclosure_fan=?, air_assist=?
+                UPDATE material_types SET post_processing=?, laser_mode=?, enclosure_fan=?, air_assist=?, power_mode=?
                 WHERE id=?""",
-                (post, mode, fan, air, type_id))
+                (post, mode, fan, air, power, type_id))
             return self.cursor.rowcount > 0
 
     def add_parameter(self,p_id,name,rgb,hatch_dist,hatch_pattern,hatch_angle,power,speed):
@@ -220,6 +222,8 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
         self.laser_mode_combobox.addItems(self.laser_mode_options)
         self.air_assist_options = ["off", "on"]
         self.air_assist_combobox.addItems(self.air_assist_options)
+        self.power_mode_options = ["half", "full"]
+        self.power_mode_combobox.addItems(self.power_mode_options)
 
         self._connect_signals()
         self.set_mode(self.mode) 
@@ -349,6 +353,7 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
         self.laser_mode_combobox.currentIndexChanged.connect(self._save_material_type_properties)
         self.enclosure_fan_spinbox.editingFinished.connect(self._save_material_type_properties)
         self.air_assist_combobox.currentIndexChanged.connect(self._save_material_type_properties)
+        self.power_mode_combobox.currentIndexChanged.connect(self._save_material_type_properties)
 
     def _on_selection_confirmed(self):
         if self.mode == NavigatorMode.SELECT_COLOR:
@@ -359,7 +364,7 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
         elif self.mode == NavigatorMode.SELECT_PROFILE:
             if self.current_palette_id is not None:
                 profile_identifiers = {'laser': {'id': self.laser_combo.currentData(), 'name': self.laser_combo.currentText()},'material': {'id': self.material_combo.currentData(), 'name': self.material_combo.currentText()},'material_type': {'id': self.type_combo.currentData(), 'name': self.type_combo.currentText()}}
-                profile_settings = {'post_processing': self.postprocessing_combobox.currentText(), 'laser_mode': self.laser_mode_combobox.currentText(), 'enclosure_fan': self.enclosure_fan_spinbox.value(), 'air_assist': self.air_assist_combobox.currentText()}
+                profile_settings = {'post_processing': self.postprocessing_combobox.currentText(), 'laser_mode': self.laser_mode_combobox.currentText(), 'enclosure_fan': self.enclosure_fan_spinbox.value(), 'air_assist': self.air_assist_combobox.currentText(), 'power_mode': self.power_mode_combobox.currentText()}
                 parameters_list = [dict(p) for p in self.db_manager.get_parameters(self.current_palette_id)]
                 payload = {"identifiers": profile_identifiers, "settings": profile_settings, "parameters": parameters_list}
                 self.profileSelected.emit(payload)
@@ -385,12 +390,17 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
             self.laser_mode_combobox.setCurrentText(type_data['laser_mode'])
             self.enclosure_fan_spinbox.setValue(type_data['enclosure_fan'])
             self.air_assist_combobox.setCurrentText(type_data['air_assist'])
+            try:
+                self.power_mode_combobox.setCurrentText(type_data['power_mode'])
+            except (KeyError, IndexError):
+                self.power_mode_combobox.setCurrentText('half')
 
     def _clear_material_type_properties(self):
         self.postprocessing_combobox.setCurrentIndex(0)
         self.laser_mode_combobox.setCurrentIndex(0)
         self.enclosure_fan_spinbox.setValue(0)
         self.air_assist_combobox.setCurrentIndex(0)
+        self.power_mode_combobox.setCurrentIndex(0)
 
     def _save_material_type_properties(self):
         type_id = self.type_combo.currentData()
@@ -401,8 +411,9 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
         mode = self.laser_mode_combobox.currentText()
         fan = self.enclosure_fan_spinbox.value()
         air = self.air_assist_combobox.currentText()
+        power = self.power_mode_combobox.currentText()
         
-        self.db_manager.update_material_type_properties(type_id, post, mode, fan, air)
+        self.db_manager.update_material_type_properties(type_id, post, mode, fan, air, power)
         print(f"Auto-saved properties for material type ID: {type_id}")
 
     def _update_ui_state(self):
@@ -413,6 +424,7 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
         self.laser_mode_combobox.setEnabled(type_selected and is_full_edit)
         self.enclosure_fan_spinbox.setEnabled(type_selected and is_full_edit)
         self.air_assist_combobox.setEnabled(type_selected and is_full_edit)
+        self.power_mode_combobox.setEnabled(type_selected and is_full_edit)
 
         self.edit_laser_btn.setEnabled(self.laser_combo.currentData()is not None and is_full_edit)
         self.remove_laser_btn.setEnabled(self.laser_combo.currentData()is not None and is_full_edit)

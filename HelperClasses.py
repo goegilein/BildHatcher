@@ -104,13 +104,14 @@ class HatchData:
         self.type = type
             
 class ProcessBlock:
-    def __init__(self, hatch_data:HatchData, iterations = 1, post_processing="None", laser_mode="constant",air_assist="off",enclosure_fan=100 , offset = [0,0,0]):
+    def __init__(self, hatch_data:HatchData, iterations = 1, post_processing="None", laser_mode="constant",air_assist="off",enclosure_fan=100, power_mode="half" , offset = [0,0,0]):
         self.hatch_data = hatch_data
         self.iterations = iterations
         self.post_processing = post_processing
         self.laser_mode = laser_mode
         self.air_assist = air_assist
         self.enclosure_fan = enclosure_fan
+        self.power_mode = power_mode
         self.offset = offset
 
 class DBColorPalette:
@@ -121,11 +122,13 @@ class DBColorPalette:
             self.laser_mode = settings.get('laser_mode', 'constant')
             self.enclosure_fan = settings.get('enclosure_fan', 0)
             self.air_assist = settings.get('air_assist', 'off')
+            self.power_mode = settings.get('power_mode', 'half')
         else:
             self.post_processing = 'None'
-            self.laser_mode = 'variable'
+            self.laser_mode = 'constant'
             self.enclosure_fan = 100
             self.air_assist = 'off'
+            self.power_mode = 'half'
 
     def find_paramset_by_color(self, color):
 

@@ -34,6 +34,7 @@ class Parser:
         self.remove_process_block_button = gui.remove_process_block_button
         self.process_listWidget = gui.process_listWidget
         self.air_assist_combobox = gui.air_assist_combobox
+        self.power_mode_combobox = gui.power_mode_combobox
 
         # Set default values for spinboxes and comboboxes
         self.post_processing_combobox.addItems(["None", "Maximize Lines", "Constant Drive", "Over Drive"])
@@ -42,6 +43,7 @@ class Parser:
         self.speed_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
         self.export_format_combobox.addItems([".jcode", ".gcode", ".txt"])
         self.air_assist_combobox.addItems(["on", "off"])
+        self.power_mode_combobox.addItems(["half", "full"])
 
         self.white_threshold_parsing_spinbox.setValue(255)
         self.min_power_spinbox.setValue(0)
@@ -72,16 +74,7 @@ class Parser:
         gcode_commands.append("")
         gcode_commands.append("G90 ; Use absolute coordinates")
         gcode_commands.append("G21 ; Set units to millimeters")
-        #gcode_commands.append("M4 P0 ; set Laser to variable Mode")#TO BE TESTED. This is Skywriting equivalent
-        #gcode_commands.append("M3 P0 ; set laser to constant Mode")#TO BE TESTED
-        # if air_assist == "on":
-        #     gcode_commands.append("M8 ; Turn on Air assis")
-        # else:
-        #     gcode_commands.append("M9 ; Turn off Air assis")
         gcode_commands.append("M2000 W1 P100 ; Artisan Setting to turn on Enclosure lights 100%")
-        # gcode_commands.append(f"M2000 W2 P{enclosure_fan} ; Artisan Setting to turn on Enclosure fan (100%)")
-        gcode_commands.append("M2000 L23 P0 ; Artisan 40W laser. 0 enters half power Mode") #TO BE TESTED! should be better for marking
-        gcode_commands.append("")
         gcode_commands.append(f"G0 F{self.feedrate_default} ; set default feedrate for laser off moves")
         gcode_commands.append(f"G1 F{self.feedrate_default} ; set default feedrate for laser on moves")
         gcode_commands.append("")
@@ -105,9 +98,18 @@ class Parser:
             print("Error: No ProcessBlock provided for G-code generation")
             return gcode_commands
         
+        hatch_cluster_data = process_block.hatch_data.hatch_clusters[cluster_index].data #self.post_processor.process_data(process_block)
+        
         gcode_commands.append("")
-        gcode_commands.append(";start of new Processblock")
+        gcode_commands.append("===;start of new Processblock===")
+
+        #process block header
+        gcode_commands.append(f"; Post Processing: {process_block.post_processing} | Laser Mode: {process_block.laser_mode} | Air Assist: {process_block.air_assist} | Power Mode: {process_block.power_mode} | Enclosure Fan: {process_block.enclosure_fan}%")
+        gcode_commands.append(f"; Offset: X={process_block.offset[0]} Y={process_block.offset[1]} Z={process_block.offset[2]}")
+        gcode_commands.append(f"; Number of color clusters: {len(hatch_cluster_data)}")
+        gcode_commands.append(f"; Number of points: {sum(len(polyline) for cluster in hatch_cluster_data for polyline in cluster)}")
         gcode_commands.append("")
+
         #set laser mode
         if process_block.laser_mode == "variable":
             gcode_commands.append("M4 P0 ; set Laser to variable Mode")
@@ -115,8 +117,17 @@ class Parser:
             gcode_commands.append("M3 P0 ; set laser to constant Mode")
         else:
             print("Error: Laser Mode not recognized")
+        
+        #set power mode
+        if process_block.power_mode == "half":
+            gcode_commands.append("M2000 L23 P0 ; Artisan 40W laser. 0 enters half power Mode (20W max)")
+        elif process_block.power_mode == "full":
+            gcode_commands.append("M2000 L23 P1 ; Artisan 40W laser. 1 exits half power Mode (40W max)")
+        else:
+            print("Error: Power Mode not recognized")
+
         #set enclosure fan and air assist
-        gcode_commands.append(f"M2000 W2 P{process_block.enclosure_fan} ; Artisan Setting to turn on Enclosure fan (100%)")
+        gcode_commands.append(f"M2000 W2 P{process_block.enclosure_fan} ; Artisan Enclosure fan to {process_block.enclosure_fan}%")
         if process_block.air_assist == "on":
             gcode_commands.append("M8 ; Turn on Air assis")
         else:
@@ -133,15 +144,6 @@ class Parser:
         feedG1_prev=0
         feedG0_prev=0
         prev_gcode_command=""
-
-        hatch_cluster_data = process_block.hatch_data.hatch_clusters[cluster_index].data #self.post_processor.process_data(process_block)
-
-        #process block header
-        gcode_commands.append(f"; Process Block: {process_block.post_processing} | Laser Mode: {process_block.laser_mode} | Air Assist: {process_block.air_assist} | Enclosure Fan: {process_block.enclosure_fan}%")
-        gcode_commands.append(f"; Offset: X={process_block.offset[0]} Y={process_block.offset[1]} Z={process_block.offset[2]}")
-        gcode_commands.append(f"; Number of color clusters: {len(hatch_cluster_data)}")
-        gcode_commands.append(f"; Number of points: {sum(len(polyline) for cluster in hatch_cluster_data for polyline in cluster)}")
-        gcode_commands.append("")
 
         for counter, line_collection in enumerate(hatch_cluster_data):
             for polyline in line_collection:
@@ -329,6 +331,7 @@ class Parser:
         laser_mode = db_color_palette.laser_mode
         enclosure_fan = db_color_palette.enclosure_fan
         air_assist = db_color_palette.air_assist
+        power_mode = db_color_palette.power_mode
 
         self.get_handler_data()
 
@@ -345,6 +348,7 @@ class Parser:
             laser_mode=laser_mode,
             air_assist=air_assist,
             enclosure_fan=enclosure_fan,
+            power_mode=power_mode,
             offset=offset)
         )
 
@@ -355,6 +359,7 @@ class Parser:
         post_processing = self.post_processing_combobox.currentText()
         laser_mode = self.laser_mode_combobox.currentText()
         air_assist = self.air_assist_combobox.currentText()
+        power_mode = self.power_mode_combobox.currentText()
         offset = [
             self.offset_x_spinbox.value(),
             self.offset_y_spinbox.value(),
@@ -367,7 +372,7 @@ class Parser:
                                             white_threshold=self.white_threshold_parsing_spinbox.value(), 
                                             mode="manual")
         #process_block = ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset)
-        process_block = self.post_processor.process_block(ProcessBlock(hatch_data, iterations, post_processing, laser_mode, air_assist=air_assist, offset=offset))
+        process_block = self.post_processor.process_block(ProcessBlock(hatch_data, iterations, post_processing, laser_mode, air_assist=air_assist, power_mode=power_mode, offset=offset))
         list_item = QtWidgets.QListWidgetItem(f"{iterations}x {self.hatch_data.type}")
         list_item.setData(QtCore.Qt.ItemDataRole.UserRole, process_block)  # Store the process block in the item's data
         self.process_listWidget.addItem(list_item)
