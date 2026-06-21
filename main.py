@@ -28,9 +28,16 @@ else:
     # Running as normal Python script
     BASE_DIR = Path(__file__).resolve().parent
 
-with open(BASE_DIR / "version.json") as f:
-    version_data = json.load(f)
-    VERSION = f"{version_data['major']}.{version_data['minor']}.{version_data['patch']}"
+try:
+    with open(BASE_DIR / "version.json") as f:
+        version_data = json.load(f)
+        version = f"{version_data['major']}.{version_data['minor']}.{version_data['patch']}"
+except FileNotFoundError:
+    print(f"Warning: version.json not found at {BASE_DIR / 'version.json'}")
+    version = "unknown"
+except Exception as e:
+    print(f"Error loading version.json: {e}")
+    version = "unknown"
 
 
 #Define paths using PathManager
@@ -59,7 +66,7 @@ if __name__ == "__main__":
     gui.image_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape, True)
     
     # Set window title with version
-    gui.setWindowTitle(f"BildHatcher - v{VERSION}")
+    gui.setWindowTitle(f"BildHatcher - v{version}")
     
     gui.show()
         

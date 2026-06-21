@@ -755,6 +755,8 @@ class ImageMover(QtCore.QObject):
             y_canvas = event.position().y()
 
             new_x, new_y = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
+            #we have to flip the y coordinate as the image coordinates are flipped in y direction compared to the canvas coordinates
+            # new_y = self.data_handler.image_matrix.shape[0] - new_y
             self.current_image_center = [new_x, new_y]
 
             self.update_image_center()

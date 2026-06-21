@@ -32,48 +32,6 @@ class DataHandler:
         self.active_mask_index = -1  # Index of the currently active mask
         self.mask_overlays = [] # List of QGraphicsRectItem overlays
 
-    # @property
-    # def active_color_overlays(self):
-    #     return self._active_color_overlays
-
-    # @active_color_overlays.setter
-    # def active_color_overlays(self, new_value):
-    #     if not isinstance(new_value, ObservableList):
-    #         self._active_color_overlays = ObservableList(new_value, on_change=self.update_color_ovleray_imprint_button)
-    #     else:
-    #         self._active_color_overlays = new_value
-    #         if getattr(self._active_color_overlays, 'on_change', None) is None:
-    #             self._active_color_overlays.on_change = self.update_color_ovleray_imprint_button
-    #     self.update_color_ovleray_imprint_button()
-
-    # @property
-    # def text_overlays(self):
-    #     return self._text_overlays
-
-    # @text_overlays.setter
-    # def text_overlays(self, new_value):
-    #     if not isinstance(new_value, ObservableList):
-    #         self._text_overlays = ObservableList(new_value, on_change=self.update_tg_ovleray_imprint_button)
-    #     else:
-    #         self._text_overlays = new_value
-    #         if getattr(self._text_overlays, 'on_change', None) is None:
-    #             self._text_overlays.on_change = self.update_tg_ovleray_imprint_button
-    #     self.update_tg_ovleray_imprint_button()
-
-    # @property
-    # def geometry_overlays(self):
-    #     return self._geometry_overlays
-
-    # @geometry_overlays.setter
-    # def geometry_overlays(self, new_value):
-    #     if not isinstance(new_value, ObservableList):
-    #         self._geometry_overlays = ObservableList(new_value, on_change=self.update_tg_ovleray_imprint_button)
-    #     else:
-    #         self._geometry_overlays = new_value
-    #         if getattr(self._geometry_overlays, 'on_change', None) is None:
-    #             self._geometry_overlays.on_change = self.update_tg_ovleray_imprint_button
-    #     self.update_tg_ovleray_imprint_button()
-
     #create a watcher for the original image matrix. When the original image matrix is changed it means a new image was loaded.
     @property
     def image_matrix_original(self):

@@ -97,7 +97,7 @@ class Hatcher:
 
     def calculate_clusters(self, hatch_mode, workpiece_radius):
         hatch_data= HatchData([], "")
-        image_matrix = np.flipud(self.image_matrix)
+        image_matrix = self.image_matrix #np.flipud(self.image_matrix)
 
         if hatch_mode in ["CylEquidistX", "CylEquidistRad"]:
 
@@ -1125,9 +1125,9 @@ class Hatcher:
         self.data_handler.hatch_data = self.hatch_data
 
     def get_handler_data(self):
-        self.image_matrix = self.data_handler.image_matrix
+        self.image_matrix = np.flipud(self.data_handler.image_matrix) #account for the fact that image coordinates are flipped in y direction compared to canvas coordinates
         self.pixel_per_mm = self.data_handler.pixel_per_mm
-        self.center_for_hatch = self.data_handler.center_for_hatch
+        self.center_for_hatch = [self.data_handler.center_for_hatch[0], self.data_handler.image_matrix.shape[0] - self.data_handler.center_for_hatch[1]]
         self.contours_list = self.data_handler.contours_list
 
 

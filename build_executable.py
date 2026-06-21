@@ -82,6 +82,7 @@ def build_executable():
         "--add-data", "GUI_files;GUI_files",  # Include GUI files
         "--add-data", "settings;settings",    # Include settings
         "--add-data", "libraries;libraries",  # Include libraries
+        "--add-data", "version.json;.",       # Include version.json
         # "--add-data", "Drivers;Drivers",      # Include drivers
         "--distpath", OUTPUT_DIR,
         "--workpath", "build",   # ← FIXED HERE
