@@ -857,9 +857,9 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                  </widget>
                 </item>
                 <item row="2" column="0">
-                 <widget class="QPushButton" name="rot_image_180_button">
+                 <widget class="QPushButton" name="rot_image_90_button">
                   <property name="text">
-                   <string>rot180</string>
+                   <string>rot90</string>
                   </property>
                  </widget>
                 </item>

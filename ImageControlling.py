@@ -87,8 +87,8 @@ class BaseFunctions:
         self.combine_image_button.clicked.connect(self.combine_images)
 
         #Flip image button
-        self.rot_image_180_button = gui.rot_image_180_button
-        self.rot_image_180_button.clicked.connect(self.rot_image_180)
+        self.rot_image_90_button = gui.rot_image_90_button
+        self.rot_image_90_button.clicked.connect(self.rot_image_90_clockwise)
 
         # Mirror buttons
         self.mirror_image_horizontal_button = gui.mirror_image_horizontal_button
@@ -276,6 +276,14 @@ class BaseFunctions:
     def rot_image_180(self):
         self.get_handler_data()
         image_matrix = np.flipud(np.fliplr(self.get_active_image_matrix()))
+        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        img_obj.image_matrix = image_matrix.copy()
+        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+        self.set_handler_data(new_image = True)
+    
+    def rot_image_90_clockwise(self):
+        self.get_handler_data()
+        image_matrix = np.rot90(self.get_active_image_matrix(), k=-1)  # Rotate 90 degrees clockwise
         img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
         img_obj.image_matrix = image_matrix.copy()
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
