@@ -4155,7 +4155,7 @@ QGroupBox::title {
      <x>0</x>
      <y>0</y>
      <width>1391</width>
-     <height>21</height>
+     <height>18</height>
     </rect>
    </property>
    <widget class="QMenu" name="basefunc_menu">
@@ -4175,8 +4175,15 @@ QGroupBox::title {
     <addaction name="actionLoad_Config"/>
     <addaction name="actionOpenColorDatabase"/>
    </widget>
+   <widget class="QMenu" name="menuModes">
+    <property name="title">
+     <string>Modes</string>
+    </property>
+    <addaction name="actionTouchscreen_Mode"/>
+   </widget>
    <addaction name="basefunc_menu"/>
    <addaction name="settings_menu"/>
+   <addaction name="menuModes"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="toolBar">
@@ -4228,6 +4235,11 @@ QGroupBox::title {
   <action name="actionNew_Blank">
    <property name="text">
     <string>New Blank</string>
+   </property>
+  </action>
+  <action name="actionTouchscreen_Mode">
+   <property name="text">
+    <string>Touchscreen Mode</string>
    </property>
   </action>
  </widget>

@@ -613,10 +613,28 @@ class ImageMover(QtCore.QObject):
         self.data_handler.add_image_changed_callback(self.reset_image_center_to_default)
         self.data_handler.add_image_resized_callback(self.reset_image_center_to_current)
 
+        # Touchscreen support hook
+        self.touch_screen_mode = False
+        self._in_multitouch_gesture = False
+        self.actionTouchscreen_Mode = getattr(gui, "actionTouchscreen_Mode", None)
+        if self.actionTouchscreen_Mode:
+            self.actionTouchscreen_Mode.setCheckable(True)
+            self.actionTouchscreen_Mode.triggered.connect(self.set_touch_screen_mode)
+
         #Event callbacks for handling gui interactions
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
 
+    def set_touch_screen_mode(self, enabled):
+        self.touch_screen_mode = enabled
+        self.image_canvas.viewport().setAttribute(QtCore.Qt.WidgetAttribute.WA_AcceptTouchEvents, enabled)
+        if not enabled:
+            self._in_multitouch_gesture = False
+
     def trigger_canvas_event(self, event):
+        if event.type() in (QtCore.QEvent.Type.TouchBegin, QtCore.QEvent.Type.TouchUpdate, QtCore.QEvent.Type.TouchEnd):
+            if self.touch_screen_mode:
+                return self.handle_touch_event(event)
+
         if event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.MiddleButton:
             self.start_drag(event)
         elif event.type() == QtCore.QEvent.Type.MouseMove and event.buttons() == QtCore.Qt.MouseButton.MiddleButton:
@@ -627,6 +645,63 @@ class ImageMover(QtCore.QObject):
             self.on_mouse_wheel(event)
         elif event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.LeftButton:
             self.set_image_center(event)
+
+    def handle_touch_event(self, event):
+        points = event.points()
+        active_points = [p for p in points if p.state() != QtGui.QEventPoint.State.Released]
+        
+        if len(active_points) == 2:
+            self._in_multitouch_gesture = True
+            if event.type() == QtCore.QEvent.Type.TouchUpdate:
+                p1, p2 = active_points[0], active_points[1]
+                pos1, pos2 = p1.position(), p2.position()
+                last_pos1, last_pos2 = p1.lastPosition(), p2.lastPosition()
+                
+                # Calculate distance
+                dx = pos1.x() - pos2.x()
+                dy = pos1.y() - pos2.y()
+                curr_dist = (dx*dx + dy*dy) ** 0.5
+                
+                ldx = last_pos1.x() - last_pos2.x()
+                ldy = last_pos1.y() - last_pos2.y()
+                last_dist = (ldx*ldx + ldy*ldy) ** 0.5
+                
+                # Calculate center
+                curr_center_x = (pos1.x() + pos2.x()) / 2.0
+                curr_center_y = (pos1.y() + pos2.y()) / 2.0
+                last_center_x = (last_pos1.x() + last_pos2.x()) / 2.0
+                last_center_y = (last_pos1.y() + last_pos2.y()) / 2.0
+                
+                # Pan
+                delta_x = curr_center_x - last_center_x
+                delta_y = curr_center_y - last_center_y
+                
+                h_bar = self.image_canvas.horizontalScrollBar()
+                v_bar = self.image_canvas.verticalScrollBar()
+                h_bar.setValue(int(round(h_bar.value() - delta_x)))
+                v_bar.setValue(int(round(v_bar.value() - delta_y)))
+                
+                # Zoom
+                if last_dist > 0.1 and abs(curr_dist - last_dist) > 0.1:
+                    scale_factor = curr_dist / last_dist
+                    if not self.updating_scaling:
+                        self.updating_scaling = True
+                        new_value = int(round(self.zoom_spinbox.value() * scale_factor))
+                        new_value = max(1, min(1000, new_value))
+                        self.zoom_spinbox.setValue(new_value)
+                        self.zoom_slider.setValue(new_value)
+                        self.apply_scene_zoom()
+                        self.updating_scaling = False
+            event.accept()
+            return True
+            
+        if getattr(self, '_in_multitouch_gesture', False):
+            if event.type() == QtCore.QEvent.Type.TouchEnd or len(active_points) == 0:
+                self._in_multitouch_gesture = False
+            event.accept()
+            return True
+            
+        return False
 
     def start_drag(self, event):
         self.image_canvas.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
