@@ -3524,6 +3524,9 @@ QPushButton:disabled {
                 <property name="buttonSymbols">
                  <enum>QAbstractSpinBox::NoButtons</enum>
                 </property>
+                <property name="minimum">
+                 <double>-100000.000000000000000</double>
+                </property>
                 <property name="maximum">
                  <double>100000.000000000000000</double>
                 </property>
@@ -3575,6 +3578,12 @@ QPushButton:disabled {
                 </property>
                 <property name="buttonSymbols">
                  <enum>QAbstractSpinBox::NoButtons</enum>
+                </property>
+                <property name="minimum">
+                 <double>-10000.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>100000.000000000000000</double>
                 </property>
                </widget>
               </item>
@@ -3688,6 +3697,9 @@ QPushButton:disabled {
                 </property>
                 <property name="buttonSymbols">
                  <enum>QAbstractSpinBox::NoButtons</enum>
+                </property>
+                <property name="minimum">
+                 <double>-100000.000000000000000</double>
                 </property>
                 <property name="maximum">
                  <double>100000.000000000000000</double>
@@ -4155,7 +4167,7 @@ QGroupBox::title {
      <x>0</x>
      <y>0</y>
      <width>1391</width>
-     <height>18</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="basefunc_menu">
