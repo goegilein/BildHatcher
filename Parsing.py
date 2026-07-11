@@ -130,6 +130,7 @@ class Parser:
         gcode_commands.append(f"M2000 W2 P{process_block.enclosure_fan} ; Artisan Enclosure fan to {process_block.enclosure_fan}%")
         if process_block.air_assist == "on":
             gcode_commands.append("M8 ; Turn on Air assis")
+            gcode_commands.append("G4 S1.0 ; Wait for 1.0 seconds to allow air assist to stabilize")
         else:
             gcode_commands.append("M9 ; Turn off Air assis")
 

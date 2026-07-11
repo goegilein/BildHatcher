@@ -311,7 +311,7 @@ class Hatcher:
             self.waiting_for_worker = False
 
     def hatch_cluster(self, cluster_matrix, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, white_threshold=255, db_color_palette=None, cluster_progress=0):
-        hatched_clusters = []
+        hatched_cluster = []
         color_cluster_counter = 0
         cyl_rad = cyl_rad_mm * self.pixel_per_mm
         #cluster = np.flipud(self.image_matrix)
@@ -365,7 +365,7 @@ class Hatcher:
                 if line_collection == 0:
                     return 0
                 else:
-                    hatched_clusters.append(line_collection)
+                    hatched_cluster.append(line_collection)
             elif hatch_pattern == "CrossedMeander":
                 line_collection1 = self.hatch_meander(
                     hatch_pattern, hatch_distance, hatch_angle, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state, cross_angle=0
@@ -376,8 +376,8 @@ class Hatcher:
                 if line_collection1 == 0:
                     return 0
                 else:
-                    hatched_clusters.append(line_collection1)
-                    hatched_clusters.append(line_collection2)
+                    hatched_cluster.append(line_collection1)
+                    hatched_cluster.append(line_collection2)
             elif hatch_pattern == "Circular":
                 line_collection = self.hatch_circular(
                     hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
@@ -385,7 +385,7 @@ class Hatcher:
                 if line_collection == 0:
                     return 0
                 else:
-                    hatched_clusters.append(line_collection)
+                    hatched_cluster.append(line_collection)
             elif hatch_pattern == "Spiral":
                 line_collection = self.hatch_spiral(
                     hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
@@ -393,7 +393,7 @@ class Hatcher:
                 if line_collection == 0:
                     return 0
                 else:
-                    hatched_clusters.append(line_collection)
+                    hatched_cluster.append(line_collection)
             elif hatch_pattern == "Radial":
                 line_collection = self.hatch_radial(
                     hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
@@ -401,7 +401,7 @@ class Hatcher:
                 if line_collection == 0:
                     return 0
                 else:
-                    hatched_clusters.append(line_collection)
+                    hatched_cluster.append(line_collection)
             else:
                 print("Unknown hatch method")
             color_cluster_counter += 1
@@ -409,11 +409,12 @@ class Hatcher:
             #check if hatching was cancelled
             if self.hatching_cancelled:
                 return None
+            
 
             # Update progress bar
             self.worker.progress.emit(int(np.ceil(color_cluster_counter / len(color_list) * cluster_progress)))
             QtWidgets.QApplication.processEvents()  # Update the UI
-        return hatched_clusters
+        return hatched_cluster
 
     def hatch_meander(self, hatch_pattern, hatch_distance, hatch_angle, step_size, image_matrix, center, color, hatch_mode, cyl_rad, progress_state, cross_angle=None):
         line_collection_poly=[]

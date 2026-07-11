@@ -90,18 +90,30 @@ class ImgObj:
         self.pixel_per_mm_original = pixel_per_mm_original
 
 class HatchCluster:
-    def __init__(self, data, input_matrix, ref_position, cluster_center_for_hatch, cylinder_radius, additional_code=""):
+    def __init__(self, data: list, input_matrix: np.ndarray, ref_position: np.ndarray, cluster_center_for_hatch: np.ndarray, cylinder_radius: float, additional_code: str = ""):
         self.data=data
         self.input_matrix = input_matrix
         self.ref_position=ref_position
         self.cluster_center_for_hatch = cluster_center_for_hatch
         self.cylinder_radius = cylinder_radius
         self.additional_code=additional_code
+        self.meta_data = meta_data
+
+# class ClusterMetaData:
+#     def __init__(self, hatch_pattern: str = None, hatch_distance_mode: str = None, hatch_distance: list = None, hatch_angle: float = None, hatch_mode: str = None, hatch_precision: float = None, hatch_cylinder_radius: float = None):
+#         self.hatch_pattern = hatch_pattern
+#         self.hatch_distance_mode = hatch_distance_mode
+#         self.hatch_distance = hatch_distance
+#         self.hatch_angle = hatch_angle
+#         self.hatch_mode = hatch_mode
+#         self.hatch_precision = hatch_precision
+#         self.hatch_cylinder_radius = hatch_cylinder_radius
 
 class HatchData:
     def __init__(self, hatch_clusters: List[HatchCluster], type: str):
         self.hatch_clusters = hatch_clusters
         self.type = type
+
             
 class ProcessBlock:
     def __init__(self, hatch_data:HatchData, iterations = 1, post_processing="None", laser_mode="constant",air_assist="off",enclosure_fan=100, power_mode="half" , offset = [0,0,0]):
