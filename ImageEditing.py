@@ -369,7 +369,17 @@ class ImageColorer(QtCore.QObject):
         self.flood_fill_button = gui.flood_fill_button
         self.flood_fill_button.clicked.connect(lambda: self.set_single_toggle_state('flood_fill_color_on'))
         self.flood_fill_mode_combobox = gui.flood_fill_mode_combobox
-        self.color_similarity_spinbox = gui.color_similarity_spinbox
+        self.fill_options_grid_layout = gui.fill_options_grid_layout
+        self.flood_fill_parameter_value = 0
+        self.limit_color = [0, 0, 0]
+        self.limit_color_choose_on = False
+        self.limit_color_source_dropdown = None
+        self.limit_color_indicator = None
+        self.fill_option_spinbox = None
+        self.fill_option_label = None
+        self.clear_fill_options_layout()
+        self.flood_fill_mode_combobox.currentTextChanged.connect(self.update_fill_options_ui)
+        self.update_fill_options_ui(self.flood_fill_mode_combobox.currentText())
 
         # Add a label, input field and toggle button for replacing a color in the image
         self.replace_color_button = gui.replace_color_button
@@ -380,13 +390,13 @@ class ImageColorer(QtCore.QObject):
         self.setup_default_color_buttons()
 
         self.select_color_button = gui.select_color_color_button
-        self.select_color_button.clicked.connect(self.select_color)
+        self.select_color_button.clicked.connect(lambda: self.apply_selected_color(self.select_color()))
 
         self.pick_color_from_image_button = gui.pick_color_from_image_button
         self.pick_color_from_image_button.clicked.connect(lambda: self.set_single_toggle_state('choose_color_on'))
 
         self.pick_color_from_db_button = gui.pick_color_from_db_button
-        self.pick_color_from_db_button.clicked.connect(self.select_color_from_db)
+        self.pick_color_from_db_button.clicked.connect(lambda: self.apply_selected_color(self.select_color_from_db()))
 
         self.active_color_dislplay_edit = gui.active_color_dislplay_edit
         self.set_active_color(self.active_color)
@@ -569,9 +579,16 @@ class ImageColorer(QtCore.QObject):
                     return
         
         if self.choose_color_on:
-            self.choose_color(event)
+            color = self.choose_color(event)
             self.pick_color_from_image_button.setChecked(False)
             self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+            if color is not None:
+                self.set_active_color(color)
+        elif self.limit_color_choose_on:
+            color = self.choose_limit_color(event)
+            self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+            if color is not None:
+                self.set_limit_color(color)
         elif self.color_drawing_on:
             self.start_color_drawing(event)
         elif self.flood_fill_color_on:
@@ -706,31 +723,35 @@ class ImageColorer(QtCore.QObject):
         # Open color chooser
         color_code = QtWidgets.QColorDialog.getColor()
         if color_code.isValid():
-            active_color = [color_code.red(), color_code.green(), color_code.blue()]
-            self.set_active_color(active_color)
+            return [color_code.red(), color_code.green(), color_code.blue()]
+        return None
 
     def select_color_from_db(self):
+        selected_color = {'value': None}
+
         def on_color_received(color_data):
-            """Callback to handle the selected color from the database."""
-             # 1. Get the color string from the dictionary
             color_string = color_data['color_rgb']  # e.g., "255,0,0"
+            selected_color['value'] = [int(c) for c in color_string.split(',')]
+            dialog.accept()
 
-            # 2. Split the string by the comma and convert each part to an integer
-            active_color = [int(c) for c in color_string.split(',')]
-            self.set_active_color(active_color)
-
-        dialog = QtWidgets.QDialog()
+        dialog = QtWidgets.QDialog(self.gui)
         dialog.setWindowTitle("Select Color")
         layout = QtWidgets.QVBoxLayout(dialog)
         navigator = DatabaseNavigatorWidget(mode=NavigatorMode.SELECT_COLOR, parent=dialog)
         navigator.selection_button_box.rejected.connect(dialog.reject)
         navigator.colorSelected.connect(on_color_received)
         layout.addWidget(navigator)
-        dialog.exec()
+        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+            return selected_color['value']
+        return None
+
+    def apply_selected_color(self, color):
+        if color is not None:
+            self.set_active_color(color)
 
     def choose_color(self, event):
         if not self.choose_color_on:
-            return
+            return None
 
         image_matrix = self.data_handler.image_matrix
         height_px, width_px = image_matrix.shape[:2]
@@ -741,14 +762,14 @@ class ImageColorer(QtCore.QObject):
         # calc image coordinates from canvas click
         x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
 
-        # Ensure click is within image bounds
+        selected_color = None
         if 0 <= x_img < width_px and 0 <= y_img < height_px:
             r, g, b = image_matrix[y_img, x_img]
-            active_color = [int(r), int(g), int(b)]
-            self.set_active_color(active_color)
+            selected_color = [int(r), int(g), int(b)]
 
         # Disable pick mode after one pick
         self.choose_color_on = False
+        return selected_color
 
     def set_active_color(self, color_list):
         self.active_color = color_list
@@ -760,7 +781,160 @@ class ImageColorer(QtCore.QObject):
         color_string = f"R{color.red()}, G{color.green()}, B{color.blue()}"
         self.active_color_dislplay_edit.setText(color_string)
         self.active_color_dislplay_edit.setStyleSheet(f"color: {opposite_color.name()}; background-color: {color.name()}")
-    
+
+    def set_limit_color(self, color_list):
+        self.limit_color = color_list
+        self.update_limit_color_indicator()
+
+    def update_limit_color_indicator(self):
+        if self.limit_color_indicator is None:
+            return
+        r, g, b = self.limit_color
+        style = f"background-color: rgb({r}, {g}, {b}); border: 1px solid #444;"
+        self.limit_color_indicator.setStyleSheet(style)
+
+    def clear_fill_options_layout(self):
+        while self.fill_options_grid_layout.count():
+            item = self.fill_options_grid_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+            else:
+                layout = item.layout()
+                if layout is not None:
+                    while layout.count():
+                        child = layout.takeAt(0)
+                        if child.widget() is not None:
+                            child.widget().deleteLater()
+
+    def update_fill_options_ui(self, mode):
+        self.clear_fill_options_layout()
+        self.limit_color_choose_on = False
+
+        if mode in ["Regular", "To Contours"]:
+            return
+
+        if mode in ["Similar Color", "Diagonals + Similar"]:
+            self.show_fill_spinbox("Similarity")
+        elif mode == "Fill Lines":
+            self.show_fill_spinbox("Tolerance")
+        elif mode == "To Color":
+            self.show_to_color_options()
+
+    def show_fill_spinbox(self, label_text):
+        self.fill_option_label = QtWidgets.QLabel(label_text)
+        self.fill_option_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.fill_option_spinbox = QtWidgets.QSpinBox()
+        self.fill_option_spinbox.setMinimum(0)
+        self.fill_option_spinbox.setMaximum(255)
+        self.fill_option_spinbox.setValue(self.flood_fill_parameter_value)
+        self.fill_option_spinbox.valueChanged.connect(self.on_fill_parameter_changed)
+        self.fill_options_grid_layout.addWidget(self.fill_option_label, 0, 0)
+        self.fill_options_grid_layout.addWidget(self.fill_option_spinbox, 1, 0)
+
+    def on_fill_parameter_changed(self, value):
+        self.flood_fill_parameter_value = value
+
+    def show_to_color_options(self):
+        label = QtWidgets.QLabel("Pick Limit color")
+        label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        combo = QtWidgets.QComboBox()
+        combo.addItem("Choose source...")
+        combo.addItem("Color Palette")
+        combo.addItem("Image")
+        combo.addItem("Database")
+        combo.currentTextChanged.connect(self.on_limit_color_source_changed)
+        self.limit_color_source_dropdown = combo
+
+        self.limit_color_indicator = QtWidgets.QLabel()
+        self.limit_color_indicator.setFixedSize(48, 24)
+        self.limit_color_indicator.setFrameShape(QtWidgets.QFrame.Shape.Box)
+        self.limit_color_indicator.setAutoFillBackground(True)
+        self.update_limit_color_indicator()
+
+        self.fill_options_grid_layout.addWidget(label, 0, 0)
+        self.fill_options_grid_layout.addWidget(combo, 0, 1)
+        self.fill_options_grid_layout.addWidget(self.limit_color_indicator, 0, 2)
+        self.fill_options_grid_layout.setColumnStretch(1, 1)
+
+    def on_limit_color_source_changed(self, source):
+        if source == "Color Palette":
+            self.prompt_limit_color_from_palette()
+            if self.limit_color_source_dropdown is not None:
+                self.limit_color_source_dropdown.setCurrentIndex(0)
+        elif source == "Image":
+            self.limit_color_choose_on = True
+        elif source == "Database":
+            self.prompt_limit_color_from_db()
+            if self.limit_color_source_dropdown is not None:
+                self.limit_color_source_dropdown.setCurrentIndex(0)
+
+    def prompt_limit_color_from_palette(self):
+        dialog = QtWidgets.QDialog(self.gui)
+        dialog.setWindowTitle("Pick Limit Color")
+        layout = QtWidgets.QGridLayout(dialog)
+
+        colors = [
+            "#FFFFFF", "#000000", "#FF0000", "#00FF00", "#0000FF",
+            "#FFFF00", "#FF00FF", "#00FFFF", "#808080", "#800000",
+            "#008000", "#000080", "#808000", "#800080", "#008080",
+            "#C0C0C0"
+        ]
+
+        def hex_to_rgb(hex_string):
+            hex_string = hex_string.lstrip('#')
+            return [int(hex_string[i:i+2], 16) for i in (0, 2, 4)]
+
+        def on_palette_color(chosen_color):
+            self.set_limit_color(chosen_color)
+            dialog.accept()
+            if self.limit_color_source_dropdown is not None:
+                self.limit_color_source_dropdown.setCurrentIndex(0)
+
+        for index, hex_color in enumerate(colors):
+            btn = QtWidgets.QPushButton()
+            btn.setFixedSize(24, 24)
+            btn.setStyleSheet(f"background-color: {hex_color}; border: 1px solid #444;")
+            rgb_color = hex_to_rgb(hex_color)
+            btn.clicked.connect(lambda checked, c=rgb_color: on_palette_color(c))
+            layout.addWidget(btn, index // 8, index % 8)
+
+        dialog.exec()
+
+    def prompt_limit_color_from_db(self):
+        def on_color_received(color_data):
+            color_string = color_data['color_rgb']
+            self.set_limit_color([int(c) for c in color_string.split(',')])
+            if self.limit_color_source_dropdown is not None:
+                self.limit_color_source_dropdown.setCurrentIndex(0)
+
+        dialog = QtWidgets.QDialog(self.gui)
+        dialog.setWindowTitle("Select Limit Color")
+        layout = QtWidgets.QVBoxLayout(dialog)
+        navigator = DatabaseNavigatorWidget(mode=NavigatorMode.SELECT_COLOR, parent=dialog)
+        navigator.selection_button_box.rejected.connect(dialog.reject)
+        navigator.colorSelected.connect(on_color_received)
+        layout.addWidget(navigator)
+        dialog.exec()
+
+    def choose_limit_color(self, event):
+        image_matrix = self.data_handler.image_matrix
+        if image_matrix is None:
+            self.limit_color_choose_on = False
+            return
+
+        height_px, width_px = image_matrix.shape[:2]
+        x_canvas = event.position().x()
+        y_canvas = event.position().y()
+        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
+
+        if 0 <= x_img < width_px and 0 <= y_img < height_px:
+            r, g, b = image_matrix[y_img, x_img]
+            self.set_limit_color([int(r), int(g), int(b)])
+
+        self.limit_color_choose_on = False
+        if self.limit_color_source_dropdown is not None:
+            self.limit_color_source_dropdown.setCurrentIndex(0)
 
     ### COLORING METHODS ###
 
@@ -842,7 +1016,7 @@ class ImageColorer(QtCore.QObject):
 
         #2. see if there are any masks and if the clicked pixel is inside one
         active_mask = None
-        mask_matrix = np.zeros_like(image_matrix)-1 # Start with invalid mask to easily check later if we found one. We will fill it with the image pixels of the active mask to preserve details in the masked area.
+        mask_matrix = np.full(image_matrix.shape, -1, dtype=np.int16)  # use signed sentinel so white pixels do not collide with invalid marker
         for color_mask in self.data_handler.masks_list:
             # if np.isnan(mask[y_img, x_img][0])==False:
             if color_mask[y_image, x_image] == 1:
@@ -866,7 +1040,7 @@ class ImageColorer(QtCore.QObject):
         color_mask = np.zeros((h, w), dtype=bool)
         queue = collections.deque([(y_image, x_image)])
         visited = set([(y_image, x_image)])
-        tolerance = self.color_similarity_spinbox.value()
+        tolerance = self.flood_fill_parameter_value
         
 
 
@@ -951,6 +1125,23 @@ class ImageColorer(QtCore.QObject):
                         if (ny, nx) not in visited:
                             visited.add((ny, nx))
                             queue.append((ny, nx))
+        elif mode == "To Color":
+            # fill all pixels until hitting a defined input color limit_color (r, g, b)
+            limit_color = self.limit_color
+            if np.array_equal(target_color, limit_color):
+                return  # No need to fill if the target color is the same as the limit color
+            while queue:
+                cy, cx = queue.popleft()
+                color_mask[cy, cx] = True
+                # Check neighbors
+                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
+                    ny, nx = cy + dy, cx + dx
+                    if 0 <= ny < h and 0 <= nx < w:
+                        if (ny, nx) not in visited:
+                            # Check pixel color
+                            if not np.array_equal(mask_matrix[ny, nx][:3], limit_color):
+                                visited.add((ny, nx))
+                                queue.append((ny, nx))
         
         elif mode == "Fill Lines":
             #fill all colors that match the selected color AND have a matching color with the active color within R pixels distance
@@ -1002,7 +1193,7 @@ class ImageColorer(QtCore.QObject):
 
         #see if there are any masks and if the clicked pixel is inside one
         active_mask = None
-        mask_matrix = np.zeros_like(image_matrix)-1 # Start with invalid mask to easily check later if we found one. We will fill it with the image pixels of the active mask to preserve details in the masked area.
+        mask_matrix = np.full(image_matrix.shape, -1, dtype=np.int16)  # use signed sentinel so white pixels do not collide with invalid marker
         for color_mask in self.data_handler.masks_list:
             # if np.isnan(mask[y_img, x_img][0])==False:
             if color_mask[y_image, x_image] == 1:
