@@ -97,7 +97,6 @@ class HatchCluster:
         self.cluster_center_for_hatch = cluster_center_for_hatch
         self.cylinder_radius = cylinder_radius
         self.additional_code=additional_code
-        self.meta_data = meta_data
 
 # class ClusterMetaData:
 #     def __init__(self, hatch_pattern: str = None, hatch_distance_mode: str = None, hatch_distance: list = None, hatch_angle: float = None, hatch_mode: str = None, hatch_precision: float = None, hatch_cylinder_radius: float = None):
