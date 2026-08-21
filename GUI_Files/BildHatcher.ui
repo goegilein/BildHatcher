@@ -829,20 +829,6 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                 <property name="horizontalSpacing">
                  <number>6</number>
                 </property>
-                <item row="0" column="0">
-                 <widget class="QPushButton" name="add_image_button">
-                  <property name="text">
-                   <string>Add Image</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="1">
-                 <widget class="QPushButton" name="keep_changes_button">
-                  <property name="text">
-                   <string>Keep Changes</string>
-                  </property>
-                 </widget>
-                </item>
                 <item row="1" column="2">
                  <widget class="QCheckBox" name="monochrome_check">
                   <property name="enabled">
@@ -856,10 +842,24 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                   </property>
                  </widget>
                 </item>
+                <item row="0" column="0">
+                 <widget class="QPushButton" name="add_image_button">
+                  <property name="text">
+                   <string>Add Image</string>
+                  </property>
+                 </widget>
+                </item>
                 <item row="2" column="0">
                  <widget class="QPushButton" name="rot_image_90_button">
                   <property name="text">
                    <string>rot90</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1">
+                 <widget class="QPushButton" name="keep_changes_button">
+                  <property name="text">
+                   <string>Keep Changes</string>
                   </property>
                  </widget>
                 </item>
@@ -877,7 +877,7 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                   </property>
                  </widget>
                 </item>
-                <item row="4" column="0" colspan="3">
+                <item row="5" column="0" colspan="3">
                  <widget class="QListWidget" name="images_ListWidget">
                   <property name="acceptDrops">
                    <bool>true</bool>
@@ -893,17 +893,17 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                   </property>
                  </widget>
                 </item>
-                <item row="2" column="1">
-                 <widget class="QPushButton" name="mirror_image_horizontal_button">
-                  <property name="text">
-                   <string>Mirror Horz.</string>
-                  </property>
-                 </widget>
-                </item>
                 <item row="1" column="1">
                  <widget class="QPushButton" name="combine_image_button">
                   <property name="text">
                    <string>Combine Col. Ch.</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1">
+                 <widget class="QPushButton" name="mirror_image_horizontal_button">
+                  <property name="text">
+                   <string>Mirror Horz.</string>
                   </property>
                  </widget>
                 </item>
@@ -935,6 +935,13 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                  <widget class="QPushButton" name="split_color_button">
                   <property name="text">
                    <string>Split  Col. Ch.</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="1">
+                 <widget class="QPushButton" name="upscale_preserving_button">
+                  <property name="text">
+                   <string>Upscale_preserv</string>
                   </property>
                  </widget>
                 </item>

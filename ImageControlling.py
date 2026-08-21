@@ -10,6 +10,7 @@ import io
 from collections import defaultdict
 from HelperClasses import ImgObj
 from PathManager import get_gui_file_path
+from ImageUpscaling import ImageUpscaler
 
 class BaseFunctions:
     def __init__(self, data_handler, gui):
@@ -61,10 +62,12 @@ class BaseFunctions:
         self.reset_image_size_button = gui.reset_image_size_button
         self.reset_image_size_button.clicked.connect(self.reset_image_size)
 
-        # Upscale button
-        self.upscale_button = getattr(gui, "upscale_button", None)
-        if self.upscale_button:
-            self.upscale_button.clicked.connect(self.upscale_active_image)
+        # Upscale buttons
+        self.upscale_button = gui.upscale_button
+        self.upscale_button.clicked.connect(self.upscale_active_image)
+
+        self.upscale_preserving_button = gui.upscale_preserving_button
+        self.upscale_preserving_button.clicked.connect(lambda: self.upscale_active_image(preserve_palette=True))
 
         # Add image button
         self.add_image_button = gui.add_image_button
@@ -211,8 +214,18 @@ class BaseFunctions:
         self.updating_dimensions = True
         self.width_spinbox.setValue(width_mm)
         self.height_spinbox.setValue(height_mm)
-        self.pixel_size_spinbox.setValue(1/ self.get_active_pixel_per_mm())
+        self.pixel_size_spinbox.setValue(1 / self.get_active_pixel_per_mm())
         self.updating_dimensions = False
+
+        # Keep zoom ceiling aligned with current pixel size in mm.
+        pixel_size_mm = 1.0 / self.get_active_pixel_per_mm() if self.get_active_pixel_per_mm() else 1.0
+        max_zoom = max(1, int(1000.0 / pixel_size_mm))
+        self.gui.zoom_slider.setMaximum(max_zoom)
+        self.gui.zoom_spinbox.setMaximum(max_zoom)
+        if self.gui.zoom_slider.value() > max_zoom:
+            self.gui.zoom_slider.setValue(max_zoom)
+        if self.gui.zoom_spinbox.value() > max_zoom:
+            self.gui.zoom_spinbox.setValue(max_zoom)
 
         self.image_resolution_edit.setText(f"{width} x {height}")
 
@@ -414,14 +427,12 @@ class BaseFunctions:
         img_obj = ImgObj(output_image, output_image, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
         self.add_listbox_item(img_obj, image_name + "_cut", set_selected=True)
 
-    def upscale_active_image(self):
+    def upscale_active_image(self, preserve_palette = False):
         """Upscale the currently selected active image by 2x using the ImageUpscaler module."""
         import os
         if not self.active_image_item:
             QtWidgets.QMessageBox.warning(self.gui, "Upscale Image", "No image is currently selected.")
             return
-
-        from ImageUpscaling import ImageUpscaler
 
         # 1. Retrieve the active item's ImgObj
         img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
@@ -469,7 +480,7 @@ class BaseFunctions:
 
             # Instantiate and run upscaler
             upscaler = ImageUpscaler(self.data_handler)
-            upscaled_rgb = upscaler.upscale(scale=2, model="realesrgan-x4plus", use_gpu=True, status_callback=status_callback)
+            upscaled_rgb = upscaler.upscale(scale=2, model="realesrgan-x4plus", use_gpu=True, status_callback=status_callback, preserve_palette=preserve_palette)
 
             if upscaled_rgb is None:
                 QtWidgets.QMessageBox.critical(self.gui, "Upscale Image", "Upscaling failed.")
@@ -526,6 +537,15 @@ class BaseFunctions:
         img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
         img_obj.pixel_per_mm = new_pixel_per_mm
         self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+
+        # Keep the zoom ceiling in sync with the current pixel size.
+        if hasattr(self.gui, "zoom_slider") and hasattr(self.gui, "zoom_spinbox"):
+            pixel_size_mm = 1.0 / new_pixel_per_mm if new_pixel_per_mm and new_pixel_per_mm > 0 else 1.0
+            max_zoom = max(1, int(1000.0 / pixel_size_mm))
+            self.gui.zoom_slider.setMaximum(max_zoom)
+            self.gui.zoom_spinbox.setMaximum(max_zoom)
+            self.gui.zoom_slider.setValue(min(self.gui.zoom_slider.value(), max_zoom))
+            self.gui.zoom_spinbox.setValue(min(self.gui.zoom_spinbox.value(), max_zoom))
     
     def get_active_pixel_per_mm_original(self):
         return self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).pixel_per_mm_original
@@ -572,7 +592,9 @@ class ImageMover(QtCore.QObject):
 
         # Add a slider to control the display size
         self.zoom_slider = gui.zoom_slider
-        self.zoom_slider.setRange(1, 1000)
+        default_pixel_size_mm = 1.0 / self.data_handler.default_pixel_per_mm
+        default_max_zoom = max(1, int(1000.0 / default_pixel_size_mm))
+        self.zoom_slider.setRange(1, default_max_zoom)
         self.zoom_slider.setValue(100)  # Default to 100%
         self.zoom_slider.valueChanged.connect(self.update_zoom_from_slider)
 
@@ -582,9 +604,23 @@ class ImageMover(QtCore.QObject):
 
         # Add an entry field to control the display size
         self.zoom_spinbox = gui.zoom_spinbox
-        self.zoom_spinbox.setRange(1, 1000)
+        self.zoom_spinbox.setRange(1, default_max_zoom)
         self.zoom_spinbox.setValue(100)
         self.zoom_spinbox.valueChanged.connect(self.update_zoom_from_spinbox)
+
+        def update_zoom_limits_from_pixel_size():
+            pixel_per_mm = self.data_handler.pixel_per_mm or self.data_handler.default_pixel_per_mm
+            pixel_size_mm = 1.0 / pixel_per_mm if pixel_per_mm > 0 else 1.0
+            max_zoom = max(1, int(1000.0 / pixel_size_mm))
+            self.zoom_slider.setMaximum(max_zoom)
+            self.zoom_spinbox.setMaximum(max_zoom)
+            if self.zoom_slider.value() > max_zoom:
+                self.zoom_slider.setValue(max_zoom)
+            if self.zoom_spinbox.value() > max_zoom:
+                self.zoom_spinbox.setValue(max_zoom)
+
+        self.data_handler.add_image_changed_callback(update_zoom_limits_from_pixel_size)
+        self.data_handler.add_image_resized_callback(update_zoom_limits_from_pixel_size)
 
         #Add a button to recenter the image
         self.recenter_image_button = gui.recenter_image_button
@@ -653,6 +689,17 @@ class ImageMover(QtCore.QObject):
         elif event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.LeftButton:
             self.set_image_center(event)
 
+    def get_current_max_zoom(self):
+        pixel_per_mm = self.data_handler.pixel_per_mm or self.data_handler.default_pixel_per_mm
+        if pixel_per_mm <= 0:
+            return 1000
+        pixel_size_mm = 1.0 / pixel_per_mm
+        return max(1, int(1000.0 / pixel_size_mm))
+
+    def clamp_zoom_value(self, value):
+        max_zoom = self.get_current_max_zoom()
+        return max(1, min(max_zoom, int(value)))
+
     def handle_touch_event(self, event):
         points = event.points()
         active_points = [p for p in points if p.state() != QtGui.QEventPoint.State.Released]
@@ -694,7 +741,7 @@ class ImageMover(QtCore.QObject):
                     if not self.updating_scaling:
                         self.updating_scaling = True
                         new_value = int(round(self.zoom_spinbox.value() * scale_factor))
-                        new_value = max(1, min(1000, new_value))
+                        new_value = self.clamp_zoom_value(new_value)
                         self.zoom_spinbox.setValue(new_value)
                         self.zoom_slider.setValue(new_value)
                         self.apply_scene_zoom()
@@ -771,7 +818,7 @@ class ImageMover(QtCore.QObject):
             # Calculate the new zoom value
             delta = event.angleDelta().y() / 120  # Typically, event.angleDelta().y() is a multiple of 120
             new_value = int(np.ceil(self.zoom_spinbox.value() * (1 + delta * 0.1)))  # Adjust zoom step as needed
-            new_value = max(1, min(1000, new_value))  # Ensure the value stays within bounds
+            new_value = self.clamp_zoom_value(new_value)
             self.zoom_spinbox.setValue(new_value)
             self.zoom_slider.setValue(new_value)
 

@@ -67,6 +67,21 @@ if __name__ == "__main__":
     
     # Set window title with version
     gui.setWindowTitle(f"BildHatcher - v{version}")
+
+    def close_confirm(event):
+        reply = QtWidgets.QMessageBox.question(
+            gui,
+            "Close BildHatcher",
+            "Are you sure you want to close the application?",
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No,
+        )
+        if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            event.accept()
+        else:
+            event.ignore()
+
+    gui.closeEvent = close_confirm
     
     gui.show()
         

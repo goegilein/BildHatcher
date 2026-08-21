@@ -117,11 +117,48 @@ class ImageUpscaler:
         height, width = self.data_handler.image_matrix.shape[:2]
         return width * scale, height * scale
 
-    def upscale(self, scale: int = 4, model: str = "realesrgan-x4plus", use_gpu: bool = True, status_callback=None) -> np.ndarray | None:
+    def palette_preserving_upscale(self, scale: int = 2, status_callback=None) -> np.ndarray | None:
+        """
+        Preserves the original palette exactly by using nearest-neighbor pixel replication.
+        This does not create any blended or interpolated colors.
+        """
+        if self.data_handler.image_matrix is None:
+            if status_callback:
+                status_callback("Error: No image loaded.")
+            return None
+
+        image_matrix = np.asarray(self.data_handler.image_matrix)
+        if image_matrix.ndim == 2:
+            image_matrix = np.stack([image_matrix] * 3, axis=-1)
+        elif image_matrix.shape[-1] == 4:
+            image_matrix = image_matrix[..., :3]
+        elif image_matrix.shape[-1] != 3:
+            raise ValueError(f"Unsupported image shape for palette-preserving upscale: {image_matrix.shape}")
+
+        if scale <= 0:
+            raise ValueError("Scale must be a positive integer.")
+
+        if status_callback:
+            status_callback(f"Applying palette-preserving {scale}x nearest-neighbor upscale...")
+
+        # Replicate each pixel block exactly to keep every original RGB value unchanged.
+        upscaled_rgb = np.repeat(np.repeat(image_matrix, scale, axis=0), scale, axis=1)
+        self.data_handler.image_matrix = upscaled_rgb
+
+        if status_callback:
+            status_callback("Palette-preserving upscaling completed.")
+
+        return upscaled_rgb
+
+    def upscale(self, scale: int = 4, model: str = "realesrgan-x4plus", use_gpu: bool = True, status_callback=None, preserve_palette: bool = False) -> np.ndarray | None:
         """
         Upscales the current image in data_handler.image_matrix using the portable AI engine.
         Saves output directly back to data_handler.image_matrix and returns it.
+        If preserve_palette is True, a palette-safe nearest-neighbor algorithm is used instead.
         """
+        if preserve_palette:
+            return self.palette_preserving_upscale(scale=scale, status_callback=status_callback)
+
         if self.data_handler.image_matrix is None:
             if status_callback:
                 status_callback("Error: No image loaded.")
@@ -196,15 +233,15 @@ class ImageUpscaler:
             upscaled_bgr = cv2.imread(temp_out)
             if upscaled_bgr is None:
                 raise ValueError("Failed to decode the upscaled image file.")
-                
+
             upscaled_rgb = cv2.cvtColor(upscaled_bgr, cv2.COLOR_BGR2RGB)
 
             # Update data handler state
             self.data_handler.image_matrix = upscaled_rgb
-            
+
             if status_callback:
                 status_callback("Upscaling completed successfully!")
-                
+
             return upscaled_rgb
 
         except Exception as e:
@@ -231,7 +268,7 @@ class ImageUpscaler:
 
     def fallback_upscale(self, scale: int = 4) -> np.ndarray:
         """
-        Highest-quality traditional interpolation (Lanczos4) 
+        Highest-quality traditional interpolation (Lanczos4)
         as an instant, robust, offline fallback.
         """
         if self.data_handler.image_matrix is None:
