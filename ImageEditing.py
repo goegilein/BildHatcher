@@ -24,6 +24,8 @@ class ImageAdjuster:
         self.masked_pixels_list = []
         self.dont_update = False 
 
+        self.data_handler.add_image_changed_callback(self.reset_cached_image)
+
         # Color control variable and entry field
         self.color_count_label = gui.color_count_label
         self.color_count_spinbox = gui.color_count_spinbox
@@ -77,6 +79,13 @@ class ImageAdjuster:
                                                                 sigma_space=self.sigma_space_spinbox.value()))
 
     ## METHODS
+
+    def reset_cached_image(self):
+        """Invalidate adjustment state when a different image becomes active."""
+        self.image_matrix_base = None
+        self.image_matrix_original = None
+        self.image_current = None
+        self.last_adjustment = "None"
 
     def update_current_image(self, *args):
         self.get_handler_data()
