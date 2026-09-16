@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtCore import QRectF
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
@@ -8,11 +9,13 @@ import collections
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
 from HelperClasses import DBColorPalette
 import random
+from UndoRedo import ColorOverlayAction, ImprintColorOverlaysAction, ImageMatrixAction
 
 class ImageAdjuster:
     def __init__(self, data_handler, gui):
         self.data_handler = data_handler
         self.gui = gui
+        self.undo_manager = getattr(data_handler, "undo_manager", None)
         self.image_matrix_base = None
         self.image_matrix_original = None
         self.image_current = None
@@ -23,6 +26,7 @@ class ImageAdjuster:
         self.contrast_old = 0
         self.masked_pixels_list = []
         self.dont_update = False 
+        self.pre_slider_matrix = None 
 
         self.data_handler.add_image_changed_callback(self.reset_cached_image)
 
@@ -53,6 +57,8 @@ class ImageAdjuster:
         self.sharpness_slider.setRange(-10, 10)
         self.sharpness_slider.setValue(0)
         self.sharpness_slider.valueChanged.connect(self.update_bright_cont_sharp)
+        self.sharpness_slider.sliderPressed.connect(self._on_slider_pressed)
+        self.sharpness_slider.sliderReleased.connect(lambda: self._on_slider_released("Sharpness"))
 
         # Brightness Slider
         self.brightness_label = gui.brightness_label
@@ -60,6 +66,8 @@ class ImageAdjuster:
         self.brightness_slider.setRange(-100, 100)
         self.brightness_slider.setValue(0)
         self.brightness_slider.valueChanged.connect(self.update_bright_cont_sharp)
+        self.brightness_slider.sliderPressed.connect(self._on_slider_pressed)
+        self.brightness_slider.sliderReleased.connect(lambda: self._on_slider_released("Brightness"))
 
         # Contrast Slider
         self.contrast_label = gui.contrast_label
@@ -67,6 +75,8 @@ class ImageAdjuster:
         self.contrast_slider.setRange(-100, 100)
         self.contrast_slider.setValue(0)
         self.contrast_slider.valueChanged.connect(self.update_bright_cont_sharp)
+        self.contrast_slider.sliderPressed.connect(self._on_slider_pressed)
+        self.contrast_slider.sliderReleased.connect(lambda: self._on_slider_released("Contrast"))
 
         #simplyfying image button
         self.convolute_image_button = gui.convolute_image_button
@@ -77,6 +87,25 @@ class ImageAdjuster:
                                                                 median_blur=self.median_blur_spinbox.value(),
                                                                 sigma_color=self.sigma_color_spinbox.value(),
                                                                 sigma_space=self.sigma_space_spinbox.value()))
+
+    def _on_slider_pressed(self):
+        if self.data_handler.image_matrix is not None:
+            self.pre_slider_matrix = self.data_handler.image_matrix.copy()
+
+    def _on_slider_released(self, name):
+        if self.pre_slider_matrix is not None and self.data_handler.image_matrix is not None:
+            post_matrix = self.data_handler.image_matrix.copy()
+            if self.undo_manager and not np.array_equal(self.pre_slider_matrix, post_matrix):
+                active_item = getattr(getattr(self.undo_manager, "image_controller", None), "active_image_item", None)
+                action = ImageMatrixAction(
+                    self.data_handler, self.gui, getattr(self.undo_manager, "image_controller", None),
+                    self.pre_slider_matrix, post_matrix,
+                    self.data_handler.pixel_per_mm, self.data_handler.pixel_per_mm,
+                    image_item=active_item,
+                    description=f"{name} Adjust"
+                )
+                self.undo_manager.push_action(action)
+        self.pre_slider_matrix = None
 
     ## METHODS
 
@@ -166,7 +195,12 @@ class ImageAdjuster:
 
         if self.dont_update:
             return
-        
+
+        ctx = self.undo_manager.record_image_matrix("Quantize Colors") if self.undo_manager else nullcontext()
+        with ctx:
+            self._quantize_image_color_exec()
+
+    def _quantize_image_color_exec(self):
         #only get new image if last adjustment was not brightness
         try:
             # Ensure the color count is a valid integer
@@ -228,73 +262,81 @@ class ImageAdjuster:
         """
         Simplifies a detailed image by smoothing.
         """
+        ctx = self.undo_manager.record_image_matrix("Convolute Image") if self.undo_manager else nullcontext()
+        with ctx:
+            if self.last_adjustment == "convoluted":
+                pass
+            else:
+                self.get_handler_data()
+            if self.image_matrix_base is None:
+                return
+            else:
+                image_matrix = self.image_matrix_base.copy()
 
-        if self.last_adjustment == "convoluted":
-            pass
-        else:
-            self.get_handler_data()
-        if self.image_matrix_base is None:
-            return
-        else:
-            image_matrix = self.image_matrix_base.copy()
+            # Show warning if median_blur is not odd
+            if median_blur % 2 == 0:
+                QtWidgets.QMessageBox.warning(
+                    self.gui, "Invalid Median Blur Size",
+                    "Median blur size must be an odd number. Change and try again."
+                )
+                return
+            
+            # Ensure the input image is in the right format
+            if image_matrix.shape[2] == 3 and image_matrix.dtype != np.uint8:
+                image_matrix = image_matrix.astype(np.uint8)
 
-        # Show warning if median_blur is not odd
-        if median_blur % 2 == 0:
-            QtWidgets.QMessageBox.warning(
-                self.gui, "Invalid Median Blur Size",
-                "Median blur size must be an odd number. Change and try again."
-            )
-            return
-        
-        # Ensure the input image is in the right format
-        if image_matrix.shape[2] == 3 and image_matrix.dtype != np.uint8:
-            image_matrix = image_matrix.astype(np.uint8)
+            # Apply edge-preserving smoothing
+            smoothed = cv2.bilateralFilter(image_matrix, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
 
-        # Apply edge-preserving smoothing
-        smoothed = cv2.bilateralFilter(image_matrix, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
+            # Optional extra smoothing to reduce small pixel noise
+            smoothed = cv2.medianBlur(smoothed, median_blur)
 
-        # Optional extra smoothing to reduce small pixel noise
-        smoothed = cv2.medianBlur(smoothed, median_blur)
-
-        # Convert to PIL image for return
-        #return Image.fromarray(simplified_image)
-        self.last_adjustment = "convoluted"
-        self.set_handler_data(smoothed)
+            # Convert to PIL image for return
+            #return Image.fromarray(simplified_image)
+            self.last_adjustment = "convoluted"
+            self.set_handler_data(smoothed)
 
     def invert_colors(self):
         try:
-            self.inverted_colors = not self.inverted_colors
-            self.image_current = Image.eval(self.image_current, lambda x: 255 - x)
-            self.last_adjustment = "invert"
-            #self.update_current_image()
+            ctx = self.undo_manager.record_image_matrix("Invert Colors") if self.undo_manager else nullcontext()
+            with ctx:
+                self.inverted_colors = not self.inverted_colors
+                if self.image_current is None and self.data_handler.image_matrix is not None:
+                    self.image_current = Image.fromarray(self.data_handler.image_matrix.copy())
+                if self.image_current is not None:
+                    self.image_current = Image.eval(self.image_current, lambda x: 255 - x)
+                    self.last_adjustment = "invert"
+                    self.set_handler_data(np.array(self.image_current))
         except Exception as e:
             print(f"Error inverting colors: {e}")
     
     def restore_original_color(self):
         try:
-            self.dont_update = True  # Prevents unnecessary updates during restoration
+            ctx = self.undo_manager.record_image_matrix("Restore Colors") if self.undo_manager else nullcontext()
+            with ctx:
+                self.dont_update = True  # Prevents unnecessary updates during restoration
 
-            # Reset sliders
-            self.sharpness_slider.setValue(0)
-            self.brightness_slider.setValue(0)
-            self.contrast_slider.setValue(0)
+                # Reset sliders
+                self.sharpness_slider.setValue(0)
+                self.brightness_slider.setValue(0)
+                self.contrast_slider.setValue(0)
 
-            # Reset quantizer
-            self.color_count_spinbox.setValue(256)
-            self.quantize_method_combobox.setCurrentText("DEFAULT")
+                # Reset quantizer
+                self.color_count_spinbox.setValue(256)
+                self.quantize_method_combobox.setCurrentText("DEFAULT")
 
-            # Reset invert colors
-            self.inverted_colors = False
+                # Reset invert colors
+                self.inverted_colors = False
 
-            # Reset last adjustment tracker
-            self.last_adjustment = "restored"
+                # Reset last adjustment tracker
+                self.last_adjustment = "restored"
 
-            original_image = self.data_handler.image_matrix_original.copy()
+                original_image = self.data_handler.image_matrix_original.copy()
 
-            #self.update_current_image()
-            self.set_handler_data(original_image)
+                #self.update_current_image()
+                self.set_handler_data(original_image)
 
-            self.dont_update = False  # Prevents unnecessary updates during restoration
+                self.dont_update = False  # Prevents unnecessary updates during restoration
 
         except Exception as e:
             print(f"Error restoring original color: {e}")
@@ -617,7 +659,13 @@ class ImageColorer(QtCore.QObject):
     
     def on_key_press(self, event):
         if event.key() == QtCore.Qt.Key.Key_Z and (event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
+            if self.undo_manager and self.undo_manager.undo():
+                return
             self.undo_coloring()
+        elif event.key() == QtCore.Qt.Key.Key_Y and (event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
+            if self.undo_manager:
+                self.undo_manager.redo()
+                return
         elif event.key() == QtCore.Qt.Key.Key_Return:
             if self.mask_drawing_on and self.mask_shape_mode == "polygon":
                 self.finish_polygon_mask()
@@ -994,8 +1042,17 @@ class ImageColorer(QtCore.QObject):
                 self.temp_path_item.setPath(self.current_path)
 
     def stop_color_drawing(self, event):
-        # self.is_currently_drawing = False
-        pass
+        if self.temp_path_item is not None:
+            if self.undo_manager:
+                action = ColorOverlayAction(
+                    [self.temp_path_item],
+                    self.gui.image_scene,
+                    self.data_handler.active_color_overlays,
+                    description="Brush Stroke"
+                )
+                self.undo_manager.push_action(action)
+            self.temp_path_item = None
+            self.current_path = None
 
     def flood_fill(self, event, mode = "Regular"):
         """
@@ -1181,6 +1238,14 @@ class ImageColorer(QtCore.QObject):
             # overlay_item.setPos(self.gui.image_item.pos())
             # self.gui.image_scene.addItem(overlay_item)
             self.data_handler.active_color_overlays.append(overlay_item) # Add to undo stack
+            if self.undo_manager:
+                action = ColorOverlayAction(
+                    [overlay_item],
+                    self.gui.image_scene,
+                    self.data_handler.active_color_overlays,
+                    description="Flood Fill"
+                )
+                self.undo_manager.push_action(action)
 
     def replace_color(self, event):
         """
@@ -1228,6 +1293,14 @@ class ImageColorer(QtCore.QObject):
         if np.any(color_mask):
             overlay_item = self._create_overlay_from_mask(color_mask)
             self.data_handler.active_color_overlays.append(overlay_item)
+            if self.undo_manager:
+                action = ColorOverlayAction(
+                    [overlay_item],
+                    self.gui.image_scene,
+                    self.data_handler.active_color_overlays,
+                    description="Replace Color"
+                )
+                self.undo_manager.push_action(action)
 
     def recolor_color_from_db(self):
         def on_profile_received(data):
@@ -1293,6 +1366,14 @@ class ImageColorer(QtCore.QObject):
         # overlay_item.setPos(self.gui.image_item.pos())
         # self.gui.image_scene.addItem(overlay_item)
         self.data_handler.active_color_overlays.append(overlay_item)
+        if self.undo_manager:
+            action = ColorOverlayAction(
+                [overlay_item],
+                self.gui.image_scene,
+                self.data_handler.active_color_overlays,
+                description="DB Recolor"
+            )
+            self.undo_manager.push_action(action)
 
     def _create_overlay_from_mask(self, mask_boolean):
         """
@@ -1328,6 +1409,9 @@ class ImageColorer(QtCore.QObject):
         if not self.data_handler.active_color_overlays:
             return 
         
+        before_matrix = self.data_handler.image_matrix.copy() if self.data_handler.image_matrix is not None else None
+        imprinted_items = list(self.data_handler.active_color_overlays)
+
         # Update the logical mask geometry if one was being moved
         self.update_logical_mask_matrices()
         
@@ -1399,6 +1483,20 @@ class ImageColorer(QtCore.QObject):
         
         self.data_handler.image_matrix = arr[:,:,:3]  # Drop alpha as we work in RGB only
 
+        after_matrix = self.data_handler.image_matrix.copy()
+        if self.undo_manager and before_matrix is not None:
+            active_item = getattr(getattr(self.undo_manager, "image_controller", None), "active_image_item", None)
+            if active_item is None and hasattr(self.gui, "images_ListWidget"):
+                active_item = self.gui.images_ListWidget.currentItem()
+            action = ImprintColorOverlaysAction(
+                self.data_handler, self.gui, getattr(self.undo_manager, "image_controller", None),
+                before_matrix, after_matrix, imprinted_items,
+                self.gui.image_scene, self.data_handler.active_color_overlays,
+                image_item=active_item,
+                description="Imprint Color Overlays"
+            )
+            self.undo_manager.push_action(action)
+
         #ensure to reset contours
         self.contours_visible = False
         self.contour_overlay_item = None
@@ -1417,7 +1515,9 @@ class ImageColorer(QtCore.QObject):
             self.current_path = None
 
     def undo_coloring(self, event=None):
-        """ Handles both Vector Undo and Pixel Undo transparently. """
+        """ Handles both Vector Undo and Pixel Undo transparently via UndoRedoManager. """
+        if self.undo_manager and self.undo_manager.undo():
+            return
         
         # Priority 1: Undo active vector drawings (not yet imprinted)
         if self.data_handler.active_color_overlays:
@@ -1554,60 +1654,62 @@ class ImageColorer(QtCore.QObject):
         except Exception as e:
             print(f"Error finding image outlines: {e}")
     
-    def clean_up_image_colors2(self):
+    def clean_up_clusters(self):
         """
-        Cleans up the current image by separating it into color patches, applying median blur to each patch,
+        Cleans up image colors by applying a median blur filter to each color patch
         and recombining them, taking the darker color if a pixel is colored in multiple patches.
         """
-        image_matrix = self.data_handler.image_matrix.copy()
-        if image_matrix is None:
-            return
-        # Find all unique colors (excluding white)
-        unique_colors = np.unique(image_matrix.reshape(-1, 3), axis=0)
-        
-        # Ask user if he wants to continue if more than 10 colors are present
-        if len(unique_colors) > 10:
-            reply = QtWidgets.QMessageBox.question(
-                self.gui, "Too many colors",
-                f"This image has {len(unique_colors)} different colors. "
-                "Do you want to continue cleaning up the image.\nIt might take very long if more than 10 colors are present?",
-                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
-            )
-            if reply == QtWidgets.QMessageBox.StandardButton.No:
+        ctx = self.undo_manager.record_image_matrix("Clean Clusters") if self.undo_manager else nullcontext()
+        with ctx:
+            image_matrix = self.data_handler.image_matrix.copy()
+            if image_matrix is None:
                 return
-        white = np.array([255, 255, 255], dtype=np.uint8)
-        color_patches = []
-        for color in unique_colors:
-            if np.all(color == white):
-                continue
-            # Create a mask for this color
-            mask = np.all(image_matrix == color, axis=-1)
-            patch = np.ones_like(image_matrix, dtype=np.uint8) * 255
-            patch[mask] = color
-            # Apply median blur to the patch
-            patch_blur = cv2.medianBlur(patch, 5)
-            color_patches.append(patch_blur)
-        if not color_patches:
-            return
-        # Recombine patches: for each pixel, take the darkest color (lowest sum)
-        combined = np.ones_like(image_matrix, dtype=np.uint8) * 255
-        for patch in color_patches:
-            # Where patch is not white, compare to current combined
-            mask = ~np.all(patch == 255, axis=-1)
-            # For those pixels, if patch is darker, use it
-            current = combined[mask]
-            candidate = patch[mask]
-            # Compare sum of RGB (lower is darker)
-            darker = np.sum(candidate, axis=-1) < np.sum(current, axis=-1)
-            # Update only where candidate is darker
-            indices = np.where(mask)
-            if len(indices[0]) > 0:
-                darker_indices = np.where(darker)[0]
-                for idx in darker_indices:
-                    combined[indices[0][idx], indices[1][idx]] = candidate[idx]
-        # Update the data handler with the cleaned image
-        self.data_handler.image_matrix_adjusted = combined
-        self.data_handler.image_matrix = combined
+            # Find all unique colors (excluding white)
+            unique_colors = np.unique(image_matrix.reshape(-1, 3), axis=0)
+            
+            # Ask user if he wants to continue if more than 10 colors are present
+            if len(unique_colors) > 10:
+                reply = QtWidgets.QMessageBox.question(
+                    self.gui, "Too many colors",
+                    f"This image has {len(unique_colors)} different colors. "
+                    "Do you want to continue cleaning up the image.\nIt might take very long if more than 10 colors are present?",
+                    QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+                )
+                if reply == QtWidgets.QMessageBox.StandardButton.No:
+                    return
+            white = np.array([255, 255, 255], dtype=np.uint8)
+            color_patches = []
+            for color in unique_colors:
+                if np.all(color == white):
+                    continue
+                # Create a mask for this color
+                mask = np.all(image_matrix == color, axis=-1)
+                patch = np.ones_like(image_matrix, dtype=np.uint8) * 255
+                patch[mask] = color
+                # Apply median blur to the patch
+                patch_blur = cv2.medianBlur(patch, 5)
+                color_patches.append(patch_blur)
+            if not color_patches:
+                return
+            # Recombine patches: for each pixel, take the darkest color (lowest sum)
+            combined = np.ones_like(image_matrix, dtype=np.uint8) * 255
+            for patch in color_patches:
+                # Where patch is not white, compare to current combined
+                mask = ~np.all(patch == 255, axis=-1)
+                # For those pixels, if patch is darker, use it
+                current = combined[mask]
+                candidate = patch[mask]
+                # Compare sum of RGB (lower is darker)
+                darker = np.sum(candidate, axis=-1) < np.sum(current, axis=-1)
+                # Update only where candidate is darker
+                indices = np.where(mask)
+                if len(indices[0]) > 0:
+                    darker_indices = np.where(darker)[0]
+                    for idx in darker_indices:
+                        combined[indices[0][idx], indices[1][idx]] = candidate[idx]
+            # Update the data handler with the cleaned image
+            self.data_handler.image_matrix_adjusted = combined
+            self.data_handler.image_matrix = combined
 
     def clean_up_image_colors(self):
         """
@@ -1618,58 +1720,59 @@ class ImageColorer(QtCore.QObject):
         :param kernel_size: Odd integer (3, 5, 7) determining the filter size.
         :return: Cleaned image as a numpy array.
         """
-
-        quantized_image = self.data_handler.image_matrix.copy()
-        if quantized_image is None:
-            return
-        
-        kernel_size = self.gui.color_count_spinbox.value()
-       
-        # 1. Extract all unique colors present in the image
-        pixels = quantized_image.reshape(-1, 3)
-        unique_colors = np.unique(pixels, axis=0)
-        
-        h, w, _ = quantized_image.shape
-        num_colors = len(unique_colors)
-        
-        # Array to store the "votes" for each color
-        color_scores = np.zeros((h, w, num_colors), dtype=np.float32)
-        kernel = np.ones((kernel_size, kernel_size), dtype=np.float32)
-        
-        white_idx = -1
-        
-        # 2. Count votes for each color in the neighborhood
-        for idx, color in enumerate(unique_colors):
-            # Remember the index of pure white in our palette
-            if np.array_equal(color, [255, 255, 255]):
-                white_idx = idx
+        ctx = self.undo_manager.record_image_matrix("Clean Up Colors") if self.undo_manager else nullcontext()
+        with ctx:
+            quantized_image = self.data_handler.image_matrix.copy()
+            if quantized_image is None:
+                return
+            
+            kernel_size = self.gui.color_count_spinbox.value()
+           
+            # 1. Extract all unique colors present in the image
+            pixels = quantized_image.reshape(-1, 3)
+            unique_colors = np.unique(pixels, axis=0)
+            
+            h, w, _ = quantized_image.shape
+            num_colors = len(unique_colors)
+            
+            # Array to store the "votes" for each color
+            color_scores = np.zeros((h, w, num_colors), dtype=np.float32)
+            kernel = np.ones((kernel_size, kernel_size), dtype=np.float32)
+            
+            white_idx = -1
+            
+            # 2. Count votes for each color in the neighborhood
+            for idx, color in enumerate(unique_colors):
+                # Remember the index of pure white in our palette
+                if np.array_equal(color, [255, 255, 255]):
+                    white_idx = idx
+                    
+                # Binary mask: Where exactly is this color located?
+                mask = np.all(quantized_image == color, axis=-1).astype(np.float32)
                 
-            # Binary mask: Where exactly is this color located?
-            mask = np.all(quantized_image == color, axis=-1).astype(np.float32)
+                # Convolution: Counts the presence of the color within the kernel area
+                score = cv2.filter2D(mask, -1, kernel)
+                color_scores[:, :, idx] = score
+                
+            # 3. APPLY RULE: Never change a non-white pixel to pure white
+            if white_idx != -1:
+                # Find all pixels that are NOT white in the original image
+                non_white_mask = ~np.all(quantized_image == [255, 255, 255], axis=-1)
+                
+                # For all non-white pixels, we set the votes for white to -1.
+                # This ensures white can never win the vote here. The argmax function
+                # will automatically select the second most frequent color instead.
+                color_scores[non_white_mask, white_idx] = -1
+                
+            # 4. Majority vote (find the maximum score)
+            best_color_indices = np.argmax(color_scores, axis=-1)
             
-            # Convolution: Counts the presence of the color within the kernel area
-            score = cv2.filter2D(mask, -1, kernel)
-            color_scores[:, :, idx] = score
-            
-        # 3. APPLY RULE: Never change a non-white pixel to pure white
-        if white_idx != -1:
-            # Find all pixels that are NOT white in the original image
-            non_white_mask = ~np.all(quantized_image == [255, 255, 255], axis=-1)
-            
-            # For all non-white pixels, we set the votes for white to -1.
-            # This ensures white can never win the vote here. The argmax function
-            # will automatically select the second most frequent color instead.
-            color_scores[non_white_mask, white_idx] = -1
-            
-        # 4. Majority vote (find the maximum score)
-        best_color_indices = np.argmax(color_scores, axis=-1)
-        
-        # 5. Reconstruct the image with the winning colors
-        result_image = unique_colors[best_color_indices]
+            # 5. Reconstruct the image with the winning colors
+            result_image = unique_colors[best_color_indices]
 
-        # Update the data handler with the cleaned image
-        self.data_handler.image_matrix_adjusted = result_image.astype(np.uint8)
-        self.data_handler.image_matrix = result_image.astype(np.uint8)
+            # Update the data handler with the cleaned image
+            self.data_handler.image_matrix_adjusted = result_image.astype(np.uint8)
+            self.data_handler.image_matrix = result_image.astype(np.uint8)
     
 
     #Image Masking Functions

@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtWidgets import QFileDialog, QListWidgetItem
 from PyQt6.QtWidgets import QGraphicsLineItem
@@ -16,6 +17,9 @@ class BaseFunctions:
     def __init__(self, data_handler, gui):
         self.data_handler = data_handler
         self.gui = gui
+        self.undo_manager = getattr(data_handler, "undo_manager", None)
+        if self.undo_manager is not None:
+            self.undo_manager.set_image_controller(self)
         self.image_dimension_frame = gui.image_dimension_frame
         self.image_lister_frame = gui.image_lister_frame
         self.default_dpi = 96  # Assuming 96 DPI by default
@@ -176,34 +180,44 @@ class BaseFunctions:
             except Exception as e:
                 print(f"Error saving image: {e}")        
 
+    @contextmanager
+    def _record_matrix(self, description):
+        """Helper to record matrix operations with UndoRedoManager."""
+        if self.undo_manager:
+            with self.undo_manager.record_image_matrix(description, target_item=self.active_image_item):
+                yield
+        else:
+            yield
+
     def update_dimensions(self):
         sender =self.gui.sender()   
         if self.updating_dimensions:
             return
         try:
-            self.get_handler_data()
+            with self._record_matrix("Update Dimensions"):
+                self.get_handler_data()
 
-            if sender == self.pixel_size_spinbox:
-                new_pixel_per_mm = 1 / float(self.pixel_size_spinbox.value())
-                self.set_active_pixel_per_mm(new_pixel_per_mm)
-            else:
-                new_width_mm = float(self.width_spinbox.value())
-                new_height_mm = float(self.height_spinbox.value())
-                
-                image_matrix = self.get_active_image_matrix()
-                if self.lock_ratio_check.isChecked():  # If ratio is locked we simply rescale the DPI. This maintains the image information
-                    if sender == self.width_spinbox:#.hasFocus():
-                        new_pixel_per_mm = image_matrix.shape[1] / new_width_mm
-                        self.set_active_pixel_per_mm(new_pixel_per_mm)
-                    else:
-                        new_pixel_per_mm = image_matrix.shape[0] / new_height_mm
-                        self.set_active_pixel_per_mm(new_pixel_per_mm)
+                if sender == self.pixel_size_spinbox:
+                    new_pixel_per_mm = 1 / float(self.pixel_size_spinbox.value())
+                    self.set_active_pixel_per_mm(new_pixel_per_mm)
                 else:
-                    new_width = new_width_mm * self.get_active_pixel_per_mm()
-                    new_height = new_height_mm * self.get_active_pixel_per_mm()
-                    image_matrix = np.array(Image.fromarray(image_matrix).resize((int(new_width), int(new_height))))
-            self.set_handler_data(new_image = False)
-            self.update_dimension_fields()
+                    new_width_mm = float(self.width_spinbox.value())
+                    new_height_mm = float(self.height_spinbox.value())
+                    
+                    image_matrix = self.get_active_image_matrix()
+                    if self.lock_ratio_check.isChecked():  # If ratio is locked we simply rescale the DPI. This maintains the image information
+                        if sender == self.width_spinbox:#.hasFocus():
+                            new_pixel_per_mm = image_matrix.shape[1] / new_width_mm
+                            self.set_active_pixel_per_mm(new_pixel_per_mm)
+                        else:
+                            new_pixel_per_mm = image_matrix.shape[0] / new_height_mm
+                            self.set_active_pixel_per_mm(new_pixel_per_mm)
+                    else:
+                        new_width = new_width_mm * self.get_active_pixel_per_mm()
+                        new_height = new_height_mm * self.get_active_pixel_per_mm()
+                        image_matrix = np.array(Image.fromarray(image_matrix).resize((int(new_width), int(new_height))))
+                self.set_handler_data(new_image = False)
+                self.update_dimension_fields()
         except Exception as e:
             print(f"Error updating dimensions: {e}")
 
@@ -230,12 +244,13 @@ class BaseFunctions:
         self.image_resolution_edit.setText(f"{width} x {height}")
 
     def reset_image_size(self):
-        pixel_per_mm = self.get_active_pixel_per_mm_original()
-        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-        img_obj.pixel_per_mm = pixel_per_mm
-        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-        self.set_handler_data(new_image = False)   
-        self.update_dimension_fields()
+        with self._record_matrix("Reset Image Size"):
+            pixel_per_mm = self.get_active_pixel_per_mm_original()
+            img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+            img_obj.pixel_per_mm = pixel_per_mm
+            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+            self.set_handler_data(new_image = False)   
+            self.update_dimension_fields()
 
     def split_colors(self):
         self.get_handler_data()
@@ -281,42 +296,47 @@ class BaseFunctions:
         self.add_listbox_item(img_obj, image_name + "_edited", set_selected=True)
 
     def keep_changes(self):
-        self.get_handler_data()
-        img_obj = ImgObj(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
-        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-        self.set_handler_data(new_image = True)
+        with self._record_matrix("Keep Changes"):
+            self.get_handler_data()
+            img_obj = ImgObj(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
+            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+            self.set_handler_data(new_image = True)
     
     def rot_image_180(self):
-        self.get_handler_data()
-        image_matrix = np.flipud(np.fliplr(self.get_active_image_matrix()))
-        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-        img_obj.image_matrix = image_matrix.copy()
-        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-        self.set_handler_data(new_image = True)
+        with self._record_matrix("Rotate 180°"):
+            self.get_handler_data()
+            image_matrix = np.flipud(np.fliplr(self.get_active_image_matrix()))
+            img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+            img_obj.image_matrix = image_matrix.copy()
+            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+            self.set_handler_data(new_image = True)
     
     def rot_image_90_clockwise(self):
-        self.get_handler_data()
-        image_matrix = np.rot90(self.get_active_image_matrix(), k=-1)  # Rotate 90 degrees clockwise
-        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-        img_obj.image_matrix = image_matrix.copy()
-        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-        self.set_handler_data(new_image = True)
+        with self._record_matrix("Rotate 90° CW"):
+            self.get_handler_data()
+            image_matrix = np.rot90(self.get_active_image_matrix(), k=-1)  # Rotate 90 degrees clockwise
+            img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+            img_obj.image_matrix = image_matrix.copy()
+            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+            self.set_handler_data(new_image = True)
     
     def mirror_image_horizontal(self):
-        self.get_handler_data()
-        image_matrix = np.fliplr(self.get_active_image_matrix())
-        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-        img_obj.image_matrix = image_matrix.copy()
-        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-        self.set_handler_data(new_image = True)
+        with self._record_matrix("Mirror Horizontal"):
+            self.get_handler_data()
+            image_matrix = np.fliplr(self.get_active_image_matrix())
+            img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+            img_obj.image_matrix = image_matrix.copy()
+            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+            self.set_handler_data(new_image = True)
 
     def mirror_image_vertical(self):
-        self.get_handler_data()
-        image_matrix = np.flipud(self.get_active_image_matrix())
-        img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-        img_obj.image_matrix = image_matrix.copy()
-        self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-        self.set_handler_data(new_image = True)
+        with self._record_matrix("Mirror Vertical"):
+            self.get_handler_data()
+            image_matrix = np.flipud(self.get_active_image_matrix())
+            img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
+            img_obj.image_matrix = image_matrix.copy()
+            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
+            self.set_handler_data(new_image = True)
 
     def remove_image(self):
         selected_items = self.images_ListWidget.selectedItems()

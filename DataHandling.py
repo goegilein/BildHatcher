@@ -4,10 +4,12 @@ from PyQt6.QtGui import QPixmap, QImage, QPixmap
 import cv2
 from HelperClasses import HatchData, ObservableList
 import numpy as np
+from UndoRedo import UndoRedoManager
 
 class DataHandler:
     def __init__(self, gui):
         self.gui = gui
+        self.undo_manager = UndoRedoManager(gui, self)
         self.image_changed_callback_list = []  # List to hold callbacks for image changes (edits to original_image_matrix)
         self.image_resized_callback_list = []  # List to hold callbacks for image resizing
 

@@ -2,6 +2,7 @@ import math
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtGui import QPainterPath, QPen, QBrush, QColor, QFont, QFontDatabase
 from PyQt6.QtWidgets import QGraphicsItem
+from UndoRedo import TGAddOverlayAction, TGDeleteOverlayAction, TGTransformOverlayAction, TGImprintOverlaysAction
 
 
 def select_color() -> QtGui.QColor:
@@ -503,6 +504,20 @@ class OverlayStore:
         if item is not None:
             item.setSelected(True)
 
+    def add_item(self, item: QtWidgets.QGraphicsItem):
+        if isinstance(item, TextFieldOverlay):
+            if item not in self.text_items:
+                self.text_items.append(item)
+        elif isinstance(item, GeometryOverlay):
+            if item not in self.geometry_items:
+                self.geometry_items.append(item)
+        if self.parent_graphics_item is not None and item.parentItem() is None:
+            item.setParentItem(self.parent_graphics_item)
+        elif item.scene() is None and self.parent_graphics_item is not None and self.parent_graphics_item.scene() is not None:
+            self.parent_graphics_item.scene().addItem(item)
+        self.active_item = item
+        item.setSelected(True)
+
     def remove_item(self, item: QtWidgets.QGraphicsItem):
         if item in self.text_items:
             self.text_items.remove(item)
@@ -576,6 +591,7 @@ class TextGeometryOverlayManager:
         self.overlay_store = overlay_store
         self.gui = gui
         self.event_handler = event_handler
+        self.undo_manager = getattr(data_handler, "undo_manager", None)
         self.mode = self.MODE_IDLE
         self.current_geometry_type = 'line'
         self.drag_start_pos = QtCore.QPointF()
@@ -818,9 +834,14 @@ class TextGeometryOverlayManager:
 
         self.drag_item = None
         if self.mode in {self.MODE_ADD_TEXT, self.MODE_ADD_GEOMETRY}:
+            added_item = self.overlay_store.active_item
             if self.overlay_store.active_item:
                 self.data_handler.text_overlays.extend([x for x in self.overlay_store.text_items if x not in self.data_handler.text_overlays])
                 self.data_handler.geometry_overlays.extend([x for x in self.overlay_store.geometry_items if x not in self.data_handler.geometry_overlays])
+
+            if added_item and self.undo_manager:
+                desc = "Add Text" if self.mode == self.MODE_ADD_TEXT else "Add Geometry"
+                self.undo_manager.push_action(TGAddOverlayAction(self, self.overlay_store, added_item, description=desc))
 
             # Reset mode and buttons
             self.mode = self.MODE_IDLE
@@ -832,6 +853,44 @@ class TextGeometryOverlayManager:
                 self.add_geometry_button.setChecked(False)
 
             self._update_ui_from_selected()
+
+    def _sync_data_handler_lists(self):
+        """Synchronize text and geometry lists in data_handler with overlay_store."""
+        self.data_handler.text_overlays[:] = [x for x in self.overlay_store.text_items]
+        self.data_handler.geometry_overlays[:] = [x for x in self.overlay_store.geometry_items]
+
+    def _get_item_state(self, item):
+        state = {
+            "pos": QtCore.QPointF(item.pos()),
+            "rect": QtCore.QRectF(item._rect),
+            "rotation": item.rotation(),
+            "fill_color": QtGui.QColor(item.fill_color),
+            "outline_color": QtGui.QColor(item.outline_color),
+            "outline_width": getattr(item, "outline_width", 1.0),
+        }
+        if isinstance(item, TextFieldOverlay):
+            state["text"] = item.text
+            state["font"] = QtGui.QFont(item.font)
+        elif isinstance(item, GeometryOverlay):
+            state["shape_type"] = item.shape_type
+        return state
+
+    def _apply_item_state(self, item, state):
+        item.prepareGeometryChange()
+        item.setPos(state["pos"])
+        item._rect = QtCore.QRectF(state["rect"])
+        item.setRotation(state["rotation"])
+        item.fill_color = QtGui.QColor(state["fill_color"])
+        item.outline_color = QtGui.QColor(state["outline_color"])
+        if hasattr(item, "outline_width"):
+            item.outline_width = state.get("outline_width", 1.0)
+        item.update_transform_origin()
+        if isinstance(item, TextFieldOverlay):
+            if "text" in state:
+                item.set_text(state["text"])
+            if "font" in state:
+                item.set_font(state["font"])
+        item.update()
 
     def _apply_text_formatting(self):
         """Apply current text formatting to the active text overlay."""
@@ -970,12 +1029,13 @@ class TextGeometryOverlayManager:
                     overlays_to_delete.append(overlay_item)
                     
         if overlays_to_delete:
+            if self.undo_manager:
+                self.undo_manager.push_action(TGDeleteOverlayAction(self, self.overlay_store, overlays_to_delete, "Delete Overlay"))
             for item in overlays_to_delete:
                 self.overlay_store.remove_item(item)
                 
             # Also remove them from data_handler lists
-            self.data_handler.text_overlays[:] = [x for x in self.data_handler.text_overlays if x in self.overlay_store.text_items]
-            self.data_handler.geometry_overlays[:] = [x for x in self.data_handler.geometry_overlays if x in self.overlay_store.geometry_items]
+            self._sync_data_handler_lists()
             
             self._update_overlay_list()
 
@@ -987,11 +1047,13 @@ class TextGeometryOverlayManager:
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
         )
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            all_items = self.overlay_store.all_items()
+            if self.undo_manager and all_items:
+                self.undo_manager.push_action(TGDeleteOverlayAction(self, self.overlay_store, all_items, "Delete All Overlays"))
             self.overlay_store.clear_all()
             
             # Clear from data_handler lists as well
-            self.data_handler.text_overlays.clear()
-            self.data_handler.geometry_overlays.clear()
+            self._sync_data_handler_lists()
             
             self._update_overlay_list()
 
@@ -1018,6 +1080,7 @@ class TextGeometryOverlayManager:
         if current_pixmap.isNull():
             return
             
+        before_matrix = self.data_handler.image_matrix.copy() if self.data_handler.image_matrix is not None else None
         result_pixmap = current_pixmap.copy()
 
         # 3. Create painter on the copy to draw the overlays on it
@@ -1072,6 +1135,20 @@ class TextGeometryOverlayManager:
         
         # Drop alpha as we work in RGB only
         self.data_handler.image_matrix = arr[:,:,:3]
+
+        after_matrix = self.data_handler.image_matrix.copy()
+        if self.undo_manager and before_matrix is not None:
+            active_item = getattr(getattr(self.undo_manager, "image_controller", None), "active_image_item", None)
+            if active_item is None and hasattr(self.gui, "images_ListWidget"):
+                active_item = self.gui.images_ListWidget.currentItem()
+            action = TGImprintOverlaysAction(
+                self.data_handler, self.gui, getattr(self.undo_manager, "image_controller", None),
+                self, self.overlay_store,
+                before_matrix, after_matrix, overlays_to_imprint,
+                image_item=active_item,
+                description="Imprint Text/Geometry"
+            )
+            self.undo_manager.push_action(action)
 
         # Update the active list item's ImgObj in gui if one exists
         images_list_widget = getattr(self.gui, "images_ListWidget", None)
