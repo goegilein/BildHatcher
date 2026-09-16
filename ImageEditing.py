@@ -454,7 +454,7 @@ class ImageColorer(QtCore.QObject):
 
         # Add button to clean up image colors
         self.clean_up_image_colors_button = gui.clean_up_image_colors_button
-        self.clean_up_image_colors_button.clicked.connect(self.clean_up_image_colors2)
+        self.clean_up_image_colors_button.clicked.connect(self.clean_up_image_colors)
 
         # Add mask drawing functionality
         self.mask_drawing_on = False
@@ -1611,57 +1611,65 @@ class ImageColorer(QtCore.QObject):
 
     def clean_up_image_colors(self):
         """
-        Finds contours in the image, then for each contour pixel, sets its color to the most common color among its 1st and 2nd order neighbors.
-        If there are multiple most common colors, one is chosen at random.
-        Returns a new image matrix with smoothed contours.
-        """
-        self.clean_up_image_colors2()
-        image_matrix = self.data_handler.image_matrix.copy()
-        # Find contours using OpenCV (convert to grayscale first)
-        gray = cv2.cvtColor(image_matrix, cv2.COLOR_RGB2GRAY)
-        edges = cv2.Canny(gray, threshold1=50, threshold2=150)
-        # kernel = np.ones((3, 3), np.uint8)
-        # edges = cv2.dilate(edges, kernel, iterations=1)
+        Removes thin artifact lines of intermediate colors using a majority vote,
+        but strictly prevents non-white pixels from being changed to white (background).
         
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        :param quantized_image: The already color-reduced image (RGB, numpy array).
+        :param kernel_size: Odd integer (3, 5, 7) determining the filter size.
+        :return: Cleaned image as a numpy array.
+        """
 
-        # Copy image to modify
-        result = image_matrix.copy()
-        height, width = image_matrix.shape[:2]
-
-        # Helper to get neighbors (1st and 2nd order)
-        def get_neighbors(y, x):
-            neighbors = []
-            for dy in range(-2, 3):
-                for dx in range(-2, 3):
-                    if dy == 0 and dx == 0:
-                        continue
-                    ny, nx = y + dy, x + dx
-                    if 0 <= ny < height and 0 <= nx < width:
-                        # Only consider 1st and 2nd order neighbors
-                        if abs(dy) == 2 or abs(dx) == 2 or abs(dy) == 1 or abs(dx) == 1:
-                            neighbors.append(tuple(result[ny, nx]))
-            return neighbors
-
-        for contour in contours:
-            for pt in contour:
-                y, x = pt[0][1], pt[0][0]
-                neighbors = get_neighbors(y, x)
-                if not neighbors:
-                    continue
-                # Count occurrences of each color
-                color_counts = {}
-                for color in neighbors:
-                    color_counts[color] = color_counts.get(color, 0) + 1
-                max_count = max(color_counts.values())
-                most_common_colors = [color for color, count in color_counts.items() if count == max_count]
-                # Pick one at random if tie
-                chosen_color = random.choice(most_common_colors)
-                result[y, x] = chosen_color
+        quantized_image = self.data_handler.image_matrix.copy()
+        if quantized_image is None:
+            return
+        
+        kernel_size = self.gui.color_count_spinbox.value()
+       
+        # 1. Extract all unique colors present in the image
+        pixels = quantized_image.reshape(-1, 3)
+        unique_colors = np.unique(pixels, axis=0)
+        
+        h, w, _ = quantized_image.shape
+        num_colors = len(unique_colors)
+        
+        # Array to store the "votes" for each color
+        color_scores = np.zeros((h, w, num_colors), dtype=np.float32)
+        kernel = np.ones((kernel_size, kernel_size), dtype=np.float32)
+        
+        white_idx = -1
+        
+        # 2. Count votes for each color in the neighborhood
+        for idx, color in enumerate(unique_colors):
+            # Remember the index of pure white in our palette
+            if np.array_equal(color, [255, 255, 255]):
+                white_idx = idx
+                
+            # Binary mask: Where exactly is this color located?
+            mask = np.all(quantized_image == color, axis=-1).astype(np.float32)
+            
+            # Convolution: Counts the presence of the color within the kernel area
+            score = cv2.filter2D(mask, -1, kernel)
+            color_scores[:, :, idx] = score
+            
+        # 3. APPLY RULE: Never change a non-white pixel to pure white
+        if white_idx != -1:
+            # Find all pixels that are NOT white in the original image
+            non_white_mask = ~np.all(quantized_image == [255, 255, 255], axis=-1)
+            
+            # For all non-white pixels, we set the votes for white to -1.
+            # This ensures white can never win the vote here. The argmax function
+            # will automatically select the second most frequent color instead.
+            color_scores[non_white_mask, white_idx] = -1
+            
+        # 4. Majority vote (find the maximum score)
+        best_color_indices = np.argmax(color_scores, axis=-1)
+        
+        # 5. Reconstruct the image with the winning colors
+        result_image = unique_colors[best_color_indices]
 
         # Update the data handler with the cleaned image
-        self.data_handler.image_matrix_adjusted = result
-        self.data_handler.image_matrix = result
+        self.data_handler.image_matrix_adjusted = result_image.astype(np.uint8)
+        self.data_handler.image_matrix = result_image.astype(np.uint8)
     
 
     #Image Masking Functions

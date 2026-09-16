@@ -1,9 +1,13 @@
 {
-    "python.defaultInterpreterPath": "${workspaceFolder}/venv/Scripts/python.exe",
-    "python.languageServer": "Pylance",
+    "python.defaultInterpreterPath": "C:/Users/PCUser/AppData/Local/Programs/Python/Python314/python.exe",
+    "python.languageServer": "None",
+    "python.analysis.typeCheckingMode": "off",
+    "python.analysis.diagnosticMode": "openFilesOnly",
+    "editor.semanticHighlighting.enabled": true,
     "python-envs.defaultEnvManager": "ms-python.python:venv",
     "python-envs.pythonProjects": [],
     "[python]": {
-        "editor.defaultFormatter": "ms-python.python"
+        "editor.defaultFormatter": "ms-python.python",
+        "editor.semanticHighlighting.enabled": true
     }
 }
