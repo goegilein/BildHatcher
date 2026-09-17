@@ -4,6 +4,7 @@ Implements the Command pattern for image matrix operations and overlay manipulat
 """
 
 from contextlib import contextmanager
+import time
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -354,6 +355,12 @@ class UndoRedoManager(QtCore.QObject):
 
     def undo(self):
         """Revert the most recent action."""
+        # Let focused text edit widgets handle their own undo
+        focus_widget = QtWidgets.QApplication.focusWidget()
+        if isinstance(focus_widget, (QtWidgets.QLineEdit, QtWidgets.QTextEdit, QtWidgets.QPlainTextEdit)):
+            focus_widget.undo()
+            return True
+
         if not self.undo_stack or self.is_undoing_or_redoing:
             return False
 
@@ -365,12 +372,19 @@ class UndoRedoManager(QtCore.QObject):
             self.is_undoing_or_redoing = False
 
         self.redo_stack.append(action)
+        self._refresh_canvas()
         self.update_ui()
         self.stack_changed.emit()
         return True
 
     def redo(self):
         """Re-apply the most recently undone action."""
+        # Let focused text edit widgets handle their own redo
+        focus_widget = QtWidgets.QApplication.focusWidget()
+        if isinstance(focus_widget, (QtWidgets.QLineEdit, QtWidgets.QTextEdit, QtWidgets.QPlainTextEdit)):
+            focus_widget.redo()
+            return True
+
         if not self.redo_stack or self.is_undoing_or_redoing:
             return False
 
@@ -382,9 +396,29 @@ class UndoRedoManager(QtCore.QObject):
             self.is_undoing_or_redoing = False
 
         self.undo_stack.append(action)
+        self._refresh_canvas()
         self.update_ui()
         self.stack_changed.emit()
         return True
+
+    def _refresh_canvas(self):
+        """Ensure canvas and overlay buttons are refreshed after undo or redo."""
+        if self.gui is not None:
+            if hasattr(self.gui, "image_canvas") and self.gui.image_canvas is not None:
+                self.gui.image_canvas.viewport().update()
+            if hasattr(self.gui, "image_scene") and self.gui.image_scene is not None:
+                self.gui.image_scene.update()
+        if self.data_handler is not None:
+            if hasattr(self.data_handler, "update_color_ovleray_imprint_button"):
+                try:
+                    self.data_handler.update_color_ovleray_imprint_button()
+                except Exception:
+                    pass
+            if hasattr(self.data_handler, "update_tg_ovleray_imprint_button"):
+                try:
+                    self.data_handler.update_tg_ovleray_imprint_button()
+                except Exception:
+                    pass
 
     def clear(self):
         """Clear both undo and redo stacks."""
@@ -434,47 +468,45 @@ class UndoRedoManager(QtCore.QObject):
                 )
                 self.push_action(action)
 
-    def setup_menus(self, menu_undo: QtWidgets.QMenu, menu_redo: QtWidgets.QMenu):
+    def setup_menubar(self, menubar: QtWidgets.QMenuBar):
         """
-        Configure the QMenu widgets in the menubar with actions, shortcuts, and click triggers.
+        Configure direct QActions on the QMenuBar for Undo and Redo,
+        and install application-level shortcuts for Ctrl+Z and Ctrl+Y.
         """
-        self.menu_undo = menu_undo
-        self.menu_redo = menu_redo
+        self.menubar = menubar
 
-        # Create QAction for Undo with Ctrl+Z
-        self.action_undo = QtGui.QAction("Undo", self.gui)
+        # 1. Create QAction for Undo directly on the menubar
+        self.action_undo = QtGui.QAction("Undo", self.menubar)
         self.action_undo.setShortcut(QtGui.QKeySequence("Ctrl+Z"))
         self.action_undo.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         self.action_undo.triggered.connect(self.undo)
-        if self.gui is not None:
-            self.gui.addAction(self.action_undo)
-        self.menu_undo.addAction(self.action_undo)
+        self.menubar.addAction(self.action_undo)
 
-        # Create QAction for Redo with Ctrl+Y
-        self.action_redo = QtGui.QAction("Redo", self.gui)
-        self.action_redo.setShortcut(QtGui.QKeySequence("Ctrl+Y"))
+        # 2. Create QAction for Redo directly on the menubar
+        self.action_redo = QtGui.QAction("Redo", self.menubar)
+        self.action_redo.setShortcuts([QtGui.QKeySequence("Ctrl+Y"), QtGui.QKeySequence("Ctrl+Shift+Z")])
         self.action_redo.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         self.action_redo.triggered.connect(self.redo)
+        self.menubar.addAction(self.action_redo)
+
+        # 3. Add actions to the QMainWindow itself so shortcuts trigger reliably anywhere in the window
         if self.gui is not None:
+            self.gui.addAction(self.action_undo)
             self.gui.addAction(self.action_redo)
-        self.menu_redo.addAction(self.action_redo)
-
-        # Allow clicking directly on the menubar header to execute undo/redo
-        def on_undo_menu_show():
-            # If user clicked menu header directly, execute undo and close menu popup
-            if self.undo_stack:
-                self.menu_undo.hide()
-                self.undo()
-
-        def on_redo_menu_show():
-            if self.redo_stack:
-                self.menu_redo.hide()
-                self.redo()
-
-        self.menu_undo.aboutToShow.connect(on_undo_menu_show)
-        self.menu_redo.aboutToShow.connect(on_redo_menu_show)
 
         self.update_ui()
+
+    def setup_menus(self, menu_undo, menu_redo):
+        """Backwards compatibility for when QMenus were used."""
+        self.menu_undo = menu_undo
+        self.menu_redo = menu_redo
+        mb = getattr(self.gui, "menubar", None) if self.gui else None
+        if mb is None and self.gui and hasattr(self.gui, "menuBar"):
+            mb = self.gui.menuBar()
+        if mb is not None:
+            self.setup_menubar(mb)
+        else:
+            self.update_ui()
 
     def update_ui(self):
         """Update enabled states, titles, and action descriptions."""
@@ -484,28 +516,33 @@ class UndoRedoManager(QtCore.QObject):
         last_undo_desc = self.undo_stack[-1].description if can_undo else ""
         last_redo_desc = self.redo_stack[-1].description if can_redo else ""
 
-        if self.menu_undo is not None:
-            self.menu_undo.setEnabled(can_undo)
-            if can_undo:
-                self.menu_undo.setTitle(f"Undo ({last_undo_desc})")
-                self.menu_undo.setToolTip(f"Undo: {last_undo_desc} (Ctrl+Z)")
-            else:
-                self.menu_undo.setTitle("Undo")
-                self.menu_undo.setToolTip("Nothing to undo (Ctrl+Z)")
-
         if self.action_undo is not None:
             self.action_undo.setEnabled(can_undo)
-            self.action_undo.setText(f"Undo {last_undo_desc}" if can_undo else "Undo")
-
-        if self.menu_redo is not None:
-            self.menu_redo.setEnabled(can_redo)
-            if can_redo:
-                self.menu_redo.setTitle(f"Redo ({last_redo_desc})")
-                self.menu_redo.setToolTip(f"Redo: {last_redo_desc} (Ctrl+Y)")
+            if can_undo and last_undo_desc:
+                short_desc = last_undo_desc if len(last_undo_desc) <= 20 else last_undo_desc[:17] + "..."
+                self.action_undo.setText(f"Undo ({short_desc})")
+                self.action_undo.setToolTip(f"Undo: {last_undo_desc} (Ctrl+Z)")
+                self.action_undo.setStatusTip(f"Undo: {last_undo_desc} (Ctrl+Z)")
             else:
-                self.menu_redo.setTitle("Redo")
-                self.menu_redo.setToolTip("Nothing to redo (Ctrl+Y)")
+                self.action_undo.setText("Undo")
+                self.action_undo.setToolTip("Nothing to undo (Ctrl+Z)")
+                self.action_undo.setStatusTip("Nothing to undo (Ctrl+Z)")
 
         if self.action_redo is not None:
             self.action_redo.setEnabled(can_redo)
-            self.action_redo.setText(f"Redo {last_redo_desc}" if can_redo else "Redo")
+            if can_redo and last_redo_desc:
+                short_desc = last_redo_desc if len(last_redo_desc) <= 20 else last_redo_desc[:17] + "..."
+                self.action_redo.setText(f"Redo ({short_desc})")
+                self.action_redo.setToolTip(f"Redo: {last_redo_desc} (Ctrl+Y)")
+                self.action_redo.setStatusTip(f"Redo: {last_redo_desc} (Ctrl+Y)")
+            else:
+                self.action_redo.setText("Redo")
+                self.action_redo.setToolTip("Nothing to redo (Ctrl+Y)")
+                self.action_redo.setStatusTip("Nothing to redo (Ctrl+Y)")
+
+        if self.menu_undo is not None:
+            self.menu_undo.setEnabled(can_undo)
+            self.menu_undo.setTitle(f"Undo: {last_undo_desc}" if can_undo else "Undo")
+        if self.menu_redo is not None:
+            self.menu_redo.setEnabled(can_redo)
+            self.menu_redo.setTitle(f"Redo: {last_redo_desc}" if can_redo else "Redo")

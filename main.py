@@ -94,11 +94,10 @@ if __name__ == "__main__":
     overlay_store = TextandGeometries.OverlayStore(gui.image_item)
     overlay_manager = TextandGeometries.TextGeometryOverlayManager(data_handler, overlay_store, gui, event_handler)
 
-    # Setup Undo / Redo menus and keyboard shortcuts (Ctrl+Z, Ctrl+Y)
-    menu_undo = getattr(gui, "menuUndo", None) or gui.findChild(QtWidgets.QMenu, "menuUndo")
-    menu_redo = getattr(gui, "menuRedo", None) or gui.findChild(QtWidgets.QMenu, "menuRedo")
-    if menu_undo and menu_redo and hasattr(data_handler, "undo_manager"):
-        data_handler.undo_manager.setup_menus(menu_undo, menu_redo)
+    # Setup Undo / Redo direct QActions on menubar and keyboard shortcuts (Ctrl+Z, Ctrl+Y)
+    menubar = getattr(gui, "menubar", None) or gui.menuBar()
+    if menubar and hasattr(data_handler, "undo_manager"):
+        data_handler.undo_manager.setup_menubar(menubar)
 
     image_hatcher = NCDataGeneration.Hatcher(data_handler, gui)
     hatch_line_plotter = Plotting.HatchLinePlotter(data_handler, gui)

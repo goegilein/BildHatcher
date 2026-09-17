@@ -368,6 +368,7 @@ class ImageColorer(QtCore.QObject):
         self.data_handler = data_handler
         self.event_handler = event_handler
         self.gui = gui
+        self.undo_manager = getattr(data_handler, "undo_manager", None)
         self.active_color = [255, 255, 255]
 
         #Flags and variables for contouring
@@ -659,13 +660,11 @@ class ImageColorer(QtCore.QObject):
     
     def on_key_press(self, event):
         if event.key() == QtCore.Qt.Key.Key_Z and (event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
-            if self.undo_manager and self.undo_manager.undo():
-                return
-            self.undo_coloring()
+            # Handled globally by UndoRedoManager QAction (Ctrl+Z)
+            return
         elif event.key() == QtCore.Qt.Key.Key_Y and (event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
-            if self.undo_manager:
-                self.undo_manager.redo()
-                return
+            # Handled globally by UndoRedoManager QAction (Ctrl+Y / Ctrl+Shift+Z)
+            return
         elif event.key() == QtCore.Qt.Key.Key_Return:
             if self.mask_drawing_on and self.mask_shape_mode == "polygon":
                 self.finish_polygon_mask()
@@ -1516,23 +1515,26 @@ class ImageColorer(QtCore.QObject):
 
     def undo_coloring(self, event=None):
         """ Handles both Vector Undo and Pixel Undo transparently via UndoRedoManager. """
-        if self.undo_manager and self.undo_manager.undo():
+        if getattr(self, "undo_manager", None) and self.undo_manager.undo():
             return
         
         # Priority 1: Undo active vector drawings (not yet imprinted)
         if self.data_handler.active_color_overlays:
             # Remove last drawn stroke/item
             last_item = self.data_handler.active_color_overlays.pop()
-            self.gui.image_scene.removeItem(last_item)
+            if last_item.scene() is not None:
+                self.gui.image_scene.removeItem(last_item)
             
             # If the item we just undid was the moving mask...
             if last_item == self.moving_mask_item:
                 # 1. Pop and remove the white cutout
-                white_cutout = self.data_handler.active_color_overlays.pop()
-                self.gui.image_scene.removeItem(white_cutout)
+                if self.white_cutout_item in self.data_handler.active_color_overlays:
+                    self.data_handler.active_color_overlays.remove(self.white_cutout_item)
+                if self.white_cutout_item and self.white_cutout_item.scene() is not None:
+                    self.gui.image_scene.removeItem(self.white_cutout_item)
                 
                 # 2. Reset the dotted mask boundary back to its original position
-                if self.detached_mask_index >= 0:
+                if self.detached_mask_index >= 0 and self.detached_mask_index < len(self.data_handler.mask_overlays):
                     boundary_item = self.data_handler.mask_overlays[self.detached_mask_index]
                     boundary_item.setPos(0, 0)
                 
@@ -1540,6 +1542,13 @@ class ImageColorer(QtCore.QObject):
                 self.detached_mask_index = -1
                 self.moving_mask_item = None
                 self.white_cutout_item = None
+
+            if hasattr(self.data_handler, "update_color_ovleray_imprint_button"):
+                self.data_handler.update_color_ovleray_imprint_button()
+            if hasattr(self.gui, "image_canvas") and self.gui.image_canvas:
+                self.gui.image_canvas.viewport().update()
+            if hasattr(self.gui, "image_scene") and self.gui.image_scene:
+                self.gui.image_scene.update()
             return
 
         # Priority 2: Undo Imprint (Revert pixel changes)
@@ -2580,6 +2589,23 @@ class ImageColorer(QtCore.QObject):
         self.data_handler.active_color_overlays.append(self.moving_mask_item)
         
         self.detached_mask_index = mask_index
+
+        if self.undo_manager:
+            def undo_mask_move():
+                if self.detached_mask_index >= 0 and self.detached_mask_index < len(self.data_handler.mask_overlays):
+                    self.data_handler.mask_overlays[self.detached_mask_index].setPos(0, 0)
+                self.detached_mask_index = -1
+                self.moving_mask_item = None
+                self.white_cutout_item = None
+
+            action = ColorOverlayAction(
+                [self.white_cutout_item, self.moving_mask_item],
+                self.gui.image_scene,
+                self.data_handler.active_color_overlays,
+                description="Move Mask",
+                extra_undo=undo_mask_move
+            )
+            self.undo_manager.push_action(action)
 
     def on_move_mask_press(self, event):
         """Prepares for dragging. Detaches mask if it hasn't been detached yet."""

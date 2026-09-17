@@ -4182,21 +4182,9 @@ QGroupBox::title {
     </property>
     <addaction name="actionTouchscreen_Mode"/>
    </widget>
-   <widget class="QMenu" name="menuUndo">
-    <property name="title">
-     <string>Undo</string>
-    </property>
-   </widget>
-   <widget class="QMenu" name="menuRedo">
-    <property name="title">
-     <string>Redo</string>
-    </property>
-   </widget>
    <addaction name="basefunc_menu"/>
    <addaction name="settings_menu"/>
    <addaction name="menuModes"/>
-   <addaction name="menuUndo"/>
-   <addaction name="menuRedo"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="toolBar">

@@ -137,6 +137,12 @@ class OverlayItem(QtWidgets.QGraphicsItem):
                 event.accept()
                 return
 
+        scene = self.scene()
+        if scene and hasattr(scene, 'tg_manager') and scene.tg_manager:
+            self._start_transform_state = scene.tg_manager._get_item_state(self)
+        else:
+            self._start_transform_state = None
+
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
@@ -173,6 +179,15 @@ class OverlayItem(QtWidgets.QGraphicsItem):
         scene = self.scene()
         if scene and hasattr(scene, 'tg_manager') and scene.tg_manager:
             scene.tg_manager._update_ui_from_selected()
+            undo_mgr = getattr(scene.tg_manager, "undo_manager", None)
+            if undo_mgr and getattr(self, '_start_transform_state', None):
+                curr_state = scene.tg_manager._get_item_state(self)
+                start_state = self._start_transform_state
+                self._start_transform_state = None
+                if (curr_state["pos"] != start_state["pos"] or
+                    curr_state["rect"] != start_state["rect"] or
+                    curr_state["rotation"] != start_state["rotation"]):
+                    undo_mgr.push_action(TGTransformOverlayAction(scene.tg_manager, self, start_state, curr_state, "Transform Overlay"))
 
     def do_rotate(self, pos: QtCore.QPointF):
         center = self._rect.center()
@@ -987,11 +1002,16 @@ class TextGeometryOverlayManager:
         overlays_to_color = [item for item in selected_items if item in self.overlay_store.all_items()]
         if not overlays_to_color and self.overlay_store.active_item:
             overlays_to_color = [self.overlay_store.active_item]
+        before_states = [(item, self._get_item_state(item)) for item in overlays_to_color] if self.undo_manager else []
         for item in overlays_to_color:
             item.set_fill_color(color)
         self._style_color_button(self.fill_color_button, color)
         if hasattr(self.gui, "image_scene"):
             self.gui.image_scene.update()
+        if self.undo_manager and before_states:
+            for item, b_state in before_states:
+                a_state = self._get_item_state(item)
+                self.undo_manager.push_action(TGTransformOverlayAction(self, item, b_state, a_state, "Change Fill Color"))
 
     def set_outline_color(self, color: QtGui.QColor, width: float = 1.0):
         """Set the active outline color for all selected overlays."""
@@ -1000,11 +1020,16 @@ class TextGeometryOverlayManager:
         overlays_to_color = [item for item in selected_items if item in self.overlay_store.all_items()]
         if not overlays_to_color and self.overlay_store.active_item:
             overlays_to_color = [self.overlay_store.active_item]
+        before_states = [(item, self._get_item_state(item)) for item in overlays_to_color] if self.undo_manager else []
         for item in overlays_to_color:
             item.set_outline_color(color, width)
         self._style_color_button(self.outline_color_button, color)
         if hasattr(self.gui, "image_scene"):
             self.gui.image_scene.update()
+        if self.undo_manager and before_states:
+            for item, b_state in before_states:
+                a_state = self._get_item_state(item)
+                self.undo_manager.push_action(TGTransformOverlayAction(self, item, b_state, a_state, "Change Outline Color"))
 
     def set_overlay_dimensions_mm(self, width_mm: float, height_mm: float):
         """Resize active overlay by millimeters."""
