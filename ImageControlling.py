@@ -104,10 +104,13 @@ class BaseFunctions:
         self.mirror_image_vertical_button = gui.mirror_image_vertical_button
         self.mirror_image_vertical_button.clicked.connect(self.mirror_image_vertical)
 
-
         # Cut to masked button
         self.cut_to_mask_button = gui.cut_to_mask_button
         self.cut_to_mask_button.clicked.connect(self.cut_to_mask)
+
+        # Crop background button
+        self.crop_background_button = gui.crop_background_button
+        self.crop_background_button.clicked.connect(self.crop_background)
 
         # Monochrome check box
         self.monochrome_check = gui.monochrome_check
@@ -446,6 +449,44 @@ class BaseFunctions:
         image_name = self.active_image_item.text()
         img_obj = ImgObj(output_image, output_image, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
         self.add_listbox_item(img_obj, image_name + "_cut", set_selected=True)
+
+    def crop_background(self):
+        #store data first
+        self.get_handler_data()
+        
+        # Create a copy of the image matrix
+        image_matrix = self.data_handler.image_matrix.copy()
+        
+        # Get the bounding box of the image
+        h, w = image_matrix.shape[:2]
+        
+        # Determine background color (assuming top-left pixel is part of the background)
+        # This might need adjustment if the background is not consistently in the corners
+        background_color = [255,255,255] #background color is always flat white
+        
+        # Find pixels that match the background color
+        background_mask = np.all(image_matrix == background_color, axis=-1)
+        
+        # Find the bounding rectangle of the non-background pixels
+        rows = np.where(~background_mask)[0]
+        cols = np.where(~background_mask)[1]
+        
+        if len(rows) == 0 or len(cols) == 0:
+            QtWidgets.QMessageBox.warning(self.gui, "Empty Image", "The image contains only background pixels.")
+            return
+        
+        row_min, row_max = rows.min(), rows.max()
+        col_min, col_max = cols.min(), cols.max()
+        
+        # Extract the bounding rectangle from the image
+        image_cropped = image_matrix[row_min:row_max+1, col_min:col_max+1]
+        
+        # Create a new image object with the cropped image
+        img_obj = ImgObj(image_cropped, image_cropped, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
+        
+        # Add the cropped image to the list
+        image_name = self.active_image_item.text()
+        self.add_listbox_item(img_obj, image_name + "_cropped", set_selected=True)
 
     def upscale_active_image(self, preserve_palette = False):
         """Upscale the currently selected active image by 2x using the ImageUpscaler module."""
