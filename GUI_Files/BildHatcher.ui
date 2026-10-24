@@ -870,13 +870,6 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                   </property>
                  </widget>
                 </item>
-                <item row="3" column="1">
-                 <widget class="QPushButton" name="upscale_button">
-                  <property name="text">
-                   <string>Upscale</string>
-                  </property>
-                 </widget>
-                </item>
                 <item row="5" column="0" colspan="3">
                  <widget class="QListWidget" name="images_ListWidget">
                   <property name="acceptDrops">
@@ -942,6 +935,20 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                  <widget class="QPushButton" name="upscale_preserving_button">
                   <property name="text">
                    <string>Upscale_preserv</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="0">
+                 <widget class="QPushButton" name="upscale_button">
+                  <property name="text">
+                   <string>Upscale</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="1">
+                 <widget class="QPushButton" name="crop_background_button">
+                  <property name="text">
+                   <string>Crop_Bckgr</string>
                   </property>
                  </widget>
                 </item>
@@ -4272,7 +4279,7 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
      <x>0</x>
      <y>0</y>
      <width>1391</width>
-     <height>18</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="basefunc_menu">
