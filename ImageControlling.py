@@ -1,9 +1,14 @@
 from contextlib import contextmanager
+import base64
+import os
+import re
+from pathlib import Path
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtWidgets import QFileDialog, QListWidgetItem
 from PyQt6.QtWidgets import QGraphicsLineItem
 from PyQt6.QtCore import QPointF
-from PyQt6.QtGui import QPen, QColor
+from PyQt6.QtGui import QPen, QColor, QImage, QPainter
+from PyQt6.QtSvg import QSvgRenderer
 from PyQt6 import uic
 from PIL import Image
 import numpy as np
@@ -12,6 +17,90 @@ from collections import defaultdict
 from HelperClasses import ImgObj
 from PathManager import get_gui_file_path
 from ImageUpscaling import ImageUpscaler
+
+
+class SaveImageFormatDialog(QtWidgets.QDialog):
+    """Popup-Dialog zur Vorauswahl des Speichertyps und von Transparenzoptionen."""
+
+    def __init__(self, parent=None, default_format="png", white_as_transparent=False):
+        super().__init__(parent)
+        self.setWindowTitle("Bild speichern - Format")
+        self.setModal(True)
+        self.setMinimumWidth(380)
+
+        # Unterstützte Formate: (Name, Erweiterung, Filter-String, Transparenz-Support)
+        self.formats = [
+            ("PNG (*.png)", "png", "PNG Files (*.png)", True),
+            ("SVG (*.svg)", "svg", "SVG Files (*.svg)", True),
+            ("JPEG (*.jpg *.jpeg)", "jpg", "JPEG Files (*.jpg *.jpeg)", False),
+            ("BMP (*.bmp)", "bmp", "BMP Files (*.bmp)", False),
+        ]
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        form_layout = QtWidgets.QFormLayout()
+        form_layout.setSpacing(8)
+
+        self.format_combo = QtWidgets.QComboBox(self)
+        for name, ext, flt, supp in self.formats:
+            self.format_combo.addItem(name, (ext, flt, supp))
+
+        form_layout.addRow("Speichertyp:", self.format_combo)
+        layout.addLayout(form_layout)
+
+        self.transparency_check = QtWidgets.QCheckBox(
+            "Weiß (RGB 255, 255, 255) als transparente Farbe speichern", self
+        )
+        self.transparency_check.setChecked(white_as_transparent)
+        layout.addWidget(self.transparency_check)
+
+        self.info_label = QtWidgets.QLabel(self)
+        self.info_label.setStyleSheet("color: #777; font-size: 11px;")
+        layout.addWidget(self.info_label)
+
+        button_box = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel,
+            self
+        )
+        ok_btn = button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Ok)
+        ok_btn.setText("Weiter...")
+        cancel_btn = button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        cancel_btn.setText("Abbrechen")
+
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.format_combo.currentIndexChanged.connect(self.on_format_changed)
+
+        # Vorauswahl treffen
+        for i, (name, ext, flt, supp) in enumerate(self.formats):
+            if ext.lower() == default_format.lower() or name.lower().startswith(default_format.lower()):
+                self.format_combo.setCurrentIndex(i)
+                break
+
+        self.on_format_changed(self.format_combo.currentIndex())
+
+    def on_format_changed(self, index):
+        item_data = self.format_combo.itemData(index)
+        if item_data:
+            ext, flt, supports_transparency = item_data
+            if supports_transparency:
+                self.transparency_check.setEnabled(True)
+                self.info_label.setText("")
+            else:
+                self.transparency_check.setEnabled(False)
+                self.transparency_check.setChecked(False)
+                self.info_label.setText("Das gewählte Format unterstützt keine transparente Farbe.")
+
+    def get_selected_format(self):
+        index = self.format_combo.currentIndex()
+        return self.format_combo.itemData(index)
+
+    def is_white_as_transparent(self):
+        return self.transparency_check.isChecked() and self.transparency_check.isEnabled()
+
 
 class BaseFunctions:
     def __init__(self, data_handler, gui):
@@ -23,6 +112,8 @@ class BaseFunctions:
         self.image_dimension_frame = gui.image_dimension_frame
         self.image_lister_frame = gui.image_lister_frame
         self.default_dpi = 96  # Assuming 96 DPI by default
+        self.last_save_format = "png"
+        self.last_white_transparent = False
         self.changeing_image = False
         self.updating_dimensions = False
         self.active_image_item = None
@@ -121,35 +212,98 @@ class BaseFunctions:
         # Bind event for selection change
         self.images_ListWidget.itemSelectionChanged.connect(self.change_image)
 
-    def load_image(self, file_path):
-        file_path, _ = QFileDialog.getOpenFileName()
+    def load_image(self, file_path=None):
+        if not file_path or not isinstance(file_path, (str, Path)):
+            file_path, _ = QFileDialog.getOpenFileName(
+                self.gui,
+                "Bild laden",
+                "",
+                "Image Files (*.png *.jpg *.jpeg *.bmp *.svg *.webp *.gif *.tiff);;SVG Files (*.svg);;All Files (*)"
+            )
         if file_path:
+            file_path = str(file_path)
             try:
-                # Open and convert image to RGB
-                image = Image.open(file_path).convert('RGB')
-                image_matrix = np.array(image)
-                # Ensure image_matrix is (H, W, 3)
-                if image_matrix.ndim == 2:
-                    # Grayscale image, convert to RGB
-                    image_matrix = np.stack([image_matrix]*3, axis=-1)
-                elif image_matrix.shape[-1] != 3:
-                    # Remove alpha or extra channels
-                    image_matrix = image_matrix[..., :3]
+                if file_path.lower().endswith(".svg"):
+                    renderer = QSvgRenderer(file_path)
+                    if not renderer.isValid():
+                        raise ValueError(f"Ungültige oder nicht lesbare SVG-Datei: {file_path}")
 
-                # Check if image has DPI info, otherwise use default
-                dpi = image.info.get('dpi', (self.default_dpi, self.default_dpi))[0] if hasattr(image, 'info') else self.default_dpi
-                pixel_per_mm = dpi / 25.4  # Update image
-                filename = file_path.split("/")[-1]
+                    viewbox = renderer.viewBox()
+                    size = renderer.defaultSize()
+                    width = viewbox.width() if viewbox.width() > 0 else size.width()
+                    height = viewbox.height() if viewbox.height() > 0 else size.height()
+                    if width <= 0:
+                        width = 800
+                    if height <= 0:
+                        height = 600
+
+                    # Transparente Bereiche als reinweiß (RGB 255, 255, 255) laden
+                    qimg = QImage(width, height, QImage.Format.Format_ARGB32)
+                    qimg.fill(QColor(255, 255, 255, 255))
+                    painter = QPainter(qimg)
+                    renderer.render(painter)
+                    painter.end()
+
+                    qimg_rgba = qimg.convertToFormat(QImage.Format.Format_RGBA8888)
+                    ptr = qimg_rgba.bits()
+                    ptr.setsize(qimg_rgba.sizeInBytes())
+                    bytes_per_line = qimg_rgba.bytesPerLine()
+                    arr = np.frombuffer(ptr, np.uint8).reshape((height, bytes_per_line))[:, :width * 4].reshape((height, width, 4))
+                    image_matrix = arr[..., :3].copy()
+
+                    pixel_per_mm = self.default_dpi / 25.4
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            content = f.read(1024)
+                        match = re.search(r'width="([0-9.]+)mm"', content)
+                        if match:
+                            w_mm = float(match.group(1))
+                            if w_mm > 0:
+                                pixel_per_mm = width / w_mm
+                    except Exception:
+                        pass
+                else:
+                    raw_image = Image.open(file_path)
+                    # Bilder mit transparenten Farbwerten als reinweiß (RGB 255, 255, 255) laden
+                    if "A" in raw_image.mode or "transparency" in raw_image.info:
+                        rgba_image = raw_image.convert("RGBA")
+                        alpha_channel = np.array(rgba_image.getchannel("A"))
+                        white_bg = Image.new("RGBA", rgba_image.size, (255, 255, 255, 255))
+                        composited = Image.alpha_composite(white_bg, rgba_image).convert("RGB")
+                        image_matrix = np.array(composited)
+                        # Vollkommen transparente Pixel (alpha == 0) explizit als [255, 255, 255] setzen
+                        image_matrix[alpha_channel == 0] = [255, 255, 255]
+                    else:
+                        image = raw_image.convert("RGB")
+                        image_matrix = np.array(image)
+
+                    # Ensure image_matrix is (H, W, 3)
+                    if image_matrix.ndim == 2:
+                        image_matrix = np.stack([image_matrix] * 3, axis=-1)
+                    elif image_matrix.shape[-1] != 3:
+                        image_matrix = image_matrix[..., :3]
+
+                    dpi_info = raw_image.info.get("dpi", (self.default_dpi, self.default_dpi)) if hasattr(raw_image, "info") else self.default_dpi
+                    if isinstance(dpi_info, (tuple, list)):
+                        dpi = dpi_info[0] if len(dpi_info) > 0 else self.default_dpi
+                    else:
+                        dpi = dpi_info
+                    if not dpi or dpi <= 0:
+                        dpi = self.default_dpi
+                    pixel_per_mm = dpi / 25.4
+
+                filename = os.path.basename(file_path)
                 self.changeing_image = True
                 img_obj = ImgObj(image_matrix.copy(), image_matrix.copy(), pixel_per_mm, pixel_per_mm)
                 self.add_listbox_item(img_obj, filename, set_selected=True)
                 self.changeing_image = False
-                self.set_handler_data(new_image = True)
+                self.set_handler_data(new_image=True)
                 self.update_dimension_fields()
-                #center image on loading
+                # Center image on loading
                 self.gui.image_canvas.centerOn(self.gui.image_item)
             except Exception as e:
                 print(f"Error loading image: {e}")
+                QtWidgets.QMessageBox.critical(self.gui, "Fehler beim Laden", f"Fehler beim Laden des Bildes:\n{e}")
 
     def open_new_blank(self):
         """Open the New Blank dialog to create a blank image."""
@@ -168,20 +322,114 @@ class BaseFunctions:
             self.active_image_item = item
 
     def save_image(self):
+        if not self.active_image_item:
+            QtWidgets.QMessageBox.warning(self.gui, "Warnung", "Kein aktives Bild zum Speichern vorhanden.")
+            return
+
+        # 2. Popup mit Vorausauswahl für den Speichertypen und Transparenz-Checkbox
+        default_fmt = getattr(self, "last_save_format", "png")
+        default_trans = getattr(self, "last_white_transparent", False)
+
+        dialog = SaveImageFormatDialog(self.gui, default_format=default_fmt, white_as_transparent=default_trans)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+
+        selected_ext, selected_filter, supports_transparency = dialog.get_selected_format()
+        white_as_transparent = dialog.is_white_as_transparent()
+
+        self.last_save_format = selected_ext
+        self.last_white_transparent = white_as_transparent
+
+        filter_list = [
+            f"{name}" for name, _, _, _ in dialog.formats
+        ]
+        filter_str = ";;".join(filter_list) + ";;All Files (*)"
+
+        raw_name = self.active_image_item.text()
+        base_name = os.path.splitext(raw_name)[0]
+        default_file_name = f"{base_name}.{selected_ext}"
+
         file_path, _ = QFileDialog.getSaveFileName(
-            None, "Save Image", "", "PNG Files (*.png);;BMP Files (*.bmp);;JPEG Files (*.jpg *.jpeg)"
+            self.gui, "Bild speichern", default_file_name, filter_str, initialFilter=selected_filter
         )
-        if file_path:
-            try:
-                self.get_handler_data()
-                image_matrix = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).image_matrix
+
+        if not file_path:
+            return
+
+        # Sicherstellen, dass Dateiendung vorhanden ist
+        _, ext = os.path.splitext(file_path)
+        if not ext:
+            file_path += f".{selected_ext}"
+            ext = f".{selected_ext}"
+
+        ext_clean = ext.lower().lstrip(".")
+        format_supports_transparency = ext_clean in ("png", "svg")
+        apply_transparency = white_as_transparent and format_supports_transparency
+
+        try:
+            self.get_handler_data()
+            image_matrix = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).image_matrix
+            pixel_per_mm = self.get_active_pixel_per_mm()
+            dpi = round(pixel_per_mm * 25.4) if pixel_per_mm else self.default_dpi
+
+            if ext_clean == "svg":
+                height, width = image_matrix.shape[:2]
+                if apply_transparency:
+                    # Weiß (RGB 255, 255, 255) als transparente Farbe speichern
+                    is_white = (image_matrix[:, :, 0] == 255) & \
+                               (image_matrix[:, :, 1] == 255) & \
+                               (image_matrix[:, :, 2] == 255)
+                    alpha = np.where(is_white, 0, 255).astype(np.uint8)
+                    rgba = np.dstack([image_matrix, alpha])
+                    pil_image = Image.fromarray(rgba, mode="RGBA")
+                else:
+                    pil_image = Image.fromarray(image_matrix, mode="RGB")
+
+                buf = io.BytesIO()
+                pil_image.save(buf, format="PNG", dpi=(dpi, dpi))
+                b64_data = base64.b64encode(buf.getvalue()).decode("ascii")
+
+                width_str = f"{width / pixel_per_mm:.4f}mm" if pixel_per_mm and pixel_per_mm > 0 else f"{width}px"
+                height_str = f"{height / pixel_per_mm:.4f}mm" if pixel_per_mm and pixel_per_mm > 0 else f"{height}px"
+
+                svg_content = f'''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="{width_str}" height="{height_str}" viewBox="0 0 {width} {height}" version="1.1">
+  <image width="{width}" height="{height}" preserveAspectRatio="none" image-rendering="pixelated"
+         href="data:image/png;base64,{b64_data}" xlink:href="data:image/png;base64,{b64_data}"/>
+</svg>
+'''
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(svg_content)
+
+            elif ext_clean == "png":
+                if apply_transparency:
+                    # Weiß (RGB 255, 255, 255) als transparente Farbe speichern
+                    is_white = (image_matrix[:, :, 0] == 255) & \
+                               (image_matrix[:, :, 1] == 255) & \
+                               (image_matrix[:, :, 2] == 255)
+                    alpha = np.where(is_white, 0, 255).astype(np.uint8)
+                    rgba = np.dstack([image_matrix, alpha])
+                    image = Image.fromarray(rgba, mode="RGBA")
+                else:
+                    image = Image.fromarray(image_matrix, mode="RGB")
+                image.save(file_path, format="PNG", dpi=(dpi, dpi))
+
+            elif ext_clean in ("jpg", "jpeg"):
+                image = Image.fromarray(image_matrix, mode="RGB")
+                image.save(file_path, format="JPEG", dpi=(dpi, dpi))
+
+            elif ext_clean == "bmp":
+                image = Image.fromarray(image_matrix, mode="RGB")
+                image.save(file_path, format="BMP", dpi=(dpi, dpi))
+
+            else:
                 image = Image.fromarray(image_matrix)
-                # Calculate DPI from current pixel_per_mm
-                dpi = round(self.get_active_pixel_per_mm() * 25.4)
-                # Save with DPI metadata (works for PNG, BMP, and JPEG)
                 image.save(file_path, dpi=(dpi, dpi))
-            except Exception as e:
-                print(f"Error saving image: {e}")        
+
+        except Exception as e:
+            print(f"Error saving image: {e}")
+            QtWidgets.QMessageBox.critical(self.gui, "Fehler beim Speichern", f"Fehler beim Speichern des Bildes:\n{e}")        
 
     @contextmanager
     def _record_matrix(self, description):
