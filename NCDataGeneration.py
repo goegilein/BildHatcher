@@ -128,7 +128,7 @@ class Hatcher:
                     end_x = min((i + 1) * cluster_width_px, image_width_px)
                     cluster_matrix = image_matrix[:, start_x:end_x]
                     cluster_mid_x_rel_to_image_center = ((start_x + end_x) / 2 - self.center_for_hatch[0]) / self.pixel_per_mm
-                    angle_for_cluster_mid = (cluster_mid_x_rel_to_image_center/(2*radius_mm*np.pi) * 360)*-1 #invert angle for correct rotation direction
+                    angle_for_cluster_mid = (cluster_mid_x_rel_to_image_center/(2*radius_mm*np.pi) * 360) #*-1 #invert angle for correct rotation direction
                     ref_position = [0, 0, 0, angle_for_cluster_mid]  # x, y, z, rotation
                     cluster_center_for_hatch = [(cluster_matrix.shape[1]-1)/2, self.center_for_hatch[1], 0]
                     hatch_data.hatch_clusters.append(HatchCluster(None, cluster_matrix, ref_position,cluster_center_for_hatch, radius_mm))
