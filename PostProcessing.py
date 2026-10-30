@@ -77,7 +77,8 @@ class PostProcessor:
             hatch_lines_new=[]
             #speed an power in one hatchline array should always be the same
             speed=hatch_lines[0][0].speed
-            const_drive_len=np.maximum(1, speed*0.04) #set constant drive length to 4% of speed/s in mm but at
+            # const_drive_len=np.maximum(1, speed*0.04) #set constant drive length to 4% of speed/s in mm but at
+            const_drive_len=np.maximum(0.1, 1.1*speed**2/(2*3000)) #assuming a constant acceleration/deceleration of 3000 mm/s^2 and using a 10% buffer
             #over_drive_len= (-0.075*speed**2+7.05*speed+37.5)/1000 #from a fit to measured data (10mm/s:100um, 20mm/s:150um, 30mm/s:180um, 40mm/2:200um)
             over_drive_len = 0.24484+(0.10634-0.24484)/(1+(speed/27.3937)**5.82549) #logistics fit to measured data of horz lines (31.01.2025) (10mm/s:110um, 20mm/s:120um, 30mm/s:200um, 40mm/2:220um, 50mm/s:250um, 60mm/s:230um, 70mm/s:240um, 100mm/s:260um)
             for polyline in hatch_lines:
