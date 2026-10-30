@@ -78,8 +78,8 @@ class Point:
             r=self.r,
             g=self.g,
             b=self.b,
-            speed=self.speed,
-            pwr=self.pwr
+            speed=speed,
+            pwr=pwr
         )
     
 class ImgObj:
