@@ -117,10 +117,57 @@ class ImageUpscaler:
         height, width = self.data_handler.image_matrix.shape[:2]
         return width * scale, height * scale
 
+    @staticmethod
+    def scale2x(image: np.ndarray) -> np.ndarray:
+        """
+        Applies the Scale2x (AdvMAME2x / EPX) algorithm to double image resolution,
+        smoothing/rounding edges while strictly preserving the exact palette colors.
+        """
+        h, w, c = image.shape
+        padded = np.pad(image, ((1, 1), (1, 1), (0, 0)), mode='edge')
+
+        # Orthogonal neighbors of center pixel E:
+        #   B
+        # D E F
+        #   H
+        E = padded[1:-1, 1:-1]
+        B = padded[0:-2, 1:-1]  # Top
+        D = padded[1:-1, 0:-2]  # Left
+        F = padded[1:-1, 2:]    # Right
+        H = padded[2:, 1:-1]    # Bottom
+
+        # Equality tests across color channels
+        eq_DB = np.all(D == B, axis=-1)
+        eq_BF = np.all(B == F, axis=-1)
+        eq_DH = np.all(D == H, axis=-1)
+        eq_HF = np.all(H == F, axis=-1)
+
+        # Scale2x rules:
+        # E0 = D == B and D != H and B != F ? D : E
+        m0 = eq_DB & (~eq_DH) & (~eq_BF)
+        # E1 = B == F and B != D and F != H ? F : E
+        m1 = eq_BF & (~eq_DB) & (~eq_HF)
+        # E2 = D == H and D != B and H != F ? D : E
+        m2 = eq_DH & (~eq_DB) & (~eq_HF)
+        # E3 = H == F and H != D and F != B ? F : E
+        m3 = eq_HF & (~eq_DH) & (~eq_BF)
+
+        E0 = np.where(m0[..., None], D, E)
+        E1 = np.where(m1[..., None], F, E)
+        E2 = np.where(m2[..., None], D, E)
+        E3 = np.where(m3[..., None], F, E)
+
+        out = np.empty((h * 2, w * 2, c), dtype=image.dtype)
+        out[0::2, 0::2] = E0
+        out[0::2, 1::2] = E1
+        out[1::2, 0::2] = E2
+        out[1::2, 1::2] = E3
+        return out
+
     def palette_preserving_upscale(self, scale: int = 2, status_callback=None) -> np.ndarray | None:
         """
-        Preserves the original palette exactly by using nearest-neighbor pixel replication.
-        This does not create any blended or interpolated colors.
+        Upscales the image while rounding edges and strictly preserving the original color palette.
+        Uses the Scale2x (AdvMAME2x) algorithm (iterated for powers of 2).
         """
         if self.data_handler.image_matrix is None:
             if status_callback:
@@ -138,11 +185,38 @@ class ImageUpscaler:
         if scale <= 0:
             raise ValueError("Scale must be a positive integer.")
 
-        if status_callback:
-            status_callback(f"Applying palette-preserving {scale}x nearest-neighbor upscale...")
+        if scale == 1:
+            return image_matrix.copy()
 
-        # Replicate each pixel block exactly to keep every original RGB value unchanged.
-        upscaled_rgb = np.repeat(np.repeat(image_matrix, scale, axis=0), scale, axis=1)
+        if status_callback:
+            status_callback(f"Applying palette-preserving {scale}x upscale (Scale2x / AdvMAME2x)...")
+
+        is_power_of_two = (scale & (scale - 1)) == 0
+        current = image_matrix
+
+        if is_power_of_two:
+            passes = int(np.round(np.log2(scale)))
+            for i in range(passes):
+                if status_callback and passes > 1:
+                    status_callback(f"Applying Scale2x pass {i + 1}/{passes}...")
+                current = self.scale2x(current)
+            upscaled_rgb = current
+        else:
+            passes = int(np.floor(np.log2(scale)))
+            for i in range(passes):
+                if status_callback:
+                    status_callback(f"Applying Scale2x pass {i + 1}...")
+                current = self.scale2x(current)
+
+            orig_h, orig_w = image_matrix.shape[:2]
+            target_w, target_h = orig_w * scale, orig_h * scale
+            if current.shape[1] != target_w or current.shape[0] != target_h:
+                if status_callback:
+                    status_callback("Adjusting to target dimensions (nearest-neighbor)...")
+                upscaled_rgb = cv2.resize(current, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
+            else:
+                upscaled_rgb = current
+
         self.data_handler.image_matrix = upscaled_rgb
 
         if status_callback:
@@ -154,7 +228,7 @@ class ImageUpscaler:
         """
         Upscales the current image in data_handler.image_matrix using the portable AI engine.
         Saves output directly back to data_handler.image_matrix and returns it.
-        If preserve_palette is True, a palette-safe nearest-neighbor algorithm is used instead.
+        If preserve_palette is True, a palette-safe Scale2x (AdvMAME2x) algorithm is used instead.
         """
         if preserve_palette:
             return self.palette_preserving_upscale(scale=scale, status_callback=status_callback)

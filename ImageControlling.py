@@ -30,10 +30,10 @@ class SaveImageFormatDialog(QtWidgets.QDialog):
 
         # Unterstützte Formate: (Name, Erweiterung, Filter-String, Transparenz-Support)
         self.formats = [
-            ("PNG (*.png)", "png", "PNG Files (*.png)", True),
-            ("SVG (*.svg)", "svg", "SVG Files (*.svg)", True),
-            ("JPEG (*.jpg *.jpeg)", "jpg", "JPEG Files (*.jpg *.jpeg)", False),
-            ("BMP (*.bmp)", "bmp", "BMP Files (*.bmp)", False),
+            ("PNG (*.png)", "png", "PNG (*.png)", True),
+            ("SVG (*.svg)", "svg", "SVG (*.svg)", True),
+            ("JPEG (*.jpg *.jpeg)", "jpg", "JPEG (*.jpg *.jpeg)", False),
+            ("BMP (*.bmp)", "bmp", "BMP (*.bmp)", False),
         ]
 
         layout = QtWidgets.QVBoxLayout(self)
@@ -114,6 +114,7 @@ class BaseFunctions:
         self.default_dpi = 96  # Assuming 96 DPI by default
         self.last_save_format = "png"
         self.last_white_transparent = False
+        self.last_directory = ""
         self.changeing_image = False
         self.updating_dimensions = False
         self.active_image_item = None
@@ -214,14 +215,16 @@ class BaseFunctions:
 
     def load_image(self, file_path=None):
         if not file_path or not isinstance(file_path, (str, Path)):
+            default_dir = getattr(self, "last_directory", "")
             file_path, _ = QFileDialog.getOpenFileName(
                 self.gui,
                 "Bild laden",
-                "",
+                default_dir,
                 "Image Files (*.png *.jpg *.jpeg *.bmp *.svg *.webp *.gif *.tiff);;SVG Files (*.svg);;All Files (*)"
             )
         if file_path:
             file_path = str(file_path)
+            self.last_directory = os.path.dirname(os.path.abspath(file_path))
             try:
                 if file_path.lower().endswith(".svg"):
                     renderer = QSvgRenderer(file_path)
@@ -341,20 +344,24 @@ class BaseFunctions:
         self.last_white_transparent = white_as_transparent
 
         filter_list = [
-            f"{name}" for name, _, _, _ in dialog.formats
+            flt for _, _, flt, _ in dialog.formats
         ]
         filter_str = ";;".join(filter_list) + ";;All Files (*)"
 
         raw_name = self.active_image_item.text()
         base_name = os.path.splitext(raw_name)[0]
-        default_file_name = f"{base_name}.{selected_ext}"
+        file_name = f"{base_name}.{selected_ext}"
+        default_dir = getattr(self, "last_directory", "")
+        default_file_path = os.path.join(default_dir, file_name) if default_dir else file_name
 
         file_path, _ = QFileDialog.getSaveFileName(
-            self.gui, "Bild speichern", default_file_name, filter_str, initialFilter=selected_filter
+            self.gui, "Bild speichern", default_file_path, filter_str, initialFilter=selected_filter
         )
 
         if not file_path:
             return
+
+        self.last_directory = os.path.dirname(os.path.abspath(file_path))
 
         # Sicherstellen, dass Dateiendung vorhanden ist
         _, ext = os.path.splitext(file_path)
