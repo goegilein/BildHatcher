@@ -1,3 +1,4 @@
+from OpenGL.GL import vboimplementation
 import numpy as np
 from HelperClasses import ProcessBlock
 
@@ -78,12 +79,12 @@ class PostProcessor:
             #speed an power in one hatchline array should always be the same
             speed=hatch_lines[0][0].speed
             # const_drive_len=np.maximum(1, speed*0.04) #set constant drive length to 4% of speed/s in mm but at
-            const_drive_len=np.maximum(0.1, 2*speed**2/(2*3000)) #assuming a constant acceleration/deceleration of 3000 mm/s^2 and using a 100% buffer
-            #over_drive_len= (-0.075*speed**2+7.05*speed+37.5)/1000 #from a fit to measured data (10mm/s:100um, 20mm/s:150um, 30mm/s:180um, 40mm/2:200um)
-            over_drive_len = 0.24484+(0.10634-0.24484)/(1+(speed/27.3937)**5.82549) #logistics fit to measured data of horz lines (31.01.2025) (10mm/s:110um, 20mm/s:120um, 30mm/s:200um, 40mm/2:220um, 50mm/s:250um, 60mm/s:230um, 70mm/s:240um, 100mm/s:260um)
+            const_drive_len=self.get_const_drive_length_for_speed(speed) #assuming a constant acceleration/deceleration of 3000 mm/s^2 and using a 100% buffer
+            over_drive_len = self.get_over_drive_length_for_speed(speed) #logistics fit to measured data of horz lines (31.01.2025) (10mm/s:110um, 20mm/s:120um, 30mm/s:200um, 40mm/2:220um, 50mm/s:250um, 60mm/s:230um, 70mm/s:240um, 100mm/s:260um)
             for polyline in hatch_lines:
                 #always start with a constant drive motion
-                A_new, A_pre, B_new, B_post = self.elongate_line(polyline[0].pos, polyline[1].pos, const_drive_len)
+                first_const_drive_len=self.get_const_drive_length_for_speed(initial_speed=100, target_speed=speed) #assuming a constant acceleration/deceleration of 3000 mm/s^2 and using a 100% buffer
+                A_new, A_pre, B_new, B_post = self.elongate_line(polyline[0].pos, polyline[1].pos, first_const_drive_len, over_drive_len)
                 polyline_new = [polyline[0].clone_with(x=A_pre[0], y=A_pre[1], z=A_pre[2],move_type=0, speed = 100), polyline[0]] #these are two G0 commands as first command from Hatcher is ALWAYS G0. we can maximize speed on first G0 command for efficiency
                 point_prev = polyline[0]
                 for i in range(1,len(polyline)-1):
@@ -106,7 +107,6 @@ class PostProcessor:
                             polyline_new.append(point_now.clone_with(x=B_new1[0], y=B_new1[1], z=B_new1[2],move_type=1))
                         else:
                             print("Postprocessing Mode not recognized!")
-                        point_now.clone_with(x=B_pre[0], y=B_pre[1], z=B_pre[2],move_type=0)
                         polyline_new.append(point_now.clone_with(x=B_post[0], y=B_post[1], z=B_post[2],move_type=0))
                         polyline_new.append(point_now.clone_with(x=B_pre[0], y=B_pre[1], z=B_pre[2],move_type=0))
                         polyline_new.append(point_now.clone_with(move_type=0))
@@ -123,8 +123,6 @@ class PostProcessor:
                     polyline_new.append(polyline[-1].clone_with(x=B_post[0], y=B_post[1], z=B_post[2],move_type=0))
                 hatch_lines_new.append(polyline_new)
             data_processed.append(hatch_lines_new)
-        # self.hatch_data_processed = data_processed
-        # self.set_handler_data()
         return data_processed
 
 
@@ -169,7 +167,7 @@ class PostProcessor:
     def elongate_line(self, A, B, const_drive_len, over_drive_len=0):
         """
         Elongate a line defined by points A and B in 3D space by const+over drive length in both directions and return 2 additional nodes.
-        over_drive_len shits the input points. const_drive_len creates new points based on shifted points
+        over_drive_len shifts the input points. const_drive_len creates new points based on shifted points
 
         Parameters:
         A (np.ndarray): The start point of the line [x, y, z].
@@ -182,7 +180,7 @@ class PostProcessor:
         A_pre (np.ndarray): The new start point of the elongated line for the laser off move.
         A_new (np.ndarray): The new Point A which can be used for a laser on move
         B_post (np.ndarray): The new end point of the elongated line for the laser off move.
-        B_mew (np.ndarray): The new Point B whcih can be used for a lser on move
+        B_new (np.ndarray): The new Point B which can be used for a laser on move
         """
         # # Convert points to numpy arrays for vector operations
         # A = np.array(A)
@@ -207,4 +205,33 @@ class PostProcessor:
         B_post = B_new + elong_v_const_drive
 
         return A_new, A_pre, B_new, B_post
+
+    def get_const_drive_length_for_speed(self, initial_speed, target_speed =0, max_deceleration=3000, buffer=100):
+        """
+        Calculate the required constant drive length to safely slow down from a given speed.
+
+        This function calculates the stopping distance based on the maximum deceleration rate,
+        assuming constant acceleration and deceleration, and adds a safety buffer.
+
+        Parameters:
+        speed (float): The speed in mm/s from which to slow down.
+        max_deceleration (float): The maximum deceleration rate in mm/s^2.
+                                  Common values: 3000 (standard), 5000 (aggressive).
+        buffer (int): Percentage buffer to add to the calculated distance (default: 100 for 100% buffer).
+
+        Returns:
+        float: The required constant drive length in mm.
+        """
+        # Formula: distance = (speed^2 - target_speed^2) / (2 * max_deceleration)
+        # We use max_deceleration as a positive value (it's the magnitude of deceleration)
+        distance = (initial_speed**2 - target_speed**2) / (2 * max_deceleration)
+        
+        # Add buffer
+        total_length = distance * (1 + buffer / 100)
+        
+        # Ensure a minimum length of 0.1mm to avoid zero/negative values
+        return np.maximum(0.1, total_length)
+    
+    def get_over_drive_length_for_speed(self, speed):
+        return 0.24484+(0.10634-0.24484)/(1+(speed/27.3937)**5.82549)
     
