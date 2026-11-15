@@ -62,13 +62,12 @@ def run_hatching(c, pattern, angle=45.0, dist_mode="ColorRanged", dist_min=300, 
     gui.white_threshold_hatching_spinbox.setValue(white_threshold)
 
     hatcher = c.image_hatcher
-    # stubs for the worker/progress objects the hatching code talks to
-    hatcher.worker = SimpleNamespace(progress=SimpleNamespace(emit=lambda *_: None))
-    hatcher.progress_dialog = SimpleNamespace(value=lambda: 0)
+    hatcher.worker = SimpleNamespace(progress=SimpleNamespace(emit=lambda *_: None))  # stub: no thread
     hatcher.hatching_cancelled = False
+    hatcher._last_progress = 0
 
     random.seed(seed)
-    result = hatcher.create_hatching_worker(mode="manual")
+    result = hatcher.create_hatching_worker(**hatcher.collect_hatch_settings("manual"))
     assert result is not None, "hatching returned no result"
     hatcher.hatching_finished(result)
     return result

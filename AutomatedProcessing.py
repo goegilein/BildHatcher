@@ -54,7 +54,7 @@ class AutomatedProcessor:
         if self.db_color_palette is None:
             QtWidgets.QMessageBox.warning(self.gui, "No Profile Selected", "Please select a material profile first.")
             return
-        self.hatcher.create_hatching(
+        hatched = self.hatcher.create_hatching(
             mode="automatic",
             db_color_palette = self.db_color_palette,
             hatch_pattern = None,
@@ -62,7 +62,9 @@ class AutomatedProcessor:
             hatch_mode = self.automatic_hatch_mode_comboBox.currentText(),
             stepsize_mm=  0.1,
             white_threshold = self.automatic_white_threshold_spinBox.value())
-        
+        if not hatched:  # failed or cancelled: do not export stale hatch data
+            return
+
         self.parser.automatic_jcode(
             db_color_palette = self.db_color_palette,
             white_threshold = self.automatic_white_threshold_spinBox.value(),
