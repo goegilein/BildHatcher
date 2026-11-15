@@ -60,6 +60,16 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         for name in ("white_threshold_hatching_spinbox", "label_4"):
             getattr(gui, name).hide()
 
+        # P4.4: random seed for RandomMeander / Circular (0 = new random pattern every time); uses the freed cell
+        gui.random_seed_label = QtWidgets.QLabel("Random Seed")
+        gui.random_seed_spinbox = QtWidgets.QSpinBox()
+        gui.random_seed_spinbox.setRange(0, 999999)
+        gui.random_seed_spinbox.setSpecialValueText("off (random)")
+        gui.random_seed_spinbox.setToolTip("Same seed -> same random angles / start points, so a hatching can be reproduced")
+        gui.gridLayout_6.addWidget(gui.random_seed_label, 0, 3)
+        gui.gridLayout_6.addWidget(gui.random_seed_spinbox, 1, 3)
+        self.random_seed_spinbox = gui.random_seed_spinbox
+
         # Initialize combobox values
         self.hatch_pattern_combobox.addItems(["FixedMeander", "RandomMeander", "CrossedMeander", "Circular", "Spiral", "Radial"])
         self.hatch_dist_mode_combobox.addItems(["ColorRanged", "Fixed"])
@@ -168,6 +178,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
             cyl_rad_mm=self.cyl_rad_spinbox.value(),
             hatch_mode=self.hatch_mode_combobox.currentText(),
             stepsize_mm=self.hatch_precision_spinbox.value(),
+            random_seed=self.random_seed_spinbox.value(),
         )
         settings.update(overrides)
         return settings
@@ -206,7 +217,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
 
     def create_hatching_worker(self, mode="manual", db_color_palette=None, hatch_pattern=None, hatch_angle=None,
                                hatch_dist_mode="Fixed", hatch_dist_min=None, hatch_dist_max=None, cyl_rad_mm=None,
-                               hatch_mode=None, stepsize_mm=None):
+                               hatch_mode=None, stepsize_mm=None, random_seed=0):
         """Runs in the worker thread: must not touch any widget."""
         try:
             self.get_handler_data()
@@ -240,7 +251,8 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                     hatch_mode=hatch_mode,
                     stepsize_mm=stepsize_mm,
                     db_color_palette=db_color_palette,
-                    cluster_progress = cluster_progress
+                    cluster_progress = cluster_progress,
+                    rng = random.Random(random_seed) if random_seed else random
                 )
                 if hatch_cluster.data == 0 or hatch_cluster.data is None:
                     return None
@@ -299,7 +311,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.worker.wait()
         self.hatch_progress_label.setText("Hatch State: Cancelled")
 
-    def hatch_cluster(self, labels, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", hatch_dist_min=300, hatch_dist_max=700, cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, db_color_palette=None, cluster_progress=0):
+    def hatch_cluster(self, labels, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", hatch_dist_min=300, hatch_dist_max=700, cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, db_color_palette=None, cluster_progress=0, rng=random):
         """Hatch every colour of one cluster. labels: label image from hatching.label_colors, color_list: its colours."""
         hatched_cluster = []
         cyl_rad = cyl_rad_mm * self.pixel_per_mm
@@ -335,12 +347,12 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
             if hatch_pattern == "FixedMeander":
                 line_collections = [hatching.meander(*args, hatch_angle, hatch_distance, step_size, **kwargs)]
             elif hatch_pattern == "RandomMeander":
-                theta = np.floor(random.uniform(0, 180))  # one random angle per colour
+                theta = np.floor(rng.uniform(0, 180))  # one random angle per colour
                 line_collections = [hatching.meander(*args, theta, hatch_distance, step_size, **kwargs)]
             elif hatch_pattern == "CrossedMeander":
                 line_collections = [hatching.meander(*args, hatch_angle + cross, hatch_distance, step_size, **kwargs) for cross in (0, 90)]
             elif hatch_pattern == "Circular":
-                line_collections = [hatching.circular(*args, hatch_distance, step_size, **kwargs)]
+                line_collections = [hatching.circular(*args, hatch_distance, step_size, rng=rng, **kwargs)]
             elif hatch_pattern == "Spiral":
                 line_collections = [hatching.spiral(*args, hatch_distance, step_size, **kwargs)]
             elif hatch_pattern == "Radial":

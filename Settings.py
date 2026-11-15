@@ -26,6 +26,7 @@ HATCHING_SETTINGS = {
     'hatch_mode': 'hatch_mode_combobox',
     'cyl_rad': 'cyl_rad_spinbox',
     'hatch_precision': 'hatch_precision_spinbox',
+    'random_seed': 'random_seed_spinbox',
     'contour_source': 'contour_source_combobox',
     'laser_mode': 'laser_mode_combobox',
     'max_power': 'max_power_spinbox',

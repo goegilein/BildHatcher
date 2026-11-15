@@ -190,7 +190,7 @@ def meander(labels, target, center, ppm, theta, hatch_distance, step_size, hatch
             return None
 
 
-def circular(labels, target, center, ppm, hatch_distance, step_size, hatch_mode="Flat", cyl_rad=None, progress=None):
+def circular(labels, target, center, ppm, hatch_distance, step_size, hatch_mode="Flat", cyl_rad=None, progress=None, rng=random):
     """Concentric circles around center, each with a random start angle (0-19 degrees)."""
     height, width = labels.shape
     max_rad = np.ceil(np.sqrt((height / 2) ** 2 + (width / 2) ** 2)) + np.ceil(hatch_distance)
@@ -198,7 +198,7 @@ def circular(labels, target, center, ppm, hatch_distance, step_size, hatch_mode=
     hatch_rad = hatch_distance / 10  # the start radius is smaller
     while hatch_rad <= max_rad:
         angle_res = min(step_size / hatch_rad, _TWO_PI_36)
-        start_angle = np.deg2rad(np.floor(random.uniform(0, 20)))
+        start_angle = np.deg2rad(np.floor(rng.uniform(0, 20)))
         angles = np.linspace(start_angle, start_angle + 2 * np.pi, int(np.ceil(2 * np.pi / angle_res)))
         x, outside = _cylinder_map(center[0] + hatch_rad * np.cos(angles), center[0], cyl_rad, hatch_mode)
         y = center[1] + hatch_rad * np.sin(angles)

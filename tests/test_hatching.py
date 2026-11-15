@@ -24,3 +24,19 @@ def test_b30_lines_are_symmetric_on_a_full_square():
     # image edges at -10 / +10 mm; both line ends within one sampling step (0.25) of them
     assert abs(xs.max() - 10.0) <= 0.25
     assert abs(xs.min() + 10.0) <= 0.25  # was -10.625: low edge shifted by more than one pixel
+
+
+def test_p44_random_seed_makes_random_patterns_reproducible(app_components):
+    from test_characterization import load_image, make_test_image, run_hatching
+
+    def hatch(pattern, seed, global_seed):
+        app_components.gui.random_seed_spinbox.setValue(seed)
+        result = run_hatching(app_components, pattern=pattern, seed=global_seed)  # seed= seeds the global random module
+        return [np.concatenate(layer.polylines) for layer in result.hatch_clusters[0].data]
+
+    load_image(app_components, make_test_image())
+    for pattern in ("RandomMeander", "Circular"):
+        a, b = hatch(pattern, 42, 1), hatch(pattern, 42, 2)
+        assert all(np.array_equal(x, y) for x, y in zip(a, b))  # fixed seed: independent of global state
+        c, d = hatch(pattern, 0, 1), hatch(pattern, 0, 2)
+        assert not all(x.shape == y.shape and np.array_equal(x, y) for x, y in zip(c, d))  # 0 = random

@@ -188,7 +188,7 @@ Done in sub-steps, each one green against the golden files:
 - [x] P4.1 Label map once per cluster (`hatching.label_colors`, packed RGB keys; background = −1).
 - [x] P4.2 Generic engine: vectorized curve sampling → label lookup → run detection. *Changed:* still one pass per colour (colours can have different hatch distance / random angle); the per-colour pass is vectorized, which removed the cost. One shared pass for equal settings: not needed (see benchmark).
 - [x] P4.3 Patterns share `_walk`/`_segments`/`_chains`; the 5 duplicated loops (~500 lines) are gone. CylEquidistX mapping vectorized.
-- [~] P4.4 Meander ordering per label (alternating direction) preserved; random numbers drawn in the old order. Seed in settings: open.
+- [x] P4.4 Meander ordering per label (alternating direction) preserved; random numbers drawn in the old order. "Random Seed" field in the hatching settings (0 = random each time, otherwise reproducible RandomMeander/Circular; saved in the hatching config).
 - [ ] P4.5 Optional: exact pixel-edge intersection for straight lines (DDA) – segment ends independent of step size. Remaining error after B30: segment starts at the first sample inside, ends halfway to the first sample outside → both ends within one sampling step of the pixel edge.
 - [x] P4.6 Worker gets its settings as a dict collected on the GUI thread; signals only; `QEventLoop` in automatic mode; cancel via progress callback (done in Phase 1, B02/B03).
 - [x] P4.7 Benchmark old vs. new (see 4a); outputs byte-identical.
@@ -280,3 +280,4 @@ Done in sub-steps, each one green against the golden files:
 | 2026-11-15 | P3.2 | Feedback: checkerboard squares changed size with zoom (texture in image coordinates). Now drawn by the canvas in screen pixels (constant 8 px squares). |
 | 2026-11-15 | 4a | Vectorized hatching engine in `core/hatching.py`, goldens byte-identical, 13–33× faster on 2400×1800 px. First version was only 3–6× faster: `np.unique(axis=0)` for the colour labels took 3.2 s, replaced by packed 1-D keys. Suspected endless loop for very wide CylEquidistX clusters checked against the old code: does not occur. |
 | 2026-11-15 | 4b, B30 | Edge rounding fixed; full-bleed golden cases added (fail with the old rounding). 42 tests. |
+| 2026-11-15 | P4.4 | Random seed setting (own `random.Random` instance, does not touch the global random state). |
