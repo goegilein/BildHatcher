@@ -5,12 +5,11 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import cv2
 from sklearn.cluster import KMeans
 import numpy as np
-import collections
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
 from HelperClasses import DBColorPalette
 import random
 from UndoRedo import ColorOverlayAction, ImprintColorOverlaysAction, ImageMatrixAction
-from core import image_doc
+from core import fill, image_doc
 
 class ImageAdjuster:
     def __init__(self, data_handler, gui):
@@ -200,12 +199,19 @@ class ImageAdjuster:
                 image_matrix = np.array(image)
                 # Flatten the image into a list of pixels
                 pixels = image_matrix.reshape((-1, 3))
-                num_colors = min(num_colors, len(np.unique(pixels, axis=0)))  # KMeans needs >= n distinct pixels
-                 # Cluster pixels into dominant colors
+                # P6.2: cluster the distinct colours weighted by their pixel count (same result as clustering
+                # every pixel, far fewer points); very colourful photos use a random sample of the colours
+                keys = (pixels[:, 0].astype(np.int32) << 16) | (pixels[:, 1].astype(np.int32) << 8) | pixels[:, 2]
+                unique_keys, inverse, counts = np.unique(keys, return_inverse=True, return_counts=True)
+                colors = np.stack([unique_keys >> 16, (unique_keys >> 8) & 255, unique_keys & 255], axis=1).astype(np.float64)
+                num_colors = min(num_colors, len(colors))  # KMeans needs >= n distinct colours
                 kmeans = KMeans(n_clusters=num_colors, random_state=42, n_init='auto')
-                kmeans.fit(pixels)
-                new_colors = kmeans.cluster_centers_.astype("uint8")
-                labels = kmeans.labels_
+                fit_idx = np.arange(len(colors))
+                if len(colors) > 100_000:
+                    fit_idx = np.random.default_rng(42).choice(len(colors), 100_000, replace=False)
+                kmeans.fit(colors[fit_idx], sample_weight=counts[fit_idx])
+                new_colors = np.round(kmeans.cluster_centers_).clip(0, 255).astype("uint8")
+                labels = kmeans.predict(colors)[inverse.reshape(-1)]
 
                 # Recreate the image using the new colors
                 simplified_image = new_colors[labels].reshape(image_matrix.shape)
@@ -320,7 +326,6 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import cv2
 import numpy as np
-import collections
 from PyQt6.QtCore import QRect, QRectF
 from PyQt6.QtGui import (QImage, QPixmap, QPainter, QPen, QColor, 
                          QPainterPath, QBrush)
@@ -343,7 +348,7 @@ class ImageColorer(QtCore.QObject):
         #Flags and variables for contouring
         self.contours_visible = False
         self.contours_list = []
-        self.contour_pixels = []
+        self.contour_mask = None  # bool (H, W): pixels of the last found contours
         self.contour_overlay_item = None
 
         # toggle flags for coloring and masking
@@ -1049,188 +1054,38 @@ class ImageColorer(QtCore.QObject):
             self.current_path = None
 
     def flood_fill(self, event, mode = "Regular"):
-        """
-        Flood-fill adapted for overlay logic.
-        event_pos: QPointF (Scene Coordinates)
-        """
-        # 1. Get data
-        # image_matrix = self._get_image_matrix() # This is RGBA
+        """Flood fill from the clicked pixel; the result becomes a colour overlay (imprinted later)."""
         image_matrix = self.data_handler.image_matrix
-        if image_matrix is None: return
+        if image_matrix is None:
+            return
+        x_image, y_image = self.data_handler.canvas_to_image_coords(event.position().x(), event.position().y())
+        self.flood_fill_at(x_image, y_image, mode)
 
+    def flood_fill_at(self, x_image, y_image, mode="Regular"):
+        image_matrix = self.data_handler.image_matrix
         h, w = image_matrix.shape[:2]
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
+        if not (0 <= x_image < w and 0 <= y_image < h):
+            return
+        if np.array_equal(image_matrix[y_image, x_image], self.active_color):
+            return  # already the fill colour
 
-        # Bounds Check
-        x_image, y_image = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
-        if not (0 <= x_image < w and 0 <= y_image < h): return
-
-        # Compare colors (comparison must be in the same color space)
-        # We assume image_matrix is RGBA
-        target_color = image_matrix[y_image, x_image].copy() 
-        fill_color_arr = np.array(self.active_color, dtype=np.uint8)
-        
-        # Abort if color is equal (tolerance could be added here)
-        if np.array_equal(target_color, fill_color_arr): return
-
-        #2. see if there are any masks and if the clicked pixel is inside one
-        active_mask = None
-        mask_matrix = np.full(image_matrix.shape, -1, dtype=np.int16)  # use signed sentinel so white pixels do not collide with invalid marker
-        for color_mask in self.data_handler.masks_list:
-            # if np.isnan(mask[y_img, x_img][0])==False:
-            if color_mask[y_image, x_image] == 1:
-                # Clicked inside a mask, do not replace color
-                active_mask = color_mask
-                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
+        # the fill stays inside the clicked mask, or outside of all masks if clicked on the background
+        region = None
+        for mask in self.data_handler.masks_list:
+            if mask[y_image, x_image] == 1:
+                region = mask == 1
                 break
-
-        if active_mask is None:
+        else:
             if self.data_handler.masks_list:
-                active_mask = self.get_background_mask()
-                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
-            else:
-                mask_matrix = image_matrix.astype(np.int16)  # B12: signed, so colour differences do not wrap
+                region = self.get_background_mask() == 1
 
-        # 3. BFS Algorithm (Numpy optimization is difficult for flood fill, so use Queue)
-        # For extremely large images: skimage.segmentation.flood_fill would be faster,
-        # but here we stick with pure Python/Numpy standard.
-        # Decide which pixels are detected as being connected depending on the mode
-        
-        color_mask = np.zeros((h, w), dtype=bool)
-        queue = collections.deque([(y_image, x_image)])
-        visited = set([(y_image, x_image)])
-        tolerance = self.flood_fill_parameter_value
-        
+        color_mask = fill.fill_region(
+            image_matrix, (x_image, y_image), mode, tolerance=self.flood_fill_parameter_value,
+            fill_color=self.active_color, limit_color=self.limit_color, region=region, contour_mask=self.contour_mask)
 
-
-        if mode == "Regular":
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                # Check neighbors
-                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w:
-                        if (ny, nx) not in visited:
-                            # Check pixel color
-                            if np.array_equal(mask_matrix[ny, nx], target_color):
-                                visited.add((ny, nx))
-                                queue.append((ny, nx))
-
-        elif mode == "Include Diagonals":
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                # Check 8 neighbors
-                for dy in [-1, 0, 1]:
-                    for dx in [-1, 0, 1]:
-                        if dy == 0 and dx == 0:
-                            continue
-                        ny, nx = cy + dy, cx + dx
-                        if 0 <= ny < h and 0 <= nx < w:
-                            if (ny, nx) not in visited:
-                                if np.array_equal(mask_matrix[ny, nx], target_color):
-                                    visited.add((ny, nx))
-                                    queue.append((ny, nx))
-        
-        elif mode == "Similar Color":
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w:
-                        if (ny, nx) not in visited:
-                            color_diff = np.linalg.norm(mask_matrix[ny, nx] - target_color)
-                            if color_diff <= tolerance:
-                                visited.add((ny, nx))
-                                queue.append((ny, nx))
-        
-        elif mode == "Diagonals + Similar":
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                for dy in [-1, 0, 1]:
-                    for dx in [-1, 0, 1]:
-                        if dy == 0 and dx == 0:
-                            continue
-                        ny, nx = cy + dy, cx + dx
-                        if 0 <= ny < h and 0 <= nx < w:
-                            if (ny, nx) not in visited:
-                                color_diff = np.linalg.norm(mask_matrix[ny, nx] - target_color)
-                                if color_diff <= tolerance:
-                                    visited.add((ny, nx))
-                                    queue.append((ny, nx))
-        
-        elif mode == "To Contours":
-            # fill all pixels until hitting a contour 
-            if len(self.contour_pixels)<1:
-                return  # No contours, so dont do anything
-            # Pre-mark all contour pixels as visited to act as boundaries
-            for point in self.contour_pixels:
-                cx, cy = point[0], point[1]
-                if 0 <= cy < h and 0 <= cx < w:
-                    visited.add((cy, cx))
-                
-            
-            # Process the queue with contour boundary check
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                
-                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w:
-                        if (ny, nx) not in visited:
-                            visited.add((ny, nx))
-                            queue.append((ny, nx))
-        elif mode == "To Color":
-            # fill all pixels until hitting a defined input color limit_color (r, g, b)
-            limit_color = self.limit_color
-            if np.array_equal(target_color, limit_color):
-                return  # No need to fill if the target color is the same as the limit color
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                # Check neighbors
-                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w:
-                        if (ny, nx) not in visited:
-                            # Check pixel color
-                            if not np.array_equal(mask_matrix[ny, nx], limit_color):
-                                visited.add((ny, nx))
-                                queue.append((ny, nx))
-        
-        elif mode == "Fill Lines":
-            #fill all colors that match the selected color AND have a matching color with the active color within R pixels distance
-            radius = tolerance
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                # Check neighbors
-                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w:
-                        if (ny, nx) not in visited:
-                            # Check pixel color
-                            if np.array_equal(mask_matrix[ny, nx], target_color):
-                                for ry in range(-radius, radius+1):
-                                    for rx in range(-radius, radius+1):
-                                        check_y, check_x = ny + ry, nx + rx
-                                        if 0 <= check_y < h and 0 <= check_x < w:
-                                            if np.array_equal(mask_matrix[check_y, check_x], fill_color_arr):
-                                                visited.add((ny, nx))
-                                                queue.append((ny, nx))
-
-
-        # 34. Create overlay and add to stack
+        # create overlay and add to stack
         if np.any(color_mask):
             overlay_item = self._create_overlay_from_mask(color_mask)
-            # # Position overlay at same location as main image to account for panning
-            # overlay_item.setPos(self.gui.image_item.pos())
-            # self.gui.image_scene.addItem(overlay_item)
             self.data_handler.active_color_overlays.append(overlay_item) # Add to undo stack
             if self.undo_manager:
                 action = ColorOverlayAction(
@@ -1621,12 +1476,8 @@ class ImageColorer(QtCore.QObject):
             # Draw contours on the mask with thickness
             cv2.drawContours(contour_mask, contours, -1, 1, thickness=self.contour_thickness_spinbox.value())
 
-            # Extract all pixel coordinates where contours exist for flood fill boundary
-            contour_pixels = np.argwhere(contour_mask == 1)
-            # Convert from (y, x) to (x, y) tuples
-            self.contour_pixels = []
-            for y, x in contour_pixels:
-                self.contour_pixels.append((x, y))
+            # contour pixels are the boundary of the "To Contours" flood fill
+            self.contour_mask = contour_mask == 1
 
             # Create overlay from the contour mask
             self.contour_overlay_item = self._create_overlay_from_mask(contour_mask.astype(bool))
