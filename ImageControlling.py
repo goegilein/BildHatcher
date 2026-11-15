@@ -932,6 +932,8 @@ class ImageMover(QtCore.QObject):
         
         # Apply the transform to the scene
         self.image_canvas.setTransform(transform)
+        if self.grid_on:
+            self.update_grid()  # the visible area changed
 
     def on_mouse_wheel(self, event):
         if not self.updating_scaling:
@@ -978,9 +980,13 @@ class ImageMover(QtCore.QObject):
             default_pixel_per_mm = self.data_handler.default_pixel_per_mm  # has to work on original image scaling to account for changes in pixel size
             grid_distance_px = grid_distance_mm * default_pixel_per_mm #* self.data_handler.image_scaling
 
+            # cover the image plus one view size around it (also when zoomed out)
             viewport_size = self.image_canvas.viewport().size()
-            width = viewport_size.width()
-            height = viewport_size.height()
+            zoom = self.image_canvas.transform().m11() or 1
+            image_rect = self.image_item.sceneBoundingRect()
+            width = image_rect.right() + viewport_size.width() / zoom
+            height = image_rect.bottom() + viewport_size.height() / zoom
+            width, height = min(width, 500 * grid_distance_px), min(height, 500 * grid_distance_px)  # keep it light
 
             # Draw vertical grid lines and always start from the middle
             x = 0

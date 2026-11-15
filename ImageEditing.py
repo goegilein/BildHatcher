@@ -537,6 +537,7 @@ class ImageColorer(QtCore.QObject):
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
         self.event_handler.add_global_event_callback(self.trigger_global_event)
         self.data_handler.image_shape_changed_callback_list.append(self.reset_masks)  # B17
+        self.data_handler.add_image_resized_callback(self.refresh_mask_outlines)  # B17: pixel size changed
 
 
     #### UI SETUP METHODS ####
@@ -1895,6 +1896,19 @@ class ImageColorer(QtCore.QObject):
             type = self.data_handler.mask_info[idx]['type']
             item_text = f"{type}-mask {idx + 1} ({non_nan_count} pixels)"
             self.masks_list_widget.addItem(item_text)
+
+    def refresh_mask_outlines(self):
+        """Rebuild the (scene coordinate) mask outlines from their image coordinates after the display scale changed."""
+        to_scene = lambda x, y: QtCore.QPointF(*self.data_handler.image_to_scene_coords(x, y))
+        for overlay, info in zip(self.data_handler.mask_overlays, self.data_handler.mask_info):
+            if info['type'] in ('rectangle', 'ellipse'):
+                x_min, y_min, x_max, y_max = info['coords']
+                overlay.setRect(QtCore.QRectF(to_scene(x_min, y_min), to_scene(x_max + 1, y_max + 1)))  # covers the pixels
+            elif info['type'] == 'polygon':
+                overlay.setPolygon(QtGui.QPolygonF([to_scene(x, y) for x, y in info['coords']]))
+        if self.edit_handles:
+            self.clear_edit_handles()
+            self.show_edit_handles_for_selected()
 
     def on_mask_selected(self):
         """Handle mask selection in the list widget."""

@@ -166,3 +166,22 @@ def test_b28_image_center_maps_to_machine_origin(app_components):
     line = c.data_handler.hatch_data.hatch_clusters[0].data[0].polylines[0]
     assert sorted({round(v, 6) for v in line[:, 0]}) == [-0.45, 0.45]
     assert sorted({round(v, 6) for v in line[:, 1]}) == [-0.45, 0.45]  # was shifted by -0.1 (one pixel)
+
+
+def test_b17_mask_outline_follows_pixel_size_change(app_components):
+    import numpy as np
+    from PyQt6 import QtWidgets
+    c = app_components
+    load_image(c, np.zeros((40, 60, 3), np.uint8))  # 10 px/mm
+    overlay = QtWidgets.QGraphicsRectItem()
+    c.gui.image_scene.addItem(overlay)
+    c.data_handler.masks_list.append(np.zeros((40, 60), np.uint8))
+    c.data_handler.mask_info.append({'type': 'rectangle', 'coords': (10, 5, 19, 14)})
+    c.data_handler.mask_overlays.append(overlay)
+
+    c.image_controller.set_active_pixel_per_mm(5.0)  # pixels twice as large on the canvas
+    c.image_controller.set_handler_data(new_image=False)
+    top_left = c.gui.image_item.mapFromScene(overlay.rect().topLeft())
+    bottom_right = c.gui.image_item.mapFromScene(overlay.rect().bottomRight())
+    assert (round(top_left.x(), 6), round(top_left.y(), 6)) == (10, 5)  # still on the mask pixels
+    assert (round(bottom_right.x(), 6), round(bottom_right.y(), 6)) == (20, 15)

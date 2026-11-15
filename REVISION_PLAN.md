@@ -123,7 +123,7 @@ tests/                   # pytest; core only, plus characterization tests
 | B14 | done | [ImageEditing.py:1323](ImageEditing.py#L1323), [:1334](ImageEditing.py#L1334) | DB recolour: cancelling profile dialog → AttributeError (or silently reuses old profile). Distance array pixels×palette×3 can exhaust memory. |
 | B15 | done | [ImageControlling.py:1219](ImageControlling.py#L1219) | Hatch centre computed from the *original* image shape → wrong after rotate/crop of non-square images. |
 | B16 | done | [ImageControlling.py:469](ImageControlling.py#L469) | Unlocked-ratio resize result discarded (dead code; checkbox disabled). Remove or implement. |
-| B17 | partial | masks (ImageEditing) | Mask matrices not cleared/transformed after rotate/crop/upscale/image switch → shape mismatch in flood fill/replace. Mask outlines live in scene coords → drift after pixel-size change. |
+| B17 | done | masks (ImageEditing) | Mask matrices not cleared/transformed after rotate/crop/upscale/image switch → shape mismatch in flood fill/replace. Mask outlines live in scene coords → drift after pixel-size change. |
 | B18 | done | [Point.pos setter, HelperClasses.py](HelperClasses.py) | Asserts shape `(1,3)` instead of `(3,)`. (Obsoleted by P2 data model, fix only if touched.) |
 | B19 | done | [Settings.py](Settings.py) | Comboboxes persisted by index (breaks when items change); hatching/plotting thresholds and several other parameters not saved. |
 | B20 | done | [ImageControlling.py:636](ImageControlling.py#L636) | `combine_images`: `avg_color` always `[0,0,0]` → monochrome is always black; Python per-pixel loop. |
@@ -211,14 +211,14 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 - [ ] P6.1 Non-destructive adjustment pipeline `result = pipeline(base, params)`; slider debounce (~50 ms); undo stores parameter changes.
 - [x] P6.2 K-means on the distinct colours weighted by pixel count (same objective as all pixels), random sample above 100k colours; 64 colours on 800×600: 3.0 → 0.1 s, same error. Lab space: not done.
 - [x] P6.3 `core/fill.py`: all 7 fill modes as "allowed pixels" + `cv2.connectedComponents`; verified against a reference BFS; 4 Mpx fill < 1 s (old Python BFS: minutes). Contours kept as a bool mask instead of a pixel list.
-- [ ] P6.4 (incl. rest of B17) Masks: geometry as source of truth, rasterize with `cv2.rectangle/ellipse/fillPoly`; outlines as children of `image_item` in image coords; transform/clear on geometry change; extract `MaskManager` from `ImageColorer`.
+- [~] P6.4 (incl. rest of B17 – done: outlines are rebuilt from the mask's image coordinates when the pixel size changes, `refresh_mask_outlines`) Masks: geometry as source of truth, rasterize with `cv2.rectangle/ellipse/fillPoly`; outlines as children of `image_item` in image coords; transform/clear on geometry change; extract `MaskManager` from `ImageColorer`.
 - [ ] P6.5 Colour overlays cropped to bounding box (not full-size RGBA per fill); pixmap overlays imprinted in numpy, vector items via QPainter into RGBA layer.
 - [ ] P6.6 Vectorize split colours, combine images, clean-up colours/clusters (remove unused `clean_up_clusters` if still unused).
 - [ ] P6.7 Contours: new mode "region outlines" via `findContours` on per-colour masks (`CHAIN_APPROX_NONE` + `approxPolyDP`); keep Canny mode.
 - [ ] P6.8 DXF import via `ezdxf.path` + `flattening(tolerance)` (supports splines, ellipses, bulges).
 - [ ] P6.9 Undo: memory-based limit (MB) instead of 50 full images; optional changed-region storage.
 - [ ] P6.10 Upscaler in worker thread; no side effects on state (see B22). Verify the 4x-then-resize path with the real engine (not covered by tests).
-- [ ] P6.11 Grid and center cross as children of `image_item` (follow pan/zoom/rescale correctly).
+- [x] P6.11 Checked: grid and center cross live in the scene, so they follow pan/zoom; the cross is redrawn on rescale. Fixed: the grid only covered one viewport size around the origin (missing when zoomed out) – now image + one view size, redrawn on zoom, max. 500 lines per direction.
 
 ### Phase 7 – Polish  `[ ]`
 - [ ] P7.1 Declarative settings registry; save combobox text; one config file with sections (image / hatching / output); load old configs.
@@ -291,3 +291,4 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 | 2026-11-15 | 5a | RDP + vectorized drive modes; `tests/test_postprocess.py`. 47 tests. |
 | 2026-11-15 | 5b | Machine profiles; `tests/test_machine.py` (old header/footer reproduced, second profile changes commands/options). 50 tests. |
 | 2026-11-15 | P6.2, P6.3, B32 | Vectorized flood fill (`tests/test_fill.py`), weighted k-means. 54 tests. |
+| 2026-11-15 | B17 (rest), P6.11 | Mask outlines follow pixel-size changes; grid covers the visible area. 55 tests. |
