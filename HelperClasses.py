@@ -28,8 +28,9 @@ class HatchData:
 
             
 class ProcessBlock:
-    def __init__(self, hatch_data:HatchData, iterations = 1, post_processing="None", laser_mode="constant",air_assist="off",enclosure_fan=100, power_mode="half" , offset = [0,0,0]):
+    def __init__(self, hatch_data:HatchData, iterations = 1, post_processing="None", laser_mode="constant",air_assist="off",enclosure_fan=100, power_mode="half" , offset = [0,0,0], machine=None):
         self.hatch_data = hatch_data
+        self.machine = machine  # core.machine.MachineProfile
         self.iterations = iterations
         self.post_processing = post_processing
         self.laser_mode = laser_mode

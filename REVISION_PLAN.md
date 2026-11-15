@@ -18,8 +18,8 @@ This file is the single source of truth for status – update it in the same com
 | 2 – Core model & state | done | P2.1 rest → Phase 4, masks per document → P6.4 |
 | 3 – Transparency | done | widgets of the old thresholds still in `.ui` (P7) |
 | 4 – Hatching engine | done | 13–33× faster, exact edges for lines, random seed |
-| 5 – Output | in progress | 5a done, next 5b (machine profiles) |
-| 6 – Editing tools | open | |
+| 5 – Output | done | machine profiles, RDP, fast drive modes |
+| 6 – Editing tools | **next** | |
 | 7 – Polish | open | |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
@@ -193,18 +193,18 @@ Done in sub-steps, each one green against the golden files:
 - [x] P4.6 Worker gets its settings as a dict collected on the GUI thread; signals only; `QEventLoop` in automatic mode; cancel via progress callback (done in Phase 1, B02/B03).
 - [x] P4.7 Benchmark old vs. new (see 4a); outputs byte-identical.
 
-### Phase 5 – Output (post-processing, G-code, plotting)  `[~]`
+### Phase 5 – Output (post-processing, G-code, plotting)  `[x]`
 
 Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s, Maximize Lines 7.0 s, Constant Drive 11.2 s, G-code text 1.5 s.
 - [x] **5a** Post-processing: RDP for Maximize Lines (7.0 → 3.0 s, fewer points), drive modes vectorized (11.2 → 0.24 s).
-- [ ] **5b** Machine profiles (P5.1) + writer (P5.2).
-- [ ] P5.1 `MachineProfile` JSON (**user-facing feature**, multiple machines planned – see Q1): header/footer, laser mode & power mode commands, enclosure fan, air assist, acceleration (now hardcoded 3000 mm/s²), travel speed (now hardcoded 100), over-drive fit parameters. Snapmaker Artisan = first profile.
-- [ ] P5.2 Streaming, vectorized G-code / jcode / txt writer; shared block/iteration loop for all formats.
+- [x] **5b** Machine profiles (P5.1). Writer (P5.2) left as is after measuring.
+- [x] P5.1 `core/machine.py` `MachineProfile` from JSON: header/footer, laser/power modes, air assist, enclosure fan, burn power format, feedrate, rapid speed, acceleration, over-drive fit, cylinder laser distance. Bundled `machine_profiles/snapmaker_artisan_40w.json` (reproduces the old output byte-identically) is copied to `~/Documents/BildHatcher/machine_profiles`; users add profiles there (Settings → Open Machine Profiles Folder). "Machine" drop-down in the export tab fills the laser/power/air drop-downs; stored in the hatching config and in every process block. *Not done:* profile editor in the UI; mapping of database lasers to profiles.
+- [-] P5.2 Streaming/vectorized writer: not needed – 780k lines take 1.5 s.
 - [x] P5.3 "Maximize Lines" = Ramer–Douglas–Peucker, tolerance 0.01 mm (*shortcut:* constant `MAXIMIZE_LINES_TOLERANCE`). Golden: 792 → 252 burn moves, same length.
 - [x] P5.4 Constant/Over Drive on arrays (corners as the only Python loop). *Changed semantics for interior points:* the old `angle_sum` state was never reset between polylines and only dropped exactly collinear points; now: corners sharper than 10° get lead-out/lead-in, exactly collinear points are dropped, everything else is kept. Goldens (2-point lines) byte-identical.
 - [x] P5.5 Speed/power per layer (2b). Deep copy measured at 0.02 s → left as is.
 - [x] P5.6 Plotting: one `GLLinePlotItem` per layer, vectorized position/colour arrays (2b).
-- [ ] P5.7 DB colour matching: parse palette once, optional ΔE (Lab) distance.
+- [-] P5.7 DB colour matching: called once per colour, cost negligible; ΔE would change results without a request.
 
 ### Phase 6 – Image editing tools  `[ ]`
 - [ ] P6.1 Non-destructive adjustment pipeline `result = pipeline(base, params)`; slider debounce (~50 ms); undo stores parameter changes.
@@ -250,6 +250,7 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 | 2026-11-15 | Toolpath move codes: `MOVE_TRAVEL`=0, `MOVE_BURN`=1, `MOVE_RAPID`=2 (lead-in travel at the fixed rapid speed of the drive post-processing). Speed/power are per layer. |
 | 2026-11-15 | `DataHandler` stays the application state object (no separate `AppState`); it exposes the active `ImageDocument` through properties. Callback lists / `ObservableList` are kept. |
 | 2026-11-15 | Phase 3: transparent pixels are stored as `(0,0,0,0)` and `normalize()` is the single choke point (any RGB result becomes opaque RGBA). The transparent colour is an eraser; erasing overlays are drawn as a checkerboard and imprinted with `DestinationOut`. |
+| 2026-11-15 | Machine profiles are plain JSON files (bundled default + user folder), no editor yet. The user folder can be overridden with `BILDHATCHER_PROFILE_DIR` (tests). |
 | 2026-11-15 | `main.py` exposes `create_main_window()` / `create_components(gui)` so tests build the real app wiring headless. |
 
 ---
@@ -287,3 +288,4 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 | 2026-11-15 | P4.4 | Random seed setting (own `random.Random` instance, does not touch the global random state). |
 | 2026-11-15 | P4.5 | Exact edges for straight hatch lines; meander/radial goldens regenerated (other goldens unchanged), geometric property test added. Speed unchanged (2400×1800 px: 0.8–1.0 s). 44 tests. |
 | 2026-11-15 | 5a | RDP + vectorized drive modes; `tests/test_postprocess.py`. 47 tests. |
+| 2026-11-15 | 5b | Machine profiles; `tests/test_machine.py` (old header/footer reproduced, second profile changes commands/options). 50 tests. |

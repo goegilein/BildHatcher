@@ -46,7 +46,9 @@ class PostProcessor:
             elif process_block.post_processing == "Maximize Lines":
                 data_processed = self.maximize_line_length(data_offset)
             elif process_block.post_processing == "Constant Drive" or process_block.post_processing == "Over Drive":
-                data_processed = self.set_drive_mode(data_offset, process_block.post_processing)
+                machine = process_block.machine
+                data_processed = self.set_drive_mode(data_offset, process_block.post_processing,
+                                                     machine.acceleration, machine.over_drive_fit)
             
             hatch_cluster.data = data_processed
 

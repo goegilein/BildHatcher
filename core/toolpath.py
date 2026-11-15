@@ -12,9 +12,7 @@ import numpy as np
 
 MOVE_TRAVEL = 0  # laser off, layer speed (G0)
 MOVE_BURN = 1    # laser on, layer speed and power (G1)
-MOVE_RAPID = 2   # laser off at RAPID_SPEED (lead-in moves of the drive post-processing)
-
-RAPID_SPEED = 100  # mm/s. shortcut: fixed value from the old post-processing, belongs into the machine profile (P5.1)
+MOVE_RAPID = 2   # laser off at the machine's rapid speed (lead-in moves of the drive post-processing)
 
 X, Y, Z, MOVE = 0, 1, 2, 3
 

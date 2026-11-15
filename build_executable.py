@@ -80,6 +80,7 @@ def build_executable():
         "--onefile",
         "--windowed",
         "--add-data", "GUI_Files;GUI_Files",  # Include GUI files
+        "--add-data", "machine_profiles;machine_profiles",  # bundled machine profiles (copied to the user folder)
         "--add-data", "version.json;.",       # Include version.json
         # "--add-data", "Drivers;Drivers",      # Include drivers
         "--distpath", OUTPUT_DIR,

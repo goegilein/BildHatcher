@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QFileDialog
 import numpy as np
 import datetime
 from HelperClasses import ProcessBlock, HatchData, HatchCluster
-from core import gcode
+from core import gcode, machine
 from core.postprocess import PostProcessor, apply_speed_and_power
 import copy
 
@@ -40,12 +40,19 @@ class Parser:
 
         # Set default values for spinboxes and comboboxes
         self.post_processing_combobox.addItems(["None", "Maximize Lines", "Constant Drive", "Over Drive"])
-        self.laser_mode_combobox.addItems([ "constant","variable"])
         self.power_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
         self.speed_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
         self.export_format_combobox.addItems([".jcode", ".gcode", ".txt"])
-        self.air_assist_combobox.addItems(["on", "off"])
-        self.power_mode_combobox.addItems(["half", "full"])
+
+        # P5.1: machine profile selection (in the cells of the former white threshold); fills the mode drop-downs
+        gui.machine_profile_label = QtWidgets.QLabel("Machine")
+        gui.machine_profile_combobox = QtWidgets.QComboBox()
+        gui.machine_profile_combobox.setToolTip("Machine profile (JSON files in " + str(machine.USER_DIR) + ")")
+        gui.gridLayout_15.addWidget(gui.machine_profile_label, 0, 1)
+        gui.gridLayout_15.addWidget(gui.machine_profile_combobox, 1, 1)
+        self.machine_profile_combobox = gui.machine_profile_combobox
+        self.machine_profile_combobox.currentTextChanged.connect(self.set_machine_profile)
+        self.reload_machine_profiles()
 
         self.min_power_spinbox.setValue(0)
         self.max_power_spinbox.setValue(100)
@@ -62,9 +69,9 @@ class Parser:
         self.remove_process_block_button.clicked.connect(self.remove_selected_process_block)
 
     def format_gcode_for_jcode(self, process_block, cluster_index):
-        header = gcode.generate_gcode_header()
-        footer = gcode.generate_gcode_footer()
-        full_gcode = header 
+        header = gcode.generate_gcode_header(process_block.machine)
+        footer = gcode.generate_gcode_footer(process_block.machine)
+        full_gcode = header
         full_gcode += gcode.generate_gcode(process_block, cluster_index)
         full_gcode += footer
         return "\n".join(full_gcode)
@@ -159,8 +166,8 @@ class Parser:
             return
 
         #setup gcode
-        header = gcode.generate_gcode_header()
-        footer = gcode.generate_gcode_footer()
+        header = gcode.generate_gcode_header(block_list[0].machine)
+        footer = gcode.generate_gcode_footer(block_list[0].machine)
         full_gcode = header 
         #now loop over all process blocks and clusters and pack everything into a single gcode file
         for block_idx, process_block in enumerate(block_list):
@@ -202,10 +209,39 @@ class Parser:
             air_assist=air_assist,
             enclosure_fan=enclosure_fan,
             power_mode=power_mode,
-            offset=offset)
+            offset=offset,
+            machine=self.data_handler.machine_profile)
         )
 
         self.save_jcode(block_list=[process_block])
+
+    def reload_machine_profiles(self):
+        """(Re)read the profile files; keeps the current selection if it still exists."""
+        current = self.machine_profile_combobox.currentText() or self.data_handler.machine_profile.name
+        self.profiles = machine.load_profiles()
+        if not self.profiles:  # no readable file at all: fall back to the bundled default
+            self.profiles = {self.data_handler.machine_profile.name: self.data_handler.machine_profile}
+        self.machine_profile_combobox.blockSignals(True)
+        self.machine_profile_combobox.clear()
+        self.machine_profile_combobox.addItems(list(self.profiles))
+        self.machine_profile_combobox.blockSignals(False)
+        index = self.machine_profile_combobox.findText(current)
+        self.machine_profile_combobox.setCurrentIndex(max(index, 0))
+        self.set_machine_profile(self.machine_profile_combobox.currentText())
+
+    def set_machine_profile(self, name):
+        profile = self.profiles.get(name)
+        if profile is None:
+            return
+        self.data_handler.machine_profile = profile
+        for combobox, options in ((self.laser_mode_combobox, profile.laser_modes),
+                                  (self.power_mode_combobox, profile.power_modes),
+                                  (self.air_assist_combobox, profile.air_assist)):
+            current = combobox.currentText()
+            combobox.clear()
+            combobox.addItems(list(options))
+            if combobox.findText(current) >= 0:
+                combobox.setCurrentText(current)
 
     def add_process_block(self,iterations=1):
         '''Creates a process block from the active hatch data and puts it into the processListWidget'''
@@ -229,8 +265,9 @@ class Parser:
             min_speed=self.min_speed_spinbox.value(), max_speed=self.max_speed_spinbox.value(),
             pwr_struc_num=self.gui.structnum_pwr_spinbox.value(),
             speed_struc_num=self.gui.structnum_speed_spinbox.value())
-        #process_block = ProcessBlock(hatch_data, post_processing, laser_mode, offset=offset)
-        process_block = self.post_processor.process_block(ProcessBlock(hatch_data, iterations, post_processing, laser_mode, air_assist=air_assist, power_mode=power_mode, offset=offset))
+        process_block = self.post_processor.process_block(ProcessBlock(
+            hatch_data, iterations, post_processing, laser_mode, air_assist=air_assist, power_mode=power_mode,
+            offset=offset, machine=self.data_handler.machine_profile))
         list_item = QtWidgets.QListWidgetItem(f"{iterations}x {self.hatch_data.type}")
         list_item.setData(QtCore.Qt.ItemDataRole.UserRole, process_block)  # Store the process block in the item's data
         self.process_listWidget.addItem(list_item)

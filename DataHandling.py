@@ -1,7 +1,7 @@
 from PIL import Image
 from PyQt6 import QtCore
 from PyQt6.QtGui import QPixmap, QImage
-from core import image_doc
+from core import image_doc, machine
 import cv2
 from HelperClasses import HatchData, ObservableList
 import logging
@@ -21,6 +21,7 @@ class DataHandler:
         #values to handle
         self._hatch_data = HatchData(None, None)
         self.active_document = None  # core.image_doc.ImageDocument shown on the canvas; owns pixels and pixel size
+        self.machine_profile = machine.default_profile()  # core.machine.MachineProfile, chosen in the export tab
         self._displayed_shape = None
         self.default_pixel_per_mm = 96/25.4  # Default pixel per mm value (96 DPI / 25.4 mm/inch)
         self.center_for_hatch = None

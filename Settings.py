@@ -1,6 +1,7 @@
 import json
 import logging
-from PyQt6 import QtWidgets
+from PyQt6 import QtWidgets, QtGui, QtCore
+from core import machine
 from PyQt6.QtWidgets import QFileDialog
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
 
@@ -18,6 +19,7 @@ IMAGE_SETTINGS = {
     'contour_space': 'contour_space_spinbox',
 }
 HATCHING_SETTINGS = {
+    'machine_profile': 'machine_profile_combobox',  # first, so the mode options below exist when loading
     'hatch_pattern': 'hatch_pattern_combobox',
     'hatch_angle': 'hatch_angle_spinbox',
     'hatch_dist_mode': 'hatch_dist_mode_combobox',
@@ -61,6 +63,13 @@ class Settings:
         self.actionSave_HatchingConfig.triggered.connect(self.save_hatching_config)
         self.actionOpenColorDatabase = gui.actionOpenColorDatabase
         self.actionOpenColorDatabase.triggered.connect(self.open_color_database)
+        self.action_open_profiles = QtGui.QAction("Open Machine Profiles Folder", gui)
+        self.action_open_profiles.triggered.connect(
+            lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(machine.USER_DIR))))
+        for menu in gui.menubar.findChildren(QtWidgets.QMenu):
+            if self.actionOpenColorDatabase in menu.actions():
+                menu.addAction(self.action_open_profiles)
+                break
 
     def load_config(self):
         options = QFileDialog.Option.DontUseNativeDialog
