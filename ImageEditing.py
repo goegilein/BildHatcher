@@ -24,8 +24,14 @@ class ImageAdjuster:
         self.brightness_old = 0
         self.contrast_old = 0
         self.masked_pixels_list = []
-        self.dont_update = False 
-        self.pre_slider_matrix = None 
+        self.dont_update = False
+        self.pre_slider_matrix = None
+        self._last_output = None  # image array last written by this adjuster (B33)
+        # coalesce slider ticks: the full-resolution image is recomputed at most every 40 ms
+        self._slider_timer = QtCore.QTimer()
+        self._slider_timer.setSingleShot(True)
+        self._slider_timer.setInterval(40)
+        self._slider_timer.timeout.connect(self.update_bright_cont_sharp)
 
         self.data_handler.add_image_changed_callback(self.reset_cached_image)
 
@@ -55,7 +61,7 @@ class ImageAdjuster:
         self.sharpness_slider = gui.sharpness_slider
         self.sharpness_slider.setRange(-10, 10)
         self.sharpness_slider.setValue(0)
-        self.sharpness_slider.valueChanged.connect(self.update_bright_cont_sharp)
+        self.sharpness_slider.valueChanged.connect(self._slider_timer.start)
         self.sharpness_slider.sliderPressed.connect(self._on_slider_pressed)
         self.sharpness_slider.sliderReleased.connect(lambda: self._on_slider_released("Sharpness"))
 
@@ -64,7 +70,7 @@ class ImageAdjuster:
         self.brightness_slider = gui.brightness_slider
         self.brightness_slider.setRange(-100, 100)
         self.brightness_slider.setValue(0)
-        self.brightness_slider.valueChanged.connect(self.update_bright_cont_sharp)
+        self.brightness_slider.valueChanged.connect(self._slider_timer.start)
         self.brightness_slider.sliderPressed.connect(self._on_slider_pressed)
         self.brightness_slider.sliderReleased.connect(lambda: self._on_slider_released("Brightness"))
 
@@ -73,7 +79,7 @@ class ImageAdjuster:
         self.contrast_slider = gui.contrast_slider
         self.contrast_slider.setRange(-100, 100)
         self.contrast_slider.setValue(0)
-        self.contrast_slider.valueChanged.connect(self.update_bright_cont_sharp)
+        self.contrast_slider.valueChanged.connect(self._slider_timer.start)
         self.contrast_slider.sliderPressed.connect(self._on_slider_pressed)
         self.contrast_slider.sliderReleased.connect(lambda: self._on_slider_released("Contrast"))
 
@@ -92,6 +98,9 @@ class ImageAdjuster:
             self.pre_slider_matrix = self.data_handler.image_matrix.copy()
 
     def _on_slider_released(self, name):
+        if self._slider_timer.isActive():  # apply the final value before recording the undo step
+            self._slider_timer.stop()
+            self.update_bright_cont_sharp()
         if self.pre_slider_matrix is not None and self.data_handler.image_matrix is not None:
             post_matrix = self.data_handler.image_matrix.copy()
             if self.undo_manager and not np.array_equal(self.pre_slider_matrix, post_matrix):
@@ -108,6 +117,32 @@ class ImageAdjuster:
 
     ## METHODS
 
+    def _base(self, kind):
+        """Image the adjustment `kind` starts from (B33): its previous base as long as the current image is still
+        this adjuster's own last result of `kind` (moving a slider again, re-quantizing with another colour count);
+        otherwise the current image - so edits made in between are kept and nothing is applied twice."""
+        current = self.data_handler.image_matrix
+        if current is None:
+            self.image_matrix_base = None
+            return None
+        if not (self.last_adjustment == kind and current is self._last_output and self.image_matrix_base is not None):
+            self.image_matrix_base = current.copy()
+            if kind == "brightness":
+                # the new base already contains the effect of all sliders that were not moved now -> show them at 0
+                for slider, attr in ((self.sharpness_slider, "sharpness_old"), (self.brightness_slider, "brightness_old"),
+                                     (self.contrast_slider, "contrast_old")):
+                    if slider.value() == getattr(self, attr):
+                        slider.blockSignals(True)
+                        slider.setValue(0)
+                        slider.blockSignals(False)
+                        setattr(self, attr, 0)
+        return self.image_matrix_base
+
+    def _write(self, kind, image):
+        self.set_handler_data(image)
+        self.last_adjustment = kind
+        self._last_output = self.data_handler.image_matrix
+
     def reset_cached_image(self):
         """Invalidate adjustment state when a different image becomes active."""
         self.image_matrix_base = None
@@ -120,15 +155,9 @@ class ImageAdjuster:
         if self.dont_update:
             return
 
-        #only get new image if last adjustment was not brightness
-        if self.last_adjustment == "brightness":
-            pass
-        else:
-            self.get_handler_data()
-        if self.image_matrix_base is None:
+        if self._base("brightness") is None:
             return
-        else:
-            image = Image.fromarray(image_doc.rgb_filled(self.image_matrix_base))
+        image = Image.fromarray(image_doc.rgb_filled(self.image_matrix_base))
 
         try:
             # Apply sharpening/blurring
@@ -152,9 +181,7 @@ class ImageAdjuster:
             image = enhancer_contrast.enhance(contrast_factor)
             self.contrast_old = contrast_value
 
-            # Update the last adjustment type and return
-            self.last_adjustment = "brightness"
-            self.set_handler_data(image_doc.with_rgb(self.image_matrix_base, np.array(image)))
+            self._write("brightness", image_doc.with_rgb(self.image_matrix_base, np.array(image)))
 
         except Exception as e:
             print(f"Error applying adjustments: {e}")
@@ -180,11 +207,7 @@ class ImageAdjuster:
         except ValueError:
             return  # Non-integer input; do not proceed
         
-        if self.last_adjustment == "quantize":
-            pass
-        else:
-            self.get_handler_data()
-        if self.image_matrix_base is None:
+        if self._base("quantize") is None:
             return
         opaque = image_doc.opaque_mask(self.image_matrix_base)
         if not opaque.any():
@@ -229,11 +252,9 @@ class ImageAdjuster:
                 image = image.quantize(colors=num_colors, method=quantize_method)
                 image = image.convert('RGB')  # Convert back to RGB for display
 
-            # Update the last adjustment type and return the quantized image
-            self.last_adjustment = "quantize"
             result = self.image_matrix_base.copy()
             result[opaque, :3] = np.array(image)[0]
-            self.set_handler_data(result)
+            self._write("quantize", result)
 
         except Exception as e:
             print(f"Error changing color scheme: {e}")
@@ -245,14 +266,9 @@ class ImageAdjuster:
         """
         ctx = self.undo_manager.record_image_matrix("Convolute Image") if self.undo_manager else nullcontext()
         with ctx:
-            if self.last_adjustment == "convoluted":
-                pass
-            else:
-                self.get_handler_data()
-            if self.image_matrix_base is None:
+            if self._base("convoluted") is None:
                 return
-            else:
-                image_matrix = self.image_matrix_base.copy()
+            image_matrix = self.image_matrix_base.copy()
 
             # Show warning if median_blur is not odd
             if median_blur % 2 == 0:
@@ -268,10 +284,7 @@ class ImageAdjuster:
             # Optional extra smoothing to reduce small pixel noise
             smoothed = cv2.medianBlur(smoothed, median_blur)
 
-            # Convert to PIL image for return
-            #return Image.fromarray(simplified_image)
-            self.last_adjustment = "convoluted"
-            self.set_handler_data(image_doc.with_rgb(image_matrix, smoothed))
+            self._write("convoluted", image_doc.with_rgb(image_matrix, smoothed))
 
     def invert_colors(self):
         try:
@@ -318,9 +331,6 @@ class ImageAdjuster:
 
     def set_handler_data(self, image_matrix):
         self.data_handler.image_matrix= image_matrix
-
-    def get_handler_data(self):
-        self.image_matrix_base = self.data_handler.image_matrix.copy()
 
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps

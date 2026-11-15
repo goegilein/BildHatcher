@@ -138,6 +138,7 @@ tests/                   # pytest; core only, plus characterization tests
 | B29 | done | [ImageEditing.py](ImageEditing.py) `invert_colors` | Inverted a cached copy (`image_current`) instead of the current image: from the second invert on, all edits made in between were lost. |
 | B30 | done | [core/hatching.py](core/hatching.py) `_pixel_index` (former `int(y)==int(y-0.5)` rounding in every pattern loop) | Rounding was wrong for coordinates < 0.5: [−1.5, 0) mapped to pixel 0 and [0, 1.5) to pixel 1, so the bottom and left image edges were shifted by up to one pixel and lines overshot there. |
 | B32 | done | [core/fill.py](core/fill.py) (former `ImageColorer.flood_fill`) | With masks, "To Contours" and "To Color" ignored the mask boundary (they do not compare colours, so the out-of-mask sentinel had no effect) and filled beyond it. |
+| B33 | done | [ImageEditing.py](ImageEditing.py) `ImageAdjuster` | The adjustment base was only re-read when the adjustment *type* changed: slider values were applied a second time after another edit (brightness → quantize → contrast doubled the brightness), and re-quantizing after painting discarded the painting. |
 
 ---
 
@@ -208,7 +209,7 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 - [-] P5.7 DB colour matching: called once per colour, cost negligible; ΔE would change results without a request.
 
 ### Phase 6 – Image editing tools  `[~]`
-- [ ] P6.1 Non-destructive adjustment pipeline `result = pipeline(base, params)`; slider debounce (~50 ms); undo stores parameter changes.
+- [x] P6.1 Adjustments start from a base image that is reused only while the current image is still the adjuster's own last result (B33); otherwise the current image becomes the base and the unmoved sliders show 0. Slider updates debounced (40 ms). *Changed:* no full parameter pipeline / parameter-based undo (snapshot undo + memory budget is enough).
 - [x] P6.2 K-means on the distinct colours weighted by pixel count (same objective as all pixels), random sample above 100k colours; 64 colours on 800×600: 3.0 → 0.1 s, same error. Lab space: not done.
 - [x] P6.3 `core/fill.py`: all 7 fill modes as "allowed pixels" + `cv2.connectedComponents`; verified against a reference BFS; 4 Mpx fill < 1 s (old Python BFS: minutes). Contours kept as a bool mask instead of a pixel list.
 - [~] P6.4 (incl. rest of B17 – done: outlines are rebuilt from the mask's image coordinates when the pixel size changes, `refresh_mask_outlines`) Masks: geometry as source of truth, rasterize with `cv2.rectangle/ellipse/fillPoly`; outlines as children of `image_item` in image coords; transform/clear on geometry change; extract `MaskManager` from `ImageColorer`.
@@ -293,3 +294,4 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 | 2026-11-15 | P6.2, P6.3, B32 | Vectorized flood fill (`tests/test_fill.py`), weighted k-means. 54 tests. |
 | 2026-11-15 | B17 (rest), P6.11 | Mask outlines follow pixel-size changes; grid covers the visible area. 55 tests. |
 | 2026-11-15 | P6.9, P6.10, B22 | Undo memory budget; upscaling in a worker thread. 57 tests. |
+| 2026-11-15 | P6.1, B33 | Correct adjustment base, debounced sliders. 59 tests. |

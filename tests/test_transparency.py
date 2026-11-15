@@ -104,3 +104,44 @@ def test_bright_colours_to_transparent_with_undo(app_components):
     assert c.data_handler.image_matrix[0, :, 3].tolist() == [0, 0, 255, 255]
     c.data_handler.undo_manager.undo()
     assert c.data_handler.image_matrix[0, :, 3].tolist() == [255, 255, 255, 255]
+
+
+def test_b33_adjustments_start_from_the_current_image(app_components):
+    c = app_components
+    adj = c.image_adjuster
+    load_image(c, image_doc.from_rgb(make_test_image()))
+
+    # brightness, then quantize, then contrast: brightness must not be applied a second time
+    c.gui.brightness_slider.setValue(50)
+    adj.update_bright_cont_sharp()
+    c.gui.color_count_spinbox.setValue(3)
+    adj.quantize_image_color()
+    quantized = c.data_handler.image_matrix.copy()
+    c.gui.contrast_slider.setValue(20)
+    adj.update_bright_cont_sharp()
+    assert c.gui.brightness_slider.value() == 0  # its effect is part of the new base
+    from PIL import Image, ImageEnhance
+    expected = ImageEnhance.Contrast(Image.fromarray(image_doc.rgb_filled(quantized))).enhance(1.2)
+    assert np.array_equal(c.data_handler.image_matrix, image_doc.with_rgb(quantized, np.array(expected)))
+
+    # quantize, edit, quantize again: the edit is kept
+    adj.quantize_image_color()
+    edited = c.data_handler.image_matrix.copy()
+    edited[0:3, 0:3] = (0, 0, 0, 255)  # paint into the transparent background
+    c.data_handler.image_matrix = edited
+    c.gui.color_count_spinbox.setValue(4)
+    adj.quantize_image_color()
+    assert (c.data_handler.image_matrix[0:3, 0:3, 3] == 255).all()
+
+
+def test_p61_slider_updates_are_debounced(app_components, qapp):
+    import time
+    c = app_components
+    load_image(c, image_doc.from_rgb(make_test_image()))
+    before = c.data_handler.image_matrix
+    c.gui.brightness_slider.setValue(30)
+    assert c.data_handler.image_matrix is before  # not recomputed on every tick
+    deadline = time.time() + 2
+    while c.data_handler.image_matrix is before and time.time() < deadline:
+        qapp.processEvents()
+    assert c.data_handler.image_matrix is not before
