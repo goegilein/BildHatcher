@@ -5,8 +5,8 @@ Coordinates: `labels` is the colour label image of a hatch cluster, flipped so t
 Every function returns a list of polylines (float arrays (N, 4): x, y, z, move) for one colour label,
 or None if `progress` returned True (cancelled).
 
-The sampling reproduces the former per-pixel loops of NCDataGeneration exactly (same sample positions,
-same rounding, same segment ends), only computed with array operations.
+Straight lines (meander, radial) are cut exactly at the pixel edges (`_line_segments`); circles and spirals
+are sampled with the hatch precision as step (`_chains`).
 """
 import random
 
@@ -62,39 +62,74 @@ def _cylinder_map(x, center_x, cyl_rad, hatch_mode):
     return mapped, outside
 
 
-def _walk(x0, y0, dx, dy, keep_going, n_max, center_x, cyl_rad, hatch_mode):
-    """Samples of a straight walk x += dx, y += dy (accumulated like the old loop) while keep_going(x, y).
-    Returns (x, y, outside) for the processed samples plus one extra element: the first sample that failed."""
-    while True:
-        x_target = np.add.accumulate(np.concatenate([[x0], np.full(n_max, dx)]))
-        y = np.add.accumulate(np.concatenate([[y0], np.full(n_max, dy)]))
-        x, outside = _cylinder_map(x_target, center_x, cyl_rad, hatch_mode)
-        # outside the cylinder the old loop froze x; use the unmapped target there so the walk always ends
-        stop = ~keep_going(np.where(outside, x_target, x), x_target, y)
-        if stop.any():
-            k = int(np.argmax(stop))
-            return x[:k + 1], y[:k + 1], outside[:k + 1]
-        n_max *= 2
+def _line_segments(labels, target, p0, direction, t_max, center, ppm, hatch_mode, cyl_rad, min_len):
+    """Exact segments of the straight line p0 + t * direction (0 <= t <= t_max) through the pixels of `target` (P4.5).
 
+    The line is cut at every pixel boundary it crosses (pixel i covers [i - 0.5, i + 0.5)), so segment ends lie on
+    the pixel edges, independent of any sampling step. For CylEquidistX the line is straight in the unmapped x and
+    the boundaries are mapped back with the inverse of the cylinder mapping.
+    Segments shorter than min_len are dropped and gaps shorter than min_len are bridged (pixel corners).
+    """
+    h, w = labels.shape
+    (x0, y0), (dx, dy) = p0, direction
+    cx = center[0]
+    cyl = hatch_mode == "CylEquidistX"
+    eps = 1e-9
 
-def _segments(lab, target, x, y, center, ppm):
-    """Straight segments of a walk: start at the first sample inside the colour, end halfway to the first sample
-    after it (or halfway to the failing sample at the end of the walk)."""
-    k = len(lab) - 1  # last element is the failing sample (not processed)
-    inside = lab[:k] == target
+    if cyl:
+        to_image = lambda xt: np.arcsin(np.clip((xt - cx) / cyl_rad, -1, 1)) * cyl_rad + cx
+        to_line = lambda xm: np.sin((xm - cx) / cyl_rad) * cyl_rad + cx
+        x_lo, x_hi = max(-0.5, cx - cyl_rad * np.pi / 2), min(w - 0.5, cx + cyl_rad * np.pi / 2)
+        x_lo, x_hi = to_line(x_lo), to_line(x_hi)
+    else:
+        to_image = to_line = lambda v: v
+        x_lo, x_hi = -0.5, w - 0.5
+
+    # parameter range of the line inside the image (Liang-Barsky clip)
+    t0, t1 = 0.0, t_max
+    for p, d, lo, hi in ((x0, dx, x_lo, x_hi), (y0, dy, -0.5, h - 0.5)):
+        if abs(d) < eps:
+            if not lo <= p < hi:
+                return []
+        else:
+            a, b = (lo - p) / d, (hi - p) / d
+            t0, t1 = max(t0, min(a, b)), min(t1, max(a, b))
+    if t1 - t0 < eps:
+        return []
+
+    # every pixel boundary crossing between t0 and t1
+    cuts = [np.array([t0, t1])]
+    for p, d, mapped in ((x0, dx, to_image), (y0, dy, lambda v: v)):
+        if abs(d) < eps:
+            continue
+        a, b = sorted((mapped(p + t0 * d), mapped(p + t1 * d)))
+        bounds = np.arange(np.ceil(a - 0.5), np.floor(b - 0.5) + 1) + 0.5
+        bounds = bounds[(bounds > a) & (bounds < b)]
+        line_bounds = to_line(bounds) if mapped is to_image else bounds
+        cuts.append((line_bounds - p) / d)
+    t = np.unique(np.concatenate(cuts))
+
+    mid = (t[:-1] + t[1:]) / 2
+    xi = np.clip(np.floor(to_image(x0 + mid * dx) + 0.5).astype(np.int64), 0, w - 1)
+    yi = np.clip(np.floor(y0 + mid * dy + 0.5).astype(np.int64), 0, h - 1)
+    inside = labels[yi, xi] == target
     if not inside.any():
         return []
-    prev = np.concatenate([[False], inside[:-1]])
-    starts = np.flatnonzero(inside & ~prev)
-    ends = np.flatnonzero(~inside & prev)
-    if inside[-1]:
-        ends = np.append(ends, k)
-    cx, cy = center[0], center[1]
-    sx = (x[starts] - cx) / ppm
-    sy = (y[starts] - cy) / ppm
-    ex = ((x[ends] + x[ends - 1]) / 2 - cx) / ppm
-    ey = ((y[ends] + y[ends - 1]) / 2 - cy) / ppm
-    return [np.array([[sx[i], sy[i], 0, MOVE_TRAVEL], [ex[i], ey[i], 0, MOVE_BURN]]) for i in range(len(starts))]
+    edges = np.diff(np.concatenate([[0], inside.astype(np.int8), [0]]))
+    t_start, t_end = t[np.flatnonzero(edges == 1)], t[np.flatnonzero(edges == -1)]
+
+    keep = np.concatenate([[True], t_start[1:] - t_end[:-1] >= min_len])  # bridge short gaps
+    t_start, t_end = t_start[keep], t_end[np.concatenate([keep[1:], [True]])]
+    keep = t_end - t_start >= min_len  # drop pixel-corner clips
+    t_start, t_end = t_start[keep], t_end[keep]
+
+    cy = center[1]
+    out = []
+    for ts, te in zip(t_start, t_end):
+        out.append(np.array([
+            [(to_image(x0 + ts * dx) - cx) / ppm, (y0 + ts * dy - cy) / ppm, 0, MOVE_TRAVEL],
+            [(to_image(x0 + te * dx) - cx) / ppm, (y0 + te * dy - cy) / ppm, 0, MOVE_BURN]]))
+    return out
 
 
 def _reverse(segments):
@@ -157,17 +192,12 @@ def meander(labels, target, center, ppm, theta, hatch_distance, step_size, hatch
         hatch_start_x, incline = min_x, 1
     hatch_start_y = min_y
 
-    def keep_going(x, x_target, y):
-        return ((x >= min_x) | (incline == 1)) & ((x <= max_x) | (incline == -1)) & (y >= min_y)
-
-    n_max = int(np.ceil(np.hypot(max_x - min_x, max_y - min_y + 2) / step_size)) + 4
     polylines = []
     line_dir = 1
     line_count = 0
     while True:
-        x, y, outside = _walk(hatch_start_x, hatch_start_y, -cos_theta * step_size, -sin_theta * step_size,
-                              keep_going, n_max, center[0], cyl_rad, hatch_mode)
-        segments = _segments(_sample_labels(labels, x, y, outside), target, x, y, center, ppm)
+        segments = _line_segments(labels, target, (hatch_start_x, hatch_start_y), (-cos_theta, -sin_theta), np.inf,
+                                  center, ppm, hatch_mode, cyl_rad, step_size / 2)
         polylines.extend(segments if line_dir == 1 else _reverse(segments))
         line_dir *= -1
 
@@ -237,16 +267,11 @@ def radial(labels, target, center, ppm, hatch_distance, step_size, hatch_mode="F
     angles = np.linspace(0, 2 * np.pi, int(np.ceil(2 * np.pi / angle_res)))
     cx, cy = center[0], center[1]
 
-    def keep_going(x, x_target, y):
-        return np.sqrt((x_target - cx) ** 2 + (y - cy) ** 2) <= max_rad
-
-    n_max = int(np.ceil(max_rad / step_size)) + 4
     polylines = []
     line_dir = 1
     for ray_count, angle in enumerate(angles, start=1):
-        x, y, outside = _walk(cx, cy, np.cos(angle) * step_size, np.sin(angle) * step_size,
-                              keep_going, n_max, cx, cyl_rad, hatch_mode)
-        segments = _segments(_sample_labels(labels, x, y, outside), target, x, y, center, ppm)
+        segments = _line_segments(labels, target, (cx, cy), (np.cos(angle), np.sin(angle)), max_rad,
+                                  center, ppm, hatch_mode, cyl_rad, step_size / 2)
         polylines.extend(segments if line_dir == 1 else _reverse(segments))
         line_dir *= -1
         if progress is not None and progress(ray_count / len(angles)):

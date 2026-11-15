@@ -17,7 +17,7 @@ This file is the single source of truth for status – update it in the same com
 | 1 – Bug fixes | done | B17, B22 partly deferred to P6.4 / P6.10 |
 | 2 – Core model & state | done | P2.1 rest → Phase 4, masks per document → P6.4 |
 | 3 – Transparency | done | widgets of the old thresholds still in `.ui` (P7) |
-| 4 – Hatching engine | done (P4.4 seed, P4.5 exact edges optional) | 13–33× faster |
+| 4 – Hatching engine | done | 13–33× faster, exact edges for lines, random seed |
 | 5 – Output | **next** | |
 | 6 – Editing tools | open | |
 | 7 – Polish | open | |
@@ -181,7 +181,7 @@ Done in sub-steps, each one green against the golden files:
 - [x] P3.7 Save: alpha for PNG/SVG, white background for JPEG/BMP; save-format dialog with the "white as transparent" checkbox removed (plain file dialog).
 - [x] P3.8 Old RGB images load as before (white → background); old configs: `white_threshold_parsing` key is ignored. Golden G-code unchanged.
 
-### Phase 4 – Hatching engine  `[x]` (optional: P4.4 seed in settings, P4.5 exact edges)
+### Phase 4 – Hatching engine  `[x]`
 
 - [x] **4a** `core/hatching.py`: the five per-pixel loops replaced by one vectorized engine (walks for meander/radial, point chains for circle/spiral; colours as label image). Exact port: all goldens byte-identical. Benchmark (6 colours, 0.1 mm step): 800×600 px 1.3–2.6 s → 0.11–0.18 s; 2400×1800 px 11–23 s → 0.7–0.9 s.
 - [x] **4b** B30 fixed (`floor(v + 0.5)`). Existing goldens unchanged (their shapes do not touch the image edges); new golden case `full_bleed_*` with colours up to all edges pins the edge behaviour.
@@ -189,7 +189,7 @@ Done in sub-steps, each one green against the golden files:
 - [x] P4.2 Generic engine: vectorized curve sampling → label lookup → run detection. *Changed:* still one pass per colour (colours can have different hatch distance / random angle); the per-colour pass is vectorized, which removed the cost. One shared pass for equal settings: not needed (see benchmark).
 - [x] P4.3 Patterns share `_walk`/`_segments`/`_chains`; the 5 duplicated loops (~500 lines) are gone. CylEquidistX mapping vectorized.
 - [x] P4.4 Meander ordering per label (alternating direction) preserved; random numbers drawn in the old order. "Random Seed" field in the hatching settings (0 = random each time, otherwise reproducible RandomMeander/Circular; saved in the hatching config).
-- [ ] P4.5 Optional: exact pixel-edge intersection for straight lines (DDA) – segment ends independent of step size. Remaining error after B30: segment starts at the first sample inside, ends halfway to the first sample outside → both ends within one sampling step of the pixel edge.
+- [x] P4.5 Exact pixel-edge intersection for straight lines (meander, crossed, radial; incl. CylEquidistX via the inverse cylinder mapping): `_line_segments` cuts each line at all pixel boundaries. The hatch precision now only sets the tolerance for these lines: segments and gaps shorter than precision/2 (pixel-corner clips) are dropped/bridged. Circles/spirals are still sampled with the precision. Goldens regenerated: burn length +1.4…2.8 % (old sampling lost up to 1.5 steps per segment), endpoints moved by typically half a step (0.05 mm), a few corner fragments fewer. Property test: segments never leave their colour, length matches fine sampling.
 - [x] P4.6 Worker gets its settings as a dict collected on the GUI thread; signals only; `QEventLoop` in automatic mode; cancel via progress callback (done in Phase 1, B02/B03).
 - [x] P4.7 Benchmark old vs. new (see 4a); outputs byte-identical.
 
@@ -281,3 +281,4 @@ Done in sub-steps, each one green against the golden files:
 | 2026-11-15 | 4a | Vectorized hatching engine in `core/hatching.py`, goldens byte-identical, 13–33× faster on 2400×1800 px. First version was only 3–6× faster: `np.unique(axis=0)` for the colour labels took 3.2 s, replaced by packed 1-D keys. Suspected endless loop for very wide CylEquidistX clusters checked against the old code: does not occur. |
 | 2026-11-15 | 4b, B30 | Edge rounding fixed; full-bleed golden cases added (fail with the old rounding). 42 tests. |
 | 2026-11-15 | P4.4 | Random seed setting (own `random.Random` instance, does not touch the global random state). |
+| 2026-11-15 | P4.5 | Exact edges for straight hatch lines; meander/radial goldens regenerated (other goldens unchanged), geometric property test added. Speed unchanged (2400×1800 px: 0.8–1.0 s). 44 tests. |
