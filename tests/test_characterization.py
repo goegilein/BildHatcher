@@ -196,3 +196,14 @@ def test_test_structure_to_process_block(app_components):
     c.test_structure.create_test_structure()
     assert_golden("test_structure_filled_squares_horz",
                   run_parser(c, power_format="test_structure", speed_format="test_structure"))
+
+
+@pytest.mark.parametrize("pattern", ["FixedMeander", "Radial"])
+def test_full_bleed_image(app_components, pattern):
+    """Colours touching all image edges (B30: edge pixels at the low edges were shifted)."""
+    img = np.zeros((40, 60, 3), np.uint8)
+    img[:, :30] = (220, 30, 30)
+    img[:, 30:] = (30, 60, 200)
+    load_image(app_components, img)
+    run_hatching(app_components, pattern=pattern, angle=30.0)
+    assert_golden(f"full_bleed_{pattern.lower()}", run_parser(app_components))

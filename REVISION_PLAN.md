@@ -17,8 +17,8 @@ This file is the single source of truth for status – update it in the same com
 | 1 – Bug fixes | done | B17, B22 partly deferred to P6.4 / P6.10 |
 | 2 – Core model & state | done | P2.1 rest → Phase 4, masks per document → P6.4 |
 | 3 – Transparency | done | widgets of the old thresholds still in `.ui` (P7) |
-| 4 – Hatching engine | in progress | 4a done (13–33× faster), next 4b (B30) |
-| 5 – Output | open | |
+| 4 – Hatching engine | done (P4.4 seed, P4.5 exact edges optional) | 13–33× faster |
+| 5 – Output | **next** | |
 | 6 – Editing tools | open | |
 | 7 – Polish | open | |
 
@@ -136,6 +136,7 @@ tests/                   # pytest; core only, plus characterization tests
 | B27 | done | [ImageControlling.py](ImageControlling.py) `combine_images`, `change_image` | Combining with all images selected crashed (pixel size read from an already removed item); `change_image` then wrote into a non-existing active item. |
 | B28 | done | [NCDataGeneration.py](NCDataGeneration.py) `get_handler_data` | Image rows are flipped as r → H−1−r, but the hatch center as cy → H−cy: every image-based output was shifted by one pixel in −y (0.1 mm at 10 px/mm). Fix changes all image goldens: meander/contour/cylinder outputs are a pure +1 px y shift, circle/spiral/radial are resampled around the true center. |
 | B29 | done | [ImageEditing.py](ImageEditing.py) `invert_colors` | Inverted a cached copy (`image_current`) instead of the current image: from the second invert on, all edits made in between were lost. |
+| B30 | done | [core/hatching.py](core/hatching.py) `_pixel_index` (former `int(y)==int(y-0.5)` rounding in every pattern loop) | Rounding was wrong for coordinates < 0.5: [−1.5, 0) mapped to pixel 0 and [0, 1.5) to pixel 1, so the bottom and left image edges were shifted by up to one pixel and lines overshot there. |
 
 ---
 
@@ -180,15 +181,15 @@ Done in sub-steps, each one green against the golden files:
 - [x] P3.7 Save: alpha for PNG/SVG, white background for JPEG/BMP; save-format dialog with the "white as transparent" checkbox removed (plain file dialog).
 - [x] P3.8 Old RGB images load as before (white → background); old configs: `white_threshold_parsing` key is ignored. Golden G-code unchanged.
 
-### Phase 4 – Hatching engine  `[~]`
+### Phase 4 – Hatching engine  `[x]` (optional: P4.4 seed in settings, P4.5 exact edges)
 
 - [x] **4a** `core/hatching.py`: the five per-pixel loops replaced by one vectorized engine (walks for meander/radial, point chains for circle/spiral; colours as label image). Exact port: all goldens byte-identical. Benchmark (6 colours, 0.1 mm step): 800×600 px 1.3–2.6 s → 0.11–0.18 s; 2400×1800 px 11–23 s → 0.7–0.9 s.
-- [ ] **4b** B30 (rounding of negative coordinates) – changes output at the low image edges.
+- [x] **4b** B30 fixed (`floor(v + 0.5)`). Existing goldens unchanged (their shapes do not touch the image edges); new golden case `full_bleed_*` with colours up to all edges pins the edge behaviour.
 - [x] P4.1 Label map once per cluster (`hatching.label_colors`, packed RGB keys; background = −1).
 - [x] P4.2 Generic engine: vectorized curve sampling → label lookup → run detection. *Changed:* still one pass per colour (colours can have different hatch distance / random angle); the per-colour pass is vectorized, which removed the cost. One shared pass for equal settings: not needed (see benchmark).
 - [x] P4.3 Patterns share `_walk`/`_segments`/`_chains`; the 5 duplicated loops (~500 lines) are gone. CylEquidistX mapping vectorized.
 - [~] P4.4 Meander ordering per label (alternating direction) preserved; random numbers drawn in the old order. Seed in settings: open.
-- [ ] P4.5 Optional: exact pixel-edge intersection for straight lines (DDA) – segment ends independent of step size.
+- [ ] P4.5 Optional: exact pixel-edge intersection for straight lines (DDA) – segment ends independent of step size. Remaining error after B30: segment starts at the first sample inside, ends halfway to the first sample outside → both ends within one sampling step of the pixel edge.
 - [x] P4.6 Worker gets its settings as a dict collected on the GUI thread; signals only; `QEventLoop` in automatic mode; cancel via progress callback (done in Phase 1, B02/B03).
 - [x] P4.7 Benchmark old vs. new (see 4a); outputs byte-identical.
 
@@ -278,3 +279,4 @@ Done in sub-steps, each one green against the golden files:
 | 2026-11-15 | Phase 3 | Transparency as background end to end (load/save/display/edit/hatch/export/plot); white thresholds replaced by "Make Bright Colors Transparent"; B29 found and fixed. `tests/test_transparency.py`, 37 tests, goldens unchanged. Not covered by tests: brush eraser strokes, move-mask cutout, AI upscale path. |
 | 2026-11-15 | P3.2 | Feedback: checkerboard squares changed size with zoom (texture in image coordinates). Now drawn by the canvas in screen pixels (constant 8 px squares). |
 | 2026-11-15 | 4a | Vectorized hatching engine in `core/hatching.py`, goldens byte-identical, 13–33× faster on 2400×1800 px. First version was only 3–6× faster: `np.unique(axis=0)` for the colour labels took 3.2 s, replaced by packed 1-D keys. Suspected endless loop for very wide CylEquidistX clusters checked against the old code: does not occur. |
+| 2026-11-15 | 4b, B30 | Edge rounding fixed; full-bleed golden cases added (fail with the old rounding). 42 tests. |

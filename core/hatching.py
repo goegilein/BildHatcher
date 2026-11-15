@@ -37,9 +37,9 @@ def label_colors(image):
 
 
 def _pixel_index(v):
-    # shortcut: reproduces the old loops' rounding exactly, which is off for v < -0.5 (B30, fixed separately)
-    t = np.trunc(v)
-    return np.where(t == np.trunc(v - 0.5), np.trunc(v + 1), t).astype(np.int64)
+    """Pixel whose center is nearest (pixel i covers [i - 0.5, i + 0.5)). B30: the old loops' trunc-based rounding
+    mapped [-1.5, 0) to pixel 0 and [0, 1.5) to pixel 1, shifting the low image edges by up to one pixel."""
+    return np.floor(v + 0.5).astype(np.int64)
 
 
 def _sample_labels(labels, x, y, outside):
