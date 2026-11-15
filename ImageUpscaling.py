@@ -25,9 +25,8 @@ class ImageUpscaler:
     def __init__(self, data_handler, library_path=None):
         self.data_handler = data_handler
         if library_path is None:
-            # Resolve absolute path for libraries/realesrgan
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            self.library_path = os.path.join(base_dir, "libraries", "realesrgan")
+            # Downloaded on demand into a writable user folder (same place as the database)
+            self.library_path = os.path.join(os.path.expanduser("~"), "Documents", "BildHatcher", "libraries", "realesrgan")
         else:
             self.library_path = os.path.abspath(library_path)
 
