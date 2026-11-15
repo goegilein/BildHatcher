@@ -1,5 +1,5 @@
 import numpy as np
-from HelperClasses import Point, HatchData
+from HelperClasses import Point, HatchData, HatchCluster
 
 class Teststructures:
     def __init__(self, data_handler, gui):
@@ -125,9 +125,7 @@ class Teststructures:
                                 print("Error: Unknown selection for subfield structure")
                 hatched_test_structure.append(hatch_lines_poly)
 
-        self.hatch_data.hatch_clusters = hatched_test_structure
-        self.hatch_data.type = "Test: Subfield Structure"
-        self.set_handler_data()
+        self.set_handler_data(hatched_test_structure, "Test: Subfield Structure")
 
     def create_simple_square(self):
         size = 10
@@ -138,9 +136,7 @@ class Teststructures:
             Point(0, -size, 0, 1, 0, 0, 0),
             Point(0, 0, 0, 1, 0, 0, 0)
         ]
-        self.hatch_data.hatch_clusters = [[polyline]]
-        self.hatch_data.type = "Test: Simple Square Contour"
-        self.set_handler_data()
+        self.set_handler_data([[polyline]], "Test: Simple Square Contour")
 
     def create_polyline_square(self):
         size=10
@@ -154,9 +150,7 @@ class Teststructures:
             polyline.append(Point(size-node*nodedist,-size,0,1,0,0,0))
         for node in range(1,int(size/nodedist)+1):
             polyline.append(Point(0,-size+node*nodedist,0,1,0,0,0))
-        self.hatch_data.hatch_clusters=[[polyline]]
-        self.hatch_data.type = "Test: Polyline Square Contour"
-        self.set_handler_data()
+        self.set_handler_data([[polyline]], "Test: Polyline Square Contour")
 
     def create_polyline_structure_vert(self):
         # Get the number of rows and columns from the spinboxes
@@ -178,9 +172,7 @@ class Teststructures:
                 for i in range(1,int(length/node_dist)+1):
                     polyline.append(Point(x,y-(1-2*dir)*i*node_dist,0,1,0,0,0))
                 hatched_test_structure.append([polyline])
-        self.hatch_data.hatch_clusters = hatched_test_structure
-        self.hatch_data.type = "Test: Vert. Polyline Structure"
-        self.set_handler_data()
+        self.set_handler_data(hatched_test_structure, "Test: Vert. Polyline Structure")
     
     def create_polyline_structure_horz(self):
         # Get the number of rows and columns from the spinboxes
@@ -201,9 +193,7 @@ class Teststructures:
                 for i in range(1,int(length/node_dist)+1):
                     polyline.append(Point(x+i*node_dist,y,0,1,0,0,0))
                 hatched_test_structure.append([polyline])
-        self.hatch_data.hatch_clusters = hatched_test_structure
-        self.hatch_data.type = "Test: Horz. Polyline Structure"
-        self.set_handler_data()
+        self.set_handler_data(hatched_test_structure, "Test: Horz. Polyline Structure")
 
     def create_filled_squares(self, selection):
         # Get the number of rows and columns from the spinboxes
@@ -248,9 +238,10 @@ class Teststructures:
                         print("Error: Unknown selection for subfield structure")
                 hatched_test_structure.append(hatch_lines_poly)
 
-        self.hatch_data.hatch_clusters = hatched_test_structure
-        self.hatch_data.type = "Test: Filled Squares"
-        self.set_handler_data()
+        self.set_handler_data(hatched_test_structure, "Test: Filled Squares")
 
-    def set_handler_data(self):
-        self.data_handler.hatch_data=self.hatch_data
+    def set_handler_data(self, line_collections, type_name):
+        # B05: wrap into one HatchCluster like image hatching does; each test field is its own line collection
+        cluster = HatchCluster(line_collections, None, ref_position=[0, 0, 0, 0], cluster_center_for_hatch=None, cylinder_radius=0)
+        self.hatch_data = HatchData([cluster], type_name)
+        self.data_handler.hatch_data = self.hatch_data

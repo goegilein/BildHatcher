@@ -185,9 +185,13 @@ def test_contours_from_image(app_components):
     assert_golden("contours_from_image", run_parser(c))
 
 
-@pytest.mark.xfail(reason="B05: test structures produce plain lists instead of HatchCluster objects", strict=True)
 def test_test_structure_to_process_block(app_components):
     c = app_components
     c.gui.test_structure_combobox.setCurrentText("Filled Squares Horz.")
+    c.gui.structnum_pwr_spinbox.setValue(2)
+    c.gui.structnum_speed_spinbox.setValue(2)
+    c.gui.struct_size_spinbox.setValue(1.0)
+    c.gui.struct_hDist_spinbox.setValue(0.25)
     c.test_structure.create_test_structure()
-    run_parser(c, power_format="test_structure", speed_format="test_structure")
+    assert_golden("test_structure_filled_squares_horz",
+                  run_parser(c, power_format="test_structure", speed_format="test_structure"))

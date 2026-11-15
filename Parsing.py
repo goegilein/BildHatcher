@@ -224,19 +224,6 @@ class Parser:
                 file.write(self.format_gcode_for_jcode(process_block, cluster_index))
     
     def save_jcode(self, block_list = None):
-        # we will export jcode main file here
-        # Open a save file dialog
-        savepath, _ = QFileDialog.getSaveFileName(
-            #parent=self.gui,
-            caption="Save J-code File",
-            filter="J-code files (*.jcode);;All files (*.*)",
-            directory="",
-        )
-        with open(savepath, 'w') as file:
-            file.write('; This file was created by BildHatcher\n')
-            current_datetime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            file.write(f'; Created: {current_datetime}\n')
-
         if block_list is None:
             block_list = []
             for block_idx in range(self.process_listWidget.count()):
@@ -248,6 +235,21 @@ class Parser:
             QtWidgets.QMessageBox.critical(self.gui, "Error", "No Process Blocks available to save.")
             return
 
+        savepath, _ = QFileDialog.getSaveFileName(
+            caption="Save J-code File",
+            filter="J-code files (*.jcode);;All files (*.*)",
+            directory="",
+        )
+        if not savepath:
+            return
+        # B07: cluster files are derived from the base name; without the extension they would overwrite the main file
+        base_path = savepath[:-len('.jcode')] if savepath.lower().endswith('.jcode') else savepath
+        savepath = base_path + '.jcode'
+        with open(savepath, 'w') as file:
+            file.write('; This file was created by BildHatcher\n')
+            current_datetime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            file.write(f'; Created: {current_datetime}\n')
+
         #first loop over all process blocks
         for block_idx, process_block in enumerate(block_list):
         
@@ -257,7 +259,7 @@ class Parser:
                 hatch_clusters = process_block.hatch_data.hatch_clusters
                 for cluster_index, hatch_cluster in enumerate(hatch_clusters):
                     cluster_pos = hatch_cluster.ref_position
-                    cluster_filename = savepath.replace('.jcode', f'_block-{block_idx+1}_cluster-{cluster_index+1}.nc')
+                    cluster_filename = f'{base_path}_block-{block_idx+1}_cluster-{cluster_index+1}.nc'
                     with open(savepath, 'a') as file:
                         file.write(f"\nJ0 X{cluster_pos[0]} Y{cluster_pos[1]} Z{cluster_pos[2]} R{cluster_pos[3]}")
                         file.write(f"\nJ1 {cluster_filename}")
@@ -318,7 +320,6 @@ class Parser:
 
                     
                     full_gcode += self.generate_gcode(process_block, cluster_index)
-                    full_gcode += footer
         
         full_gcode += footer
         formated_gcode = "\n".join(full_gcode)
@@ -403,7 +404,7 @@ class Parser:
             with open(block_path, 'w') as file:
                 file.write(txt_commands)
             
-            idx_code.append(f"0 0 0 " + "temp" + f"_cluster-{index+1}.txt"+ f" {index+1}")
+            idx_code.append(f"0 0 0 " + "temp" + f"_block-{index+1}.txt"+ f" {index+1}")  # B06: same name as the file written above
         #save the idx_code to file here
         idx_path=folder + "/"+ "temp" + "_INDEX.txt"
         idx_code="\n".join(idx_code)
@@ -412,8 +413,8 @@ class Parser:
     
     def generate_txt_code(self,process_block):
         txt_commands=[]
-        for cluster in process_block.data:
-            for polyline in cluster:
+        for hatch_cluster in process_block.hatch_data.hatch_clusters:  # B06: was process_block.data
+            for polyline in (p for line_collection in hatch_cluster.data for p in line_collection):
                 for point in polyline:
                     txt_commands.append(f"{point.x:.3f} {point.y:.3f} {point.z:.3f} {np.abs(point.move_type-1)}")
         return "\n".join(txt_commands)
@@ -435,6 +436,8 @@ class Parser:
         #data = HatchData(hatch_data, hatch_data.type)
         for hatch_cluster in hatch_data.hatch_clusters:
             for counter, line_collection in enumerate(hatch_cluster.data):
+                if not line_collection:  # B09: colour without any hatch lines
+                    continue
 
                 # Get first point for color of the entire cluster
                 first_point = line_collection[0][0]

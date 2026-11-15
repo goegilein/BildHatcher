@@ -55,3 +55,28 @@ def test_b01_dxf_import_with_arc(app_components, tmp_path, monkeypatch):
     assert len(polylines) == 3
     arc = next(p for p in polylines if len(p) not in (2, 101))
     assert len(arc) == 7  # 20 degree sweep -> ceil(20/360*100)=6 segments -> 7 points
+
+
+def _straight_polyline(n, move_type=1):
+    from HelperClasses import Point
+    return [Point(float(i), 0.0, 0.0, 0 if i == 0 else move_type, 0, 0, 0, speed=40, pwr=50) for i in range(n)]
+
+
+def test_b10_maximize_lines_removes_all_points_on_a_straight_line():
+    from PostProcessing import PostProcessor
+    result = PostProcessor().maximize_line_length([[_straight_polyline(11)]])
+    assert [p.x for p in result[0][0]] == [0.0, 10.0]
+
+
+def test_b11_drive_modes_handle_degenerate_polylines():
+    import numpy as np
+    from PostProcessing import PostProcessor
+    from HelperClasses import Point
+    duplicate = _straight_polyline(4)
+    duplicate.insert(2, Point(1.0, 0.0, 0.0, 1, 0, 0, 0, speed=40, pwr=50))  # zero-length segment
+    single = _straight_polyline(1)
+    for mode in ("Constant Drive", "Over Drive"):
+        result = PostProcessor().set_drive_mode([[duplicate, single]], mode)
+        coords = np.array([p.pos for polyline in result[0] for p in polyline])
+        assert np.isfinite(coords).all()
+        assert len(result[0][1]) == 1

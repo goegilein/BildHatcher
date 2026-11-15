@@ -43,21 +43,21 @@ class PostProcessor:
     def maximize_line_length(self, data):
         # self.get_handler_data()
         data_processed = []
-        angle_sum=0
+        max_deviation = np.radians(1)
         for hatch_lines in data:
             hatch_lines_new=[]
             for polyline in hatch_lines:
+                if len(polyline) < 3:
+                    hatch_lines_new.append(polyline)
+                    continue
                 polyline_new=polyline[0:1]
-                point_prev = polyline[0]
+                deviation_sum = 0  # B10: accumulated bend (pi = straight) since the last kept point
                 for i in range(1,len(polyline)-1):
-                    point_now = polyline[i]
-                    point_next = polyline[i+1]
-                    cos_angle=self.calculate_3d_angle(point_prev.pos,point_now.pos,point_next.pos)
-                    angle_sum+=np.acos(cos_angle)
-                    if np.cos(angle_sum) > np.cos(np.radians(179)):
-                        polyline_new.append(point_now)
-                        angle_sum=0
-                    point_prev = point_now
+                    cos_angle=self.calculate_3d_angle(polyline[i-1].pos,polyline[i].pos,polyline[i+1].pos)
+                    deviation_sum += np.pi - np.acos(cos_angle)
+                    if deviation_sum > max_deviation:
+                        polyline_new.append(polyline[i])
+                        deviation_sum = 0
                 polyline_new.append(polyline[-1])
                 hatch_lines_new.append(polyline_new)
             data_processed.append(hatch_lines_new)
@@ -82,6 +82,9 @@ class PostProcessor:
             #over_drive_len= (-0.075*speed**2+7.05*speed+37.5)/1000 #from a fit to measured data (10mm/s:100um, 20mm/s:150um, 30mm/s:180um, 40mm/2:200um)
             over_drive_len = 0.24484+(0.10634-0.24484)/(1+(speed/27.3937)**5.82549) #logistics fit to measured data of horz lines (31.01.2025) (10mm/s:110um, 20mm/s:120um, 30mm/s:200um, 40mm/2:220um, 50mm/s:250um, 60mm/s:230um, 70mm/s:240um, 100mm/s:260um)
             for polyline in hatch_lines:
+                if len(polyline) < 2:  # B11: nothing to elongate
+                    hatch_lines_new.append(polyline)
+                    continue
                 #always start with a constant drive motion
                 A_new, A_pre, B_new, B_post = self.elongate_line(polyline[0].pos, polyline[1].pos, const_drive_len)
                 polyline_new = [polyline[0].clone_with(x=A_pre[0], y=A_pre[1], z=A_pre[2],move_type=0, speed = 100), polyline[0]] #these are two G0 commands as first command from Hatcher is ALWAYS G0. we can maximize speed on first G0 command for efficiency
@@ -106,7 +109,6 @@ class PostProcessor:
                             polyline_new.append(point_now.clone_with(x=B_new1[0], y=B_new1[1], z=B_new1[2],move_type=1))
                         else:
                             print("Postprocessing Mode not recognized!")
-                        point_now.clone_with(x=B_pre[0], y=B_pre[1], z=B_pre[2],move_type=0)
                         polyline_new.append(point_now.clone_with(x=B_post[0], y=B_post[1], z=B_post[2],move_type=0))
                         polyline_new.append(point_now.clone_with(x=B_pre[0], y=B_pre[1], z=B_pre[2],move_type=0))
                         polyline_new.append(point_now.clone_with(move_type=0))
@@ -153,6 +155,8 @@ class PostProcessor:
         dot_product = np.dot(BA, BC)
         magnitude_BA = np.linalg.norm(BA)
         magnitude_BC = np.linalg.norm(BC)
+        if magnitude_BA == 0 or magnitude_BC == 0:  # B11: duplicate point -> treat as straight
+            return -1.0
 
         # Calculate the cosine of the angle
         cos_angle = dot_product / (magnitude_BA * magnitude_BC)
@@ -190,9 +194,12 @@ class PostProcessor:
 
         # Calculate the direction vector from A to B
         direction_vector = B - A
+        length = np.linalg.norm(direction_vector)
+        if length == 0:  # B11: zero-length segment has no direction -> no elongation
+            return A, A, B, B
 
         # Normalize the direction vector to get the unit vector
-        unit_vector = direction_vector / np.linalg.norm(direction_vector)
+        unit_vector = direction_vector / length
 
         # Calculate the elongation vectors for both const and over drive
         elong_v_const_drive = unit_vector * const_drive_len
