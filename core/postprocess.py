@@ -6,6 +6,32 @@ import numpy as np
 from HelperClasses import HatchData, ProcessBlock
 from core.toolpath import polyline, MOVE_TRAVEL, MOVE_BURN, MOVE_RAPID
 
+MAXIMIZE_LINES_TOLERANCE = 0.01  # mm. shortcut: fixed, far below the laser spot size; make it a setting if needed
+
+
+def simplify_indices(points, tolerance):
+    """Ramer-Douglas-Peucker: indices of the points to keep so no removed point is further than tolerance from the line."""
+    n = len(points)
+    keep = np.zeros(n, dtype=bool)
+    keep[0] = keep[-1] = True
+    stack = [(0, n - 1)]
+    while stack:
+        s, e = stack.pop()
+        if e - s < 2:
+            continue
+        a, b = points[s], points[e]
+        ab = b - a
+        rel = points[s + 1:e] - a
+        length = np.linalg.norm(ab)
+        dist = np.linalg.norm(np.cross(rel, ab), axis=1) / length if length > 0 else np.linalg.norm(rel, axis=1)
+        i = int(np.argmax(dist))
+        if dist[i] > tolerance:
+            keep[s + 1 + i] = True
+            stack.append((s, s + 1 + i))
+            stack.append((s + 1 + i, e))
+    return np.flatnonzero(keep)
+
+
 class PostProcessor:
     def __init__(self):
         pass
@@ -36,89 +62,71 @@ class PostProcessor:
         shift = np.array([offset[0], offset[1], offset[2], 0.0])
         return [dataclasses.replace(layer, polylines=[line + shift for line in layer.polylines]) for layer in data]
 
-    def maximize_line_length(self, data):
-        # self.get_handler_data()
-        data_processed = []
-        max_deviation = np.radians(1)
-        for layer in data:
-            hatch_lines_new=[]
-            for line in layer.polylines:
-                if len(line) < 3:
-                    hatch_lines_new.append(line)
-                    continue
-                keep = [0]
-                deviation_sum = 0  # B10: accumulated bend (pi = straight) since the last kept point
-                for i in range(1,len(line)-1):
-                    cos_angle=self.calculate_3d_angle(line[i-1, :3],line[i, :3],line[i+1, :3])
-                    deviation_sum += np.pi - np.acos(cos_angle)
-                    if deviation_sum > max_deviation:
-                        keep.append(i)
-                        deviation_sum = 0
-                keep.append(len(line)-1)
-                hatch_lines_new.append(line[keep])
-            data_processed.append(dataclasses.replace(layer, polylines=hatch_lines_new))
-
-        return data_processed
+    def maximize_line_length(self, data, tolerance=MAXIMIZE_LINES_TOLERANCE):
+        """Remove polyline points that deviate less than `tolerance` (mm) from a straight line (Ramer-Douglas-Peucker)."""
+        return [dataclasses.replace(layer, polylines=[line[simplify_indices(line[:, :3], tolerance)] for line in layer.polylines])
+                for layer in data]
     
-    def set_drive_mode(self, data, mode):
-        # self.get_handler_data()
+    def set_drive_mode(self, data, mode, acceleration=3000, over_drive_fit=(0.24484, 0.10634, 27.3937, 5.82549)):
+        """Constant Drive: accelerate/decelerate outside the burn (lead-in/lead-out travel moves of const_drive_len).
+        Over Drive: additionally extend each burn by the measured over-drive length.
+        Corners sharper than 10 degrees get a lead-out/lead-in as well; exactly collinear points are dropped."""
+        if mode not in ("Constant Drive", "Over Drive"):
+            raise ValueError(f"Postprocessing mode {mode!r} not recognized")
+        over = mode == "Over Drive"
+        crit_cos_angle = np.cos(np.radians(170))
         data_processed = []
-        const_drive_len=1
-        over_drive_len=0.2 #just default to this. 
-        crit_cos_angle=np.cos(np.radians(170))
-        angle_sum=np.pi #here we will track the accumulated polylines angle-difference to 180 degrees.
         for layer in data:
             if not layer.polylines:
                 continue
-            hatch_lines_new=[]
-            speed=layer.speed
-            # const_drive_len=np.maximum(1, speed*0.04) #set constant drive length to 4% of speed/s in mm but at
-            const_drive_len=np.maximum(0.1, 1.1*speed**2/(2*3000)) #assuming a constant acceleration/deceleration of 3000 mm/s^2 and using a 10% buffer
-            #over_drive_len= (-0.075*speed**2+7.05*speed+37.5)/1000 #from a fit to measured data (10mm/s:100um, 20mm/s:150um, 30mm/s:180um, 40mm/2:200um)
-            over_drive_len = 0.24484+(0.10634-0.24484)/(1+(speed/27.3937)**5.82549) #logistics fit to measured data of horz lines (31.01.2025) (10mm/s:110um, 20mm/s:120um, 30mm/s:200um, 40mm/2:220um, 50mm/s:250um, 60mm/s:230um, 70mm/s:240um, 100mm/s:260um)
+            speed = layer.speed
+            # constant acceleration/deceleration of `acceleration` mm/s^2 plus a 10 % buffer
+            const_drive_len = np.maximum(0.1, 1.1 * speed**2 / (2 * acceleration))
+            # logistic fit to measured over-drive of horizontal lines (31.01.2025): 10 mm/s: 110 um ... 100 mm/s: 260 um
+            a, b, c, n = over_drive_fit
+            over_drive_len = a + (b - a) / (1 + (speed / c)**n) if over else 0
+            hatch_lines_new = []
             for line in layer.polylines:
                 if len(line) < 2:  # B11: nothing to elongate
                     hatch_lines_new.append(line)
                     continue
                 pos = line[:, :3]
-                #always start with a constant drive motion
-                A_new, A_pre, B_new, B_post = self.elongate_line(pos[0], pos[1], const_drive_len)
+                _, A_pre, _, _ = self.elongate_line(pos[0], pos[1], const_drive_len)
                 # first command from the hatcher is ALWAYS a travel move: approach the lead-in point at rapid speed
-                rows = [(*A_pre, MOVE_RAPID), line[0]]
-                for i in range(1,len(line)-1):
-                    cos_angle=self.calculate_3d_angle(pos[i-1],pos[i],pos[i+1])
-                    angle_sum+=np.acos(cos_angle)%np.pi
-                    if np.cos(angle_sum) > np.cos(np.radians(179)) and cos_angle <= crit_cos_angle:
-                        rows.append(line[i])
-                        angle_sum=np.pi
+                parts = [polyline([(*A_pre, MOVE_RAPID)]), line[:1]]
 
-                    elif cos_angle > crit_cos_angle: # do a constant drive motion here so that decelaration is done in a G0 move
-                        if mode == "Constant Drive":
-                            A_new, A_pre, B_new1, B_post = self.elongate_line(pos[i-1], pos[i], const_drive_len)
-                            B_new2, B_pre, C_new, C_post = self.elongate_line(pos[i], pos[i+1], const_drive_len)
-                            rows.append(line[i])
-                        elif mode == "Over Drive":
-                            A_new, A_pre, B_new1, B_post = self.elongate_line(pos[i-1], pos[i], const_drive_len, over_drive_len)
-                            B_new2, B_pre, C_new, C_post = self.elongate_line(pos[i], pos[i+1], const_drive_len, over_drive_len)
-                            rows.append((*B_new1, MOVE_BURN))
-                        else:
-                            print("Postprocessing Mode not recognized!")
-                        rows.append((*B_post, MOVE_TRAVEL))
-                        rows.append((*B_pre, MOVE_TRAVEL))
-                        rows.append((*pos[i], MOVE_TRAVEL))
+                interior = np.arange(1, len(line) - 1)
+                cos_angle = self.vertex_cosines(pos)
+                corner = cos_angle > crit_cos_angle
+                collinear = cos_angle <= -1 + 1e-12
+                last = 0
+                for i in interior[corner]:  # usually none: straight runs are copied as array slices
+                    run = np.arange(last + 1, i)
+                    parts.append(line[run[~collinear[run - 1]]])
+                    # lead-out/lead-in around the corner so that deceleration happens in travel moves
+                    _, _, B_new1, B_post = self.elongate_line(pos[i - 1], pos[i], const_drive_len, over_drive_len)
+                    _, B_pre, _, _ = self.elongate_line(pos[i], pos[i + 1], const_drive_len, over_drive_len)
+                    parts.append(polyline([(*B_new1, MOVE_BURN) if over else line[i],
+                                           (*B_post, MOVE_TRAVEL), (*B_pre, MOVE_TRAVEL), (*pos[i], MOVE_TRAVEL)]))
+                    last = i
+                run = np.arange(last + 1, len(line) - 1)
+                parts.append(line[run[~collinear[run - 1]]])
+
                 #finally also finish with a constant drive motion
-                if mode == "Constant Drive":
-                    A_new, A_pre, B_new, B_post = self.elongate_line(pos[-2], pos[-1], const_drive_len)
-                    rows.append(line[-1])
-                    rows.append((*B_post, MOVE_TRAVEL))
-
-                elif mode== "Over Drive":
-                    A_new, A_pre, B_new, B_post = self.elongate_line(pos[-2], pos[-1], const_drive_len, over_drive_len)
-                    rows.append((*B_new, MOVE_BURN))
-                    rows.append((*B_post, MOVE_TRAVEL))
-                hatch_lines_new.append(polyline(rows))
+                _, _, B_new, B_post = self.elongate_line(pos[-2], pos[-1], const_drive_len, over_drive_len)
+                parts.append(polyline([(*B_new, MOVE_BURN) if over else line[-1], (*B_post, MOVE_TRAVEL)]))
+                hatch_lines_new.append(np.concatenate(parts))
             data_processed.append(dataclasses.replace(layer, polylines=hatch_lines_new))
         return data_processed
+
+    @staticmethod
+    def vertex_cosines(pos):
+        """cos of the angle at every interior vertex (-1 = straight); duplicate points count as straight (B11)."""
+        BA, BC = pos[:-2] - pos[1:-1], pos[2:] - pos[1:-1]
+        norm = np.linalg.norm(BA, axis=1) * np.linalg.norm(BC, axis=1)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            cos = np.where(norm > 0, np.einsum("ij,ij->i", BA, BC) / norm, -1.0)
+        return np.clip(cos, -1.0, 1.0)
 
 
     def calculate_3d_angle(self, A, B, C):

@@ -18,7 +18,7 @@ This file is the single source of truth for status – update it in the same com
 | 2 – Core model & state | done | P2.1 rest → Phase 4, masks per document → P6.4 |
 | 3 – Transparency | done | widgets of the old thresholds still in `.ui` (P7) |
 | 4 – Hatching engine | done | 13–33× faster, exact edges for lines, random seed |
-| 5 – Output | **next** | |
+| 5 – Output | in progress | 5a done, next 5b (machine profiles) |
 | 6 – Editing tools | open | |
 | 7 – Polish | open | |
 
@@ -193,13 +193,17 @@ Done in sub-steps, each one green against the golden files:
 - [x] P4.6 Worker gets its settings as a dict collected on the GUI thread; signals only; `QEventLoop` in automatic mode; cancel via progress callback (done in Phase 1, B02/B03).
 - [x] P4.7 Benchmark old vs. new (see 4a); outputs byte-identical.
 
-### Phase 5 – Output (post-processing, G-code, plotting)  `[ ]`
+### Phase 5 – Output (post-processing, G-code, plotting)  `[~]`
+
+Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s, Maximize Lines 7.0 s, Constant Drive 11.2 s, G-code text 1.5 s.
+- [x] **5a** Post-processing: RDP for Maximize Lines (7.0 → 3.0 s, fewer points), drive modes vectorized (11.2 → 0.24 s).
+- [ ] **5b** Machine profiles (P5.1) + writer (P5.2).
 - [ ] P5.1 `MachineProfile` JSON (**user-facing feature**, multiple machines planned – see Q1): header/footer, laser mode & power mode commands, enclosure fan, air assist, acceleration (now hardcoded 3000 mm/s²), travel speed (now hardcoded 100), over-drive fit parameters. Snapmaker Artisan = first profile.
 - [ ] P5.2 Streaming, vectorized G-code / jcode / txt writer; shared block/iteration loop for all formats.
-- [ ] P5.3 Replace "Maximize Lines" by Ramer–Douglas–Peucker with tolerance in mm.
-- [ ] P5.4 Constant/Over Drive rewritten on arrays with guards (short polylines, zero-length segments).
-- [ ] P5.5 `set_speed_and_pwr` on layers (no per-point loop, no full deepcopy incl. image matrix).
-- [ ] P5.6 Plotting: one `GLLinePlotItem` per layer, vectorized position/colour arrays.
+- [x] P5.3 "Maximize Lines" = Ramer–Douglas–Peucker, tolerance 0.01 mm (*shortcut:* constant `MAXIMIZE_LINES_TOLERANCE`). Golden: 792 → 252 burn moves, same length.
+- [x] P5.4 Constant/Over Drive on arrays (corners as the only Python loop). *Changed semantics for interior points:* the old `angle_sum` state was never reset between polylines and only dropped exactly collinear points; now: corners sharper than 10° get lead-out/lead-in, exactly collinear points are dropped, everything else is kept. Goldens (2-point lines) byte-identical.
+- [x] P5.5 Speed/power per layer (2b). Deep copy measured at 0.02 s → left as is.
+- [x] P5.6 Plotting: one `GLLinePlotItem` per layer, vectorized position/colour arrays (2b).
 - [ ] P5.7 DB colour matching: parse palette once, optional ΔE (Lab) distance.
 
 ### Phase 6 – Image editing tools  `[ ]`
@@ -282,3 +286,4 @@ Done in sub-steps, each one green against the golden files:
 | 2026-11-15 | 4b, B30 | Edge rounding fixed; full-bleed golden cases added (fail with the old rounding). 42 tests. |
 | 2026-11-15 | P4.4 | Random seed setting (own `random.Random` instance, does not touch the global random state). |
 | 2026-11-15 | P4.5 | Exact edges for straight hatch lines; meander/radial goldens regenerated (other goldens unchanged), geometric property test added. Speed unchanged (2400×1800 px: 0.8–1.0 s). 44 tests. |
+| 2026-11-15 | 5a | RDP + vectorized drive modes; `tests/test_postprocess.py`. 47 tests. |
