@@ -19,8 +19,8 @@ This file is the single source of truth for status – update it in the same com
 | 3 – Transparency | done | widgets of the old thresholds still in `.ui` (P7) |
 | 4 – Hatching engine | done | 13–33× faster, exact edges for lines, random seed |
 | 5 – Output | done | machine profiles, RDP, fast drive modes |
-| 6 – Editing tools | in progress | fill + quantize done |
-| 7 – Polish | open | |
+| 6 – Editing tools | done | fill/quantize/clean-up fast, B17/B33 fixed |
+| 7 – Polish | **next** | |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
 
@@ -208,14 +208,14 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 - [x] P5.6 Plotting: one `GLLinePlotItem` per layer, vectorized position/colour arrays (2b).
 - [-] P5.7 DB colour matching: called once per colour, cost negligible; ΔE would change results without a request.
 
-### Phase 6 – Image editing tools  `[~]`
+### Phase 6 – Image editing tools  `[x]`
 - [x] P6.1 Adjustments start from a base image that is reused only while the current image is still the adjuster's own last result (B33); otherwise the current image becomes the base and the unmoved sliders show 0. Slider updates debounced (40 ms). *Changed:* no full parameter pipeline / parameter-based undo (snapshot undo + memory budget is enough).
 - [x] P6.2 K-means on the distinct colours weighted by pixel count (same objective as all pixels), random sample above 100k colours; 64 colours on 800×600: 3.0 → 0.1 s, same error. Lab space: not done.
 - [x] P6.3 `core/fill.py`: all 7 fill modes as "allowed pixels" + `cv2.connectedComponents`; verified against a reference BFS; 4 Mpx fill < 1 s (old Python BFS: minutes). Contours kept as a bool mask instead of a pixel list.
-- [~] P6.4 (incl. rest of B17 – done: outlines are rebuilt from the mask's image coordinates when the pixel size changes, `refresh_mask_outlines`) Masks: geometry as source of truth, rasterize with `cv2.rectangle/ellipse/fillPoly`; outlines as children of `image_item` in image coords; transform/clear on geometry change; extract `MaskManager` from `ImageColorer`.
-- [ ] P6.5 Colour overlays cropped to bounding box (not full-size RGBA per fill); pixmap overlays imprinted in numpy, vector items via QPainter into RGBA layer.
-- [ ] P6.6 Vectorize split colours, combine images, clean-up colours/clusters (remove unused `clean_up_clusters` if still unused).
-- [ ] P6.7 Contours: new mode "region outlines" via `findContours` on per-colour masks (`CHAIN_APPROX_NONE` + `approxPolyDP`); keep Canny mode.
+- [x] P6.4 Masks: outlines follow pixel-size changes (rest of B17, `refresh_mask_outlines`); rectangle/ellipse rasterization vectorized (`_fill_mask_shape`, identical to the old loops); masks are cleared when the image size changes (B17). *Not done:* separate `MaskManager` class / outlines as image-item children – the masks work, the move would only be churn.
+- [x] P6.5 Fill/replace overlays are cropped to the bounding box of the filled area (`setOffset`). Imprint stays QPainter-based (works with the cropped items).
+- [x] P6.6 Split/combine vectorized (Phase 1/3), `clean_up_clusters` removed (Phase 3); clean-up colours keeps a running maximum instead of an H×W×colours float array (identical result, verified against the old algorithm).
+- [x] P6.7 Contour mode "color regions": exact outline of every colour area (`findContours` per colour, inside the active mask); Canny modes kept.
 - [x] P6.8 DXF import via `ezdxf.path.make_path` + `flattening(0.01 mm)`: lines, (LW)polylines incl. bulges (were drawn straight), circles, arcs, ellipses, splines; unsupported entities (text, block references) are skipped with a warning if nothing is left.
 - [x] P6.9 Undo keeps the newest actions within 512 MB of image snapshots (and max. 50). Changed-region storage: not done.
 - [x] P6.10 Upscaler runs in a `QThread` (status messages via queued signal), no side effects (2c). *Open:* verify the 4x-then-resize path with the real engine (not covered by tests).
@@ -296,3 +296,4 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 | 2026-11-15 | P6.9, P6.10, B22 | Undo memory budget; upscaling in a worker thread. 57 tests. |
 | 2026-11-15 | P6.1, B33 | Correct adjustment base, debounced sliders. 59 tests. |
 | 2026-11-15 | P6.8 | DXF via ezdxf paths. 59 tests. |
+| 2026-11-15 | P6.4–P6.7 | Cropped overlays, memory-light clean-up, colour-region contours, vectorized mask shapes. Phase 6 complete, 63 tests. |

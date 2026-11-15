@@ -79,3 +79,22 @@ def test_flood_fill_at_creates_overlay(app_components):
     c.image_colorer.imprint_color_overlays()
     img = c.data_handler.image_matrix
     assert (img[10:46, 10:56] == [0, 255, 0, 255]).all() and img[5, 5, 3] == 0
+
+
+def test_p64_mask_shapes_match_former_pixel_loops():
+    from ImageEditing import _fill_mask_shape
+    rng = np.random.default_rng(9)
+    for _ in range(50):
+        h, w = 30, 40
+        x0, x1 = sorted(rng.integers(-5, 45, 2))
+        y0, y1 = sorted(rng.integers(-5, 35, 2))
+        for shape in ("rectangle", "ellipse"):
+            new = np.zeros((h, w), np.uint8)
+            _fill_mask_shape(new, shape, x0, y0, x1, y1)
+            old = np.zeros((h, w), np.uint8)
+            cx, cy, rx, ry = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2, (y1 - y0) / 2
+            for y in range(max(0, y0), min(h, y1 + 1)):
+                for x in range(max(0, x0), min(w, x1 + 1)):
+                    if shape == "rectangle" or (rx > 0 and ry > 0 and ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1):
+                        old[y, x] = 1
+            assert np.array_equal(new, old), (shape, x0, y0, x1, y1)

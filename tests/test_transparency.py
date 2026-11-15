@@ -145,3 +145,51 @@ def test_p61_slider_updates_are_debounced(app_components, qapp):
     while c.data_handler.image_matrix is before and time.time() < deadline:
         qapp.processEvents()
     assert c.data_handler.image_matrix is not before
+
+
+def _old_clean_up(img, kernel_size=3):
+    """Reference: the former H x W x colours implementation."""
+    import cv2
+    colors = np.unique(img.reshape(-1, 4), axis=0)
+    scores = np.zeros(img.shape[:2] + (len(colors),), np.float32)
+    kernel = np.ones((kernel_size, kernel_size), np.float32)
+    transparent = -1
+    for i, color in enumerate(colors):
+        if color[3] == 0:
+            transparent = i
+        scores[..., i] = cv2.filter2D(np.all(img == color, axis=-1).astype(np.float32), -1, kernel)
+    if transparent != -1:
+        scores[img[..., 3] > 0, transparent] = -1
+    return colors[np.argmax(scores, axis=-1)]
+
+
+def test_p66_clean_up_matches_former_algorithm(app_components):
+    rng = np.random.default_rng(2)
+    palette = np.array([[0, 0, 0, 0], [200, 0, 0, 255], [0, 0, 200, 255], [90, 90, 90, 255]], np.uint8)
+    img = palette[np.kron(rng.integers(0, 4, (8, 10)), np.ones((5, 5), int))]
+    img[rng.random(img.shape[:2]) < 0.1] = palette[3]  # noise
+    load_image(app_components, img)
+    app_components.image_colorer.clean_up_image_colors()
+    assert np.array_equal(app_components.data_handler.image_matrix, _old_clean_up(img))
+
+
+def test_p65_overlay_covers_only_the_filled_area(app_components):
+    c = app_components
+    load_image(c, image_doc.from_rgb(make_test_image()))
+    region = np.zeros((80, 120), bool)
+    region[10:20, 30:35] = True
+    item = c.image_colorer._create_overlay_from_mask(region)
+    assert (item.pixmap().width(), item.pixmap().height()) == (5, 10)
+    assert (item.offset().x(), item.offset().y()) == (30, 10)
+
+
+def test_p67_colour_region_contours(app_components):
+    c = app_components
+    load_image(c, image_doc.from_rgb(make_test_image()))
+    c.gui.contouring_mode_combobox.setCurrentText("color regions")
+    c.image_colorer.find_image_contours()
+    assert len(c.data_handler.contours_list) >= 3  # one outline per shape
+    xs = [p[0] for contour in c.data_handler.contours_list for p in contour]
+    assert min(xs) == 10  # left edge of the red rectangle, exactly on its pixels
+    c.image_hatcher.contour_from_image()
+    assert c.data_handler.hatch_data.hatch_clusters[0].data[0].polylines

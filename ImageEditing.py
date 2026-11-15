@@ -11,6 +11,21 @@ import random
 from UndoRedo import ColorOverlayAction, ImprintColorOverlaysAction, ImageMatrixAction
 from core import fill, image_doc
 
+def _fill_mask_shape(mask_matrix, shape, x_min, y_min, x_max, y_max):
+    """Set the pixels of a rectangle / ellipse (inclusive pixel bounds) to 1 (vectorized former per-pixel loops)."""
+    height, width = mask_matrix.shape
+    ys, xs = slice(max(0, y_min), min(height, y_max + 1)), slice(max(0, x_min), min(width, x_max + 1))
+    if shape == 'rectangle':
+        mask_matrix[ys, xs] = 1
+        return
+    radii_x, radii_y = (x_max - x_min) / 2.0, (y_max - y_min) / 2.0
+    if radii_x <= 0 or radii_y <= 0:
+        return
+    y, x = np.ogrid[ys, xs]
+    inside = ((x - (x_min + x_max) / 2.0) / radii_x) ** 2 + ((y - (y_min + y_max) / 2.0) / radii_y) ** 2 <= 1.0
+    mask_matrix[ys, xs][inside] = 1
+
+
 class ImageAdjuster:
     def __init__(self, data_handler, gui):
         self.data_handler = data_handler
@@ -454,6 +469,7 @@ class ImageColorer(QtCore.QObject):
 
         #Add combobox for contour mode
         self.contouring_mode_combobox = gui.contouring_mode_combobox
+        self.contouring_mode_combobox.addItem("color regions")  # P6.7
         self.contouring_mode_combobox.currentTextChanged.connect(self.find_image_contours)
 
         #Add spinbox for contour sensitivity
@@ -1232,14 +1248,19 @@ class ImageColorer(QtCore.QObject):
         """
         Efficiently converts a boolean mask (H, W) into a QGraphicsPixmapItem overlay.
         """
+        # P6.5: the pixmap only covers the bounding box of the mask (placed there via setOffset)
+        rows, cols = np.flatnonzero(mask_boolean.any(axis=1)), np.flatnonzero(mask_boolean.any(axis=0))
+        y0, x0 = (rows[0], cols[0]) if len(rows) else (0, 0)
+        y1, x1 = (rows[-1] + 1, cols[-1] + 1) if len(rows) else (1, 1)
+        mask_boolean = mask_boolean[y0:y1, x0:x1]
         h, w = mask_boolean.shape
-        
+
         # 1. Create RGBA array (4 channels: R, G, B, Alpha)
         rgba_overlay = np.zeros((h, w, 4), dtype=np.uint8)
-        
+
         # 2./3. Only set pixels where the mask is True; transparent colour shows a checkerboard and erases on imprint
         if self.erasing:
-            rgba_overlay[mask_boolean] = self._checker_rgba(h, w)[mask_boolean]
+            rgba_overlay[mask_boolean] = self._checker_rgba(y1, x1)[y0:y1, x0:x1][mask_boolean]  # pattern aligned to the image
         else:
             rgba_overlay[mask_boolean] = self.active_color
         
@@ -1249,6 +1270,7 @@ class ImageColorer(QtCore.QObject):
         
         # 5. Create QGraphicsItem as child of image item
         pixmap_item = QGraphicsPixmapItem(QPixmap.fromImage(overlay_img), self.gui.image_item)
+        pixmap_item.setOffset(float(x0), float(y0))
         pixmap_item.setZValue(10) # Above background
         pixmap_item.erases = self.erasing
         return pixmap_item
@@ -1472,7 +1494,18 @@ class ImageColorer(QtCore.QObject):
             edges = cv2.dilate(edges, kernel, iterations=1)
 
             # Find contours from the edges
-            if self.contouring_mode_combobox.currentText() == "only external":
+            if self.contouring_mode_combobox.currentText() == "color regions":
+                # P6.7: exact outline of every area of one colour (no edge detection, independent of sensitivity)
+                rgba = self.data_handler.image_matrix
+                packed = np.ascontiguousarray(rgba).view(np.uint32)[..., 0]
+                region = np.ones((height, width), bool)
+                if self.data_handler.active_mask_index != -1:
+                    region = self.data_handler.masks_list[self.data_handler.active_mask_index] == 1
+                contours = []
+                for color in np.unique(packed[(rgba[..., 3] > 0) & region]):
+                    color_mask = ((packed == color) & region).astype(np.uint8)
+                    contours.extend(cv2.findContours(color_mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)[0])
+            elif self.contouring_mode_combobox.currentText() == "only external":
                 contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             elif self.contouring_mode_combobox.currentText() == "all":
                 contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -1539,37 +1572,21 @@ class ImageColorer(QtCore.QObject):
             h, w, _ = quantized_image.shape
             num_colors = len(unique_colors)
             
-            # Array to store the "votes" for each color
-            color_scores = np.zeros((h, w, num_colors), dtype=np.float32)
             kernel = np.ones((kernel_size, kernel_size), dtype=np.float32)
-            
-            white_idx = -1
-            
-            # 2. Count votes for each color in the neighborhood
+            opaque = quantized_image[..., 3] > 0
+
+            # 2.-4. Majority vote: count each colour in the neighbourhood and keep the best one so far
+            # (P6.6: running maximum instead of an H x W x colours array; the first maximum wins like argmax)
+            best_score = np.full((h, w), -np.inf, dtype=np.float32)
+            best_color_indices = np.zeros((h, w), dtype=np.intp)
             for idx, color in enumerate(unique_colors):
-                # Remember the index of pure white in our palette
-                if color[3] == 0:  # transparent background
-                    white_idx = idx
-                    
-                # Binary mask: Where exactly is this color located?
                 mask = np.all(quantized_image == color, axis=-1).astype(np.float32)
-                
-                # Convolution: Counts the presence of the color within the kernel area
                 score = cv2.filter2D(mask, -1, kernel)
-                color_scores[:, :, idx] = score
-                
-            # 3. APPLY RULE: Never change a non-white pixel to pure white
-            if white_idx != -1:
-                # Find all pixels that are NOT white in the original image
-                non_white_mask = quantized_image[..., 3] > 0
-                
-                # For all non-white pixels, we set the votes for white to -1.
-                # This ensures white can never win the vote here. The argmax function
-                # will automatically select the second most frequent color instead.
-                color_scores[non_white_mask, white_idx] = -1
-                
-            # 4. Majority vote (find the maximum score)
-            best_color_indices = np.argmax(color_scores, axis=-1)
+                if color[3] == 0:  # rule: an opaque pixel never becomes transparent background
+                    score[opaque] = -1
+                better = score > best_score
+                best_score[better] = score[better]
+                best_color_indices[better] = idx
             
             # 5. Reconstruct the image with the winning colors
             result_image = unique_colors[best_color_indices]
@@ -1654,9 +1671,7 @@ class ImageColorer(QtCore.QObject):
         mask_matrix = np.zeros((height, width), dtype=image_matrix.dtype)
         
         # Fill selected area with ones
-        for y in range(max(0, y_min), min(height, y_max + 1)):
-            for x in range(max(0, x_min), min(width, x_max + 1)):
-                mask_matrix[y, x] = 1
+        _fill_mask_shape(mask_matrix, 'rectangle', x_min, y_min, x_max, y_max)
 
         # Store the mask and its info
         self.data_handler.masks_list.append(mask_matrix)
@@ -1752,13 +1767,7 @@ class ImageColorer(QtCore.QObject):
         
         # Fill pixels inside ellipse with ones
         if radii_x > 0 and radii_y > 0:
-            for y in range(max(0, y_min), min(height, y_max + 1)):
-                for x in range(max(0, x_min), min(width, x_max + 1)):
-                    # Check if point is inside ellipse using the ellipse equation
-                    dx = (x - center_x) / radii_x
-                    dy = (y - center_y) / radii_y
-                    if dx * dx + dy * dy <= 1.0:
-                        mask_matrix[y, x] = 1
+            _fill_mask_shape(mask_matrix, 'ellipse', x_min, y_min, x_max, y_max)
         
         # Store the mask and its info
         self.data_handler.masks_list.append(mask_matrix)
@@ -2131,9 +2140,7 @@ class ImageColorer(QtCore.QObject):
         mask_matrix = np.zeros((height, width), dtype=image_matrix.dtype)
         
         if mask_info['type'] == 'rectangle':
-            for y in range(max(0, y_min), min(height, y_max + 1)):
-                for x in range(max(0, x_min), min(width, x_max + 1)):
-                    mask_matrix[y, x] = 1
+            _fill_mask_shape(mask_matrix, 'rectangle', x_min, y_min, x_max, y_max)
         else:  # ellipse
             center_x = (x_min + x_max) / 2.0
             center_y = (y_min + y_max) / 2.0
@@ -2141,12 +2148,7 @@ class ImageColorer(QtCore.QObject):
             radii_y = (y_max - y_min) / 2.0
             
             if radii_x > 0 and radii_y > 0:
-                for y in range(max(0, y_min), min(height, y_max + 1)):
-                    for x in range(max(0, x_min), min(width, x_max + 1)):
-                        dx = (x - center_x) / radii_x
-                        dy = (y - center_y) / radii_y
-                        if dx * dx + dy * dy <= 1.0:
-                            mask_matrix[y, x] = 1
+                _fill_mask_shape(mask_matrix, 'ellipse', x_min, y_min, x_max, y_max)
         
         self.data_handler.masks_list[mask_index] = mask_matrix
         self.update_masks_list_widget_keep_selection(mask_index)
