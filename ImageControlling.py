@@ -456,17 +456,11 @@ class BaseFunctions:
                     new_height_mm = float(self.height_spinbox.value())
                     
                     image_matrix = self.get_active_image_matrix()
-                    if self.lock_ratio_check.isChecked():  # If ratio is locked we simply rescale the DPI. This maintains the image information
-                        if sender == self.width_spinbox:#.hasFocus():
-                            new_pixel_per_mm = image_matrix.shape[1] / new_width_mm
-                            self.set_active_pixel_per_mm(new_pixel_per_mm)
-                        else:
-                            new_pixel_per_mm = image_matrix.shape[0] / new_height_mm
-                            self.set_active_pixel_per_mm(new_pixel_per_mm)
+                    # The ratio is always locked: rescale the pixel size, the pixel data stays untouched
+                    if sender == self.width_spinbox:
+                        self.set_active_pixel_per_mm(image_matrix.shape[1] / new_width_mm)
                     else:
-                        new_width = new_width_mm * self.get_active_pixel_per_mm()
-                        new_height = new_height_mm * self.get_active_pixel_per_mm()
-                        image_matrix = np.array(Image.fromarray(image_matrix).resize((int(new_width), int(new_height))))
+                        self.set_active_pixel_per_mm(image_matrix.shape[0] / new_height_mm)
                 self.set_handler_data(new_image = False)
                 self.update_dimension_fields()
         except Exception as e:
@@ -622,8 +616,9 @@ class BaseFunctions:
         if not newly_selected or len(newly_selected) != 1:
             return
         
-        #first store the current image matrix in the previously selected item
-        self.get_handler_data()
+        #first store the current image matrix in the previously selected item (B27: none left after removing all)
+        if self.active_image_item is not None:
+            self.get_handler_data()
 
         #load new item
         self.changeing_image = True
@@ -635,34 +630,29 @@ class BaseFunctions:
 
     def combine_images(self):
         selected_images = self.images_ListWidget.selectedItems()
+        if not selected_images:
+            return
         combined_image = np.ones_like(selected_images[0].data(QtCore.Qt.ItemDataRole.UserRole).image_matrix, dtype=np.uint8) * 255
-        avg_color = np.array([0, 0, 0])
-
 
         for image_item in selected_images:
             patch = image_item.data(QtCore.Qt.ItemDataRole.UserRole).image_matrix
-            # Where patch is not white, compare to current combined
-            mask = ~np.all(patch == 255, axis=-1)
-            # For those pixels, if patch is darker, use it
-            current = combined_image[mask]
-            candidate = patch[mask]
-            # Compare sum of RGB (lower is darker)
-            darker = np.sum(candidate, axis=-1) < np.sum(current, axis=-1)
-            # Update only where candidate is darker
-            indices = np.where(mask)
-            if len(indices[0]) > 0:
-                darker_indices = np.where(darker)[0]
-                for idx in darker_indices:
-                    combined_image[indices[0][idx], indices[1][idx]] = candidate[idx]
+            if patch.shape != combined_image.shape:
+                QtWidgets.QMessageBox.warning(self.gui, "Combine Images", "All selected images must have the same size.")
+                return
+            # darkest colour wins (sum of RGB, int to avoid uint8 overflow); white patch pixels never win
+            darker = patch.sum(axis=-1, dtype=np.int32) < combined_image.sum(axis=-1, dtype=np.int32)
+            combined_image[darker] = patch[darker]
 
-        # Make the combined_image monochrome if checked (use avg_color)
+        # Make the combined image monochrome if checked: all coloured pixels get their average colour (B20: was always black)
         if self.monochrome_check.isChecked():
-            white_mask = np.all(combined_image == [255, 255, 255], axis=-1)
-            color_mask = ~white_mask
-            combined_image[color_mask] = avg_color.astype(np.uint8)
+            color_mask = ~np.all(combined_image == [255, 255, 255], axis=-1)
+            if color_mask.any():
+                combined_image[color_mask] = combined_image[color_mask].mean(axis=0).astype(np.uint8)
 
+        # B27: read the pixel size before removing, the active item may be one of the removed images
+        first_obj = selected_images[0].data(QtCore.Qt.ItemDataRole.UserRole)
         self.remove_image()
-        img_obj = ImgObj(combined_image, combined_image, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
+        img_obj = ImgObj(combined_image, combined_image, first_obj.pixel_per_mm, first_obj.pixel_per_mm_original)
         self.add_listbox_item(img_obj, "combined", set_selected=True)
 
     def cut_to_mask(self):
@@ -1212,12 +1202,13 @@ class ImageMover(QtCore.QObject):
             self.setting_image_center = False
 
     def reset_image_center_to_default(self):
-        if self.data_handler.image_matrix_original is None:
+        image_matrix = self.data_handler.image_matrix
+        if image_matrix is None or self.data_handler.image_matrix_original is None:
             self.data_handler.center_for_hatch = None
             return
-        
-        self.current_image_center = [(self.data_handler.image_matrix_original.shape[1]-1)/2,
-                        (self.data_handler.image_matrix_original.shape[0]-1)/2]
+
+        # B15: use the current image (the original is not rotated/cropped)
+        self.current_image_center = [(image_matrix.shape[1]-1)/2, (image_matrix.shape[0]-1)/2]
         
         self.update_image_center()
     

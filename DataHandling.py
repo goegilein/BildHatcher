@@ -12,6 +12,7 @@ class DataHandler:
         self.undo_manager = UndoRedoManager(gui, self)
         self.image_changed_callback_list = []  # List to hold callbacks for image changes (edits to original_image_matrix)
         self.image_resized_callback_list = []  # List to hold callbacks for image resizing
+        self.image_shape_changed_callback_list = []  # called when the pixel dimensions of image_matrix change
 
         #values to handle
         self._hatch_data = HatchData(None, None)
@@ -68,7 +69,11 @@ class DataHandler:
 
     @image_matrix.setter
     def image_matrix(self, new_value):
+        old_value = getattr(self, '_image_matrix', None)
         self._image_matrix = new_value
+        if old_value is not None and new_value is not None and old_value.shape[:2] != new_value.shape[:2]:
+            for callback in self.image_shape_changed_callback_list:
+                callback()
         self.set_and_display_image()
 
     #create a watcher for the hatch_data type. when it is changed, update the active_hatch_label

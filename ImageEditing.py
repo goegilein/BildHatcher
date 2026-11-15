@@ -562,6 +562,7 @@ class ImageColorer(QtCore.QObject):
         #Event callbacks for handling gui interactions
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
         self.event_handler.add_global_event_callback(self.trigger_global_event)
+        self.data_handler.image_shape_changed_callback_list.append(self.reset_masks)  # B17
 
 
     #### UI SETUP METHODS ####
@@ -1095,7 +1096,7 @@ class ImageColorer(QtCore.QObject):
                 active_mask = self.get_background_mask()
                 mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
             else:
-                mask_matrix = image_matrix
+                mask_matrix = image_matrix.astype(np.int16)  # B12: signed, so colour differences do not wrap
 
         # 3. BFS Algorithm (Numpy optimization is difficult for flood fill, so use Queue)
         # For extremely large images: skimage.segmentation.flood_fill would be faster,
@@ -1302,8 +1303,11 @@ class ImageColorer(QtCore.QObject):
                 self.undo_manager.push_action(action)
 
     def recolor_color_from_db(self):
+        selected = {}
+
         def on_profile_received(data):
             if data is not None:
+                selected['palette'] = True
                 ids = data['identifiers']
                 self.db_color_palette = DBColorPalette(data['parameters'], data['settings'])
                 self.recolor_laser_label.setText(f"<b> {ids['laser']['name']} </b>")
@@ -1319,6 +1323,8 @@ class ImageColorer(QtCore.QObject):
         navigator.profileSelected.connect(on_profile_received)
         layout.addWidget(navigator)
         dialog.exec()
+        if not selected:  # B14: dialog cancelled -> do not reuse (or miss) a previous profile
+            return
 
         color_list = self.db_color_palette.get_color_list()
         if not color_list:
@@ -1330,14 +1336,13 @@ class ImageColorer(QtCore.QObject):
         pixels = image_matrix.reshape(-1, 3)  # (num_pixels, 3)
         palette = np.stack(color_list)        # (num_palette, 3)
 
-        # Compute squared distances: (num_pixels, num_palette)
-        dists = np.sum((pixels[:, None, :] - palette[None, :, :]) ** 2, axis=2)
-
-        # Find the index of the closest palette color for each pixel
-        closest = np.argmin(dists, axis=1)  # (num_pixels,)
+        # B14: match only the unique colours (pixels x palette x 3 could exhaust memory)
+        unique_colors, inverse = np.unique(pixels, axis=0, return_inverse=True)
+        dists = np.sum((unique_colors[:, None, :].astype(np.int64) - palette[None, :, :]) ** 2, axis=2)
+        closest = np.argmin(dists, axis=1)  # (num_unique,)
 
         # Map each pixel to its closest palette color
-        recolored_pixels = palette[closest]  # (num_pixels, 3)
+        recolored_pixels = palette[closest][inverse.reshape(-1)]  # (num_pixels, 3)
 
         # Reshape back to image
         recolored_image = recolored_pixels.reshape(image_matrix.shape)
@@ -1735,7 +1740,7 @@ class ImageColorer(QtCore.QObject):
             if quantized_image is None:
                 return
             
-            kernel_size = self.gui.color_count_spinbox.value()
+            kernel_size = 3  # B13: was the colour-count spinbox. shortcut: fixed size, add a UI control if needed (P6.6)
            
             # 1. Extract all unique colors present in the image
             pixels = quantized_image.reshape(-1, 3)
@@ -1780,7 +1785,6 @@ class ImageColorer(QtCore.QObject):
             result_image = unique_colors[best_color_indices]
 
             # Update the data handler with the cleaned image
-            self.data_handler.image_matrix_adjusted = result_image.astype(np.uint8)
             self.data_handler.image_matrix = result_image.astype(np.uint8)
     
 
@@ -2514,16 +2518,22 @@ class ImageColorer(QtCore.QObject):
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
         )
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
-            #ensure deselection and edit mode reset first!
-            self.deselect_mask()
-            #then delete all masks and overlays
-            self.data_handler.masks_list.clear()
-            self.data_handler.mask_info.clear()
-            self.clear_edit_handles()
-            self.update_masks_list_widget()
-            for overlay in self.data_handler.mask_overlays:
+            self.reset_masks()
+
+    def reset_masks(self):
+        """Remove all masks without asking (also used when the image size changes, B17)."""
+        #ensure deselection and edit mode reset first!
+        self.deselect_mask()
+        self.cancel_mask_drawing()
+        #then delete all masks and overlays
+        self.data_handler.masks_list.clear()
+        self.data_handler.mask_info.clear()
+        self.clear_edit_handles()
+        self.update_masks_list_widget()
+        for overlay in self.data_handler.mask_overlays:
+            if overlay.scene() is not None:
                 self.gui.image_scene.removeItem(overlay)
-            self.data_handler.mask_overlays.clear()
+        self.data_handler.mask_overlays.clear()
 
     def get_background_mask(self):
         """

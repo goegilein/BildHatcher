@@ -33,9 +33,5 @@ def app_components(qapp):
     components = main.create_components(gui)
     components.gui = gui
     yield components
-    # Detach the global event filters before Qt deletes the widgets, otherwise the
-    # EventHandler callbacks fire on already deleted C++ objects during teardown.
-    gui.removeEventFilter(components.event_handler)
-    gui.image_canvas.viewport().removeEventFilter(components.event_handler)
     gui.deleteLater()
     qapp.processEvents()

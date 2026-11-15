@@ -80,3 +80,60 @@ def test_b11_drive_modes_handle_degenerate_polylines():
         coords = np.array([p.pos for polyline in result[0] for p in polyline])
         assert np.isfinite(coords).all()
         assert len(result[0][1]) == 1
+
+
+def test_b15_b17_rotation_updates_center_and_drops_masks(app_components):
+    import numpy as np
+    from PyQt6 import QtWidgets
+    c = app_components
+    load_image(c, make_test_image(width_px=120, height_px=80))
+    mask = np.zeros((80, 120), dtype=np.uint8)
+    mask[10:20, 10:20] = 1
+    overlay = QtWidgets.QGraphicsRectItem(0, 0, 10, 10)
+    c.gui.image_scene.addItem(overlay)
+    c.data_handler.masks_list.append(mask)
+    c.data_handler.mask_info.append({'type': 'rectangle', 'coords': (10, 10, 19, 19)})
+    c.data_handler.mask_overlays.append(overlay)
+
+    c.image_controller.rot_image_90_clockwise()
+
+    assert c.data_handler.image_matrix.shape[:2] == (120, 80)
+    assert c.data_handler.center_for_hatch == [79 / 2, 119 / 2]
+    assert c.data_handler.masks_list == [] and c.data_handler.mask_overlays == []
+    assert overlay.scene() is None
+
+
+def test_b19_settings_roundtrip_by_text_and_legacy_index(app_components):
+    import Settings
+    gui = app_components.gui
+    settings = app_components.settings
+    gui.hatch_pattern_combobox.setCurrentText("Spiral")
+    gui.hatch_angle_spinbox.setValue(12.5)
+    saved = settings.collect_settings(Settings.HATCHING_SETTINGS)
+    assert saved["hatch_pattern"] == "Spiral"
+
+    gui.hatch_pattern_combobox.setCurrentText("Radial")
+    gui.hatch_angle_spinbox.setValue(0)
+    settings.apply_settings(saved)
+    assert gui.hatch_pattern_combobox.currentText() == "Spiral"
+    assert gui.hatch_angle_spinbox.value() == 12.5
+
+    settings.apply_settings({"hatch_pattern": 3})  # pre-2.0 config stored the index
+    assert gui.hatch_pattern_combobox.currentText() == "Circular"
+
+
+def test_b20_combine_monochrome_uses_average_colour(app_components):
+    import numpy as np
+    c = app_components
+    a = np.full((4, 4, 3), 255, dtype=np.uint8)
+    b = a.copy()
+    a[0, 0] = (200, 0, 0)
+    b[1, 1] = (0, 0, 100)
+    load_image(c, a, name="a")
+    load_image(c, b, name="b")
+    c.gui.images_ListWidget.selectAll()
+    c.gui.monochrome_check.setChecked(True)
+    c.image_controller.combine_images()
+    combined = c.image_controller.get_active_image_matrix()
+    assert combined[0, 0].tolist() == [100, 0, 50] == combined[1, 1].tolist()
+    assert (combined[2:, 2:] == 255).all()

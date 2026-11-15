@@ -6,7 +6,8 @@ class EventHandler(QtCore.QObject):
         super().__init__()
 
         #Install the event Filters
-        self.gui.image_canvas.viewport().installEventFilter(self)
+        self.canvas_viewport = self.gui.image_canvas.viewport()
+        self.canvas_viewport.installEventFilter(self)
         self.gui.installEventFilter(self)
 
         self.canvas_event_callbacks = []
@@ -14,7 +15,7 @@ class EventHandler(QtCore.QObject):
     
     def eventFilter(self, source, event):
         # Handle canvas viewport events
-        if source == self.gui.image_canvas.viewport():
+        if source is self.canvas_viewport:  # B25: no call into a possibly deleted widget during teardown
             consumed = False
             for callback in self.canvas_event_callbacks:
                 if callback(event) is True:

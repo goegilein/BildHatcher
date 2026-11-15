@@ -201,7 +201,7 @@ class ImageUpscaler:
                 exe_path,
                 "-i", temp_in,
                 "-o", temp_out,
-                "-s", str(scale),
+                "-s", "4",  # B22: realesrgan(-net)-x4plus models only support 4x; resized below
                 "-n", model,
                 "-g", "0" if use_gpu else "-1"
             ]
@@ -234,6 +234,8 @@ class ImageUpscaler:
                 raise ValueError("Failed to decode the upscaled image file.")
 
             upscaled_rgb = cv2.cvtColor(upscaled_bgr, cv2.COLOR_BGR2RGB)
+            if scale != 4:
+                upscaled_rgb = cv2.resize(upscaled_rgb, self.calculate_dimensions(scale), interpolation=cv2.INTER_AREA)
 
             # Update data handler state
             self.data_handler.image_matrix = upscaled_rgb

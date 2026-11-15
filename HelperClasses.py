@@ -20,11 +20,9 @@ class Point:
     
     @pos.setter
     def pos(self, new_value:np.ndarray) -> None:
-        assert new_value.shape == (1, 3), f"Expected shape (1,3), got {new_value.shape}"
-        self._pos = new_value
-        self.x=new_value[0]
-        self.y=new_value[1]
-        self.z=new_value[2]
+        assert new_value.shape == (3,), f"Expected shape (3,), got {new_value.shape}"  # B18: was (1, 3)
+        self._x, self._y, self._z = new_value
+        self._pos = np.array(new_value)
 
     @property
     def x(self):

@@ -1,7 +1,51 @@
 import json
+import logging
 from PyQt6 import QtWidgets
 from PyQt6.QtWidgets import QFileDialog
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
+
+log = logging.getLogger(__name__)
+
+# config key -> widget attribute name on the gui
+IMAGE_SETTINGS = {
+    'color_count': 'color_count_spinbox',
+    'quantize_method': 'quantize_method_combobox',
+    'sharpness': 'sharpness_slider',
+    'brightness': 'brightness_slider',
+    'contrast': 'contrast_slider',
+    'pen_width': 'pen_width_spinbox',
+    'contour_thickness': 'contour_thickness_spinbox',
+    'contour_space': 'contour_space_spinbox',
+}
+HATCHING_SETTINGS = {
+    'hatch_pattern': 'hatch_pattern_combobox',
+    'hatch_angle': 'hatch_angle_spinbox',
+    'hatch_dist_mode': 'hatch_dist_mode_combobox',
+    'hatch_dist_min': 'hatch_dist_min_spinbox',
+    'hatch_dist_max': 'hatch_dist_max_spinbox',
+    'hatch_mode': 'hatch_mode_combobox',
+    'cyl_rad': 'cyl_rad_spinbox',
+    'hatch_precision': 'hatch_precision_spinbox',
+    'contour_source': 'contour_source_combobox',
+    'laser_mode': 'laser_mode_combobox',
+    'white_threshold_parsing': 'white_threshold_parsing_spinbox',
+    'max_power': 'max_power_spinbox',
+    'min_power': 'min_power_spinbox',
+    'max_speed': 'max_speed_spinbox',
+    'min_speed': 'min_speed_spinbox',
+    'offset_x': 'offset_x_spinbox',
+    'offset_y': 'offset_y_spinbox',
+    'offset_z': 'offset_z_spinbox',
+    'export_format': 'export_format_combobox',
+    'post_processing': 'post_processing_combobox',
+    'power_format': 'power_format_combobox',
+    'power_mode': 'power_mode_combobox',
+    'speed_format': 'speed_format_combobox',
+    'iterations': 'iterations_spinbox',
+    'air_assist': 'air_assist_combobox',
+}
+ALL_SETTINGS = {**IMAGE_SETTINGS, **HATCHING_SETTINGS}
+
 
 class Settings:
     def __init__(self, gui):
@@ -23,154 +67,53 @@ class Settings:
         file_path, _ = QFileDialog.getOpenFileName(self.gui, "Load Configuration", "", "JSON Files (*.json)", options=options)
         if file_path:
             with open(file_path, 'r') as f:
-                settings = json.load(f)
-            # Only apply the settings present in the loaded config
-            for key, value in settings.items():
-                try:
-                    if key == 'color_count':
-                        self.gui.color_count_spinbox.setValue(value)
-                    elif key == 'quantize_method':
-                        self.gui.quantize_method_combobox.setCurrentIndex(value)
-                    elif key == 'sharpness':
-                        self.gui.sharpness_slider.setValue(value)
-                    elif key == 'brightness':
-                        self.gui.brightness_slider.setValue(value)
-                    elif key == 'contrast':
-                        self.gui.contrast_slider.setValue(value)
-                    elif key == 'pen_width':
-                        self.gui.pen_width_spinbox.setValue(value)
-                    elif key == 'contour_thickness':
-                        self.gui.contour_thickness_spinbox.setValue(value)
-                    elif key == 'contour_space':
-                        self.gui.contour_space_spinbox.setValue(value)
-                    elif key == 'hatch_pattern':
-                        self.gui.hatch_pattern_combobox.setCurrentIndex(value)
-                    elif key == 'hatch_angle':
-                        self.gui.hatch_angle_spinbox.setValue(value)
-                    elif key == 'hatch_dist_mode':
-                        self.gui.hatch_dist_mode_combobox.setCurrentIndex(value)
-                    elif key == 'hatch_dist_min':
-                        self.gui.hatch_dist_min_spinbox.setValue(value)
-                    elif key == 'hatch_dist_max':
-                        self.gui.hatch_dist_max_spinbox.setValue(value)
-                    elif key == 'hatch_mode':
-                        self.gui.hatch_mode_combobox.setCurrentIndex(value)
-                    elif key == 'cyl_rad':
-                        self.gui.cyl_rad_spinbox.setValue(value)
-                    elif key == 'hatch_precision':
-                        self.gui.hatch_precision_spinbox.setValue(value)
-                    elif key == 'contour_source':
-                        self.gui.contour_source_combobox.setCurrentIndex(value)
-                    elif key == 'laser_mode':
-                        self.gui.laser_mode_combobox.setCurrentIndex(value)
-                    elif key == 'white_threshold_parsing':
-                        self.gui.white_threshold_parsing_spinbox.setValue(value)
-                    elif key == 'max_power':
-                        self.gui.max_power_spinbox.setValue(value)
-                    elif key == 'min_power':
-                        self.gui.min_power_spinbox.setValue(value)
-                    elif key == 'max_speed':
-                        self.gui.max_speed_spinbox.setValue(value)
-                    elif key == 'min_speed':
-                        self.gui.min_speed_spinbox.setValue(value)
-                    elif key == 'offset_x':
-                        self.gui.offset_x_spinbox.setValue(value)
-                    elif key == 'offset_y':
-                        self.gui.offset_y_spinbox.setValue(value)
-                    elif key == 'offset_z':
-                        self.gui.offset_z_spinbox.setValue(value)
-                    elif key == 'export_format':
-                        self.gui.export_format_combobox.setCurrentIndex(value)
-                    elif key == 'post_processing':
-                        self.gui.post_processing_combobox.setCurrentIndex(value)
-                    elif key == 'power_format':
-                        self.gui.power_format_combobox.setCurrentIndex(value)
-                    elif key == 'power_mode':
-                        self.gui.power_mode_combobox.setCurrentIndex(value)
-                    elif key == 'speed_format':
-                        self.gui.speed_format_combobox.setCurrentIndex(value)
-                    elif key == 'iterations':
-                        self.gui.iterations_spinbox.setValue(value)
-                except Exception as e:
-                    print(f"Error applying setting {key}: {e}")
-            QtWidgets.QMessageBox.information(self.gui, "Konfig Loaded", "Successfully loaded Konfig")
+                self.apply_settings(json.load(f))
+            QtWidgets.QMessageBox.information(self.gui, "Config Loaded", "Successfully loaded config")
+
+    def apply_settings(self, settings):
+        """Apply the settings present in the dict; unknown keys are ignored."""
+        for key, value in settings.items():
+            if key not in ALL_SETTINGS:
+                continue
+            widget = getattr(self.gui, ALL_SETTINGS[key])
+            try:
+                if isinstance(widget, QtWidgets.QComboBox):
+                    if isinstance(value, int):  # configs before 2.0 stored the index
+                        widget.setCurrentIndex(value)
+                    elif widget.findText(value) >= 0:
+                        widget.setCurrentText(value)
+                    else:
+                        log.warning("Setting %s: unknown option %r", key, value)
+                else:
+                    widget.setValue(value)
+            except Exception as e:
+                log.warning("Error applying setting %s: %s", key, e)
+
+    def collect_settings(self, keys):
+        settings = {}
+        for key, widget_name in keys.items():
+            widget = getattr(self.gui, widget_name)
+            # B19: comboboxes are stored by text, indices break when the item list changes
+            settings[key] = widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else widget.value()
+        return settings
 
     def save_image_config(self):
-        settings = self._collect_image_settings()
-        options = QFileDialog.Option.DontUseNativeDialog
-        file_path, _ = QFileDialog.getSaveFileName(self.gui, "Save Image Settings", "", "JSON Files (*.json)", options=options)
-        if file_path:
-            if not file_path.lower().endswith('_imageconfig.json'):
-                if file_path.lower().endswith('.json'):
-                    file_path = file_path[:-5] + '_imageconfig.json'
-                else:
-                    file_path += '_imageconfig.json'
-            with open(file_path, 'w') as f:
-                json.dump(settings, f, indent=4)
+        self._save_config(self.collect_settings(IMAGE_SETTINGS), "Save Image Settings", '_imageconfig.json')
 
     def save_hatching_config(self):
-        settings = self._collect_hatching_settings()
+        self._save_config(self.collect_settings(HATCHING_SETTINGS), "Save Hatching Settings", '_hatchingconfig.json')
+
+    def _save_config(self, settings, title, suffix):
         options = QFileDialog.Option.DontUseNativeDialog
-        file_path, _ = QFileDialog.getSaveFileName(self.gui, "Save Hatching Settings", "", "JSON Files (*.json)", options=options)
+        file_path, _ = QFileDialog.getSaveFileName(self.gui, title, "", "JSON Files (*.json)", options=options)
         if file_path:
-            if not file_path.lower().endswith('_hatchingconfig.json'):
+            if not file_path.lower().endswith(suffix):
                 if file_path.lower().endswith('.json'):
-                    file_path = file_path[:-5] + '_hatchingconfig.json'
-                else:
-                    file_path += '_hatchingconfig.json'
+                    file_path = file_path[:-5]
+                file_path += suffix
             with open(file_path, 'w') as f:
                 json.dump(settings, f, indent=4)
 
-    def _collect_image_settings(self):
-        gui = self.gui
-        settings = {}
-        try:
-            settings['color_count'] = gui.color_count_spinbox.value()
-            settings['quantize_method'] = gui.quantize_method_combobox.currentIndex()
-            settings['sharpness'] = gui.sharpness_slider.value()
-            settings['brightness'] = gui.brightness_slider.value()
-            settings['contrast'] = gui.contrast_slider.value()
-            settings['pen_width'] = gui.pen_width_spinbox.value()
-            settings['contour_thickness'] = gui.contour_thickness_spinbox.value()
-            settings['contour_space'] = gui.contour_space_spinbox.value()
-            # Add more image adjustment tab settings as needed
-        except Exception as e:
-            print(f"Error collecting image settings: {e}")
-        return settings
-
-    def _collect_hatching_settings(self):
-        gui = self.gui
-        settings = {}
-        try:
-            settings['hatch_pattern'] = gui.hatch_pattern_combobox.currentIndex()
-            settings['hatch_angle'] = gui.hatch_angle_spinbox.value()
-            settings['hatch_dist_mode'] = gui.hatch_dist_mode_combobox.currentIndex()
-            settings['hatch_dist_min'] = gui.hatch_dist_min_spinbox.value()
-            settings['hatch_dist_max'] = gui.hatch_dist_max_spinbox.value()
-            settings['hatch_mode'] = gui.hatch_mode_combobox.currentIndex()
-            settings['cyl_rad'] = gui.cyl_rad_spinbox.value()
-            settings['hatch_precision'] = gui.hatch_precision_spinbox.value()
-            settings['contour_source'] = gui.contour_source_combobox.currentIndex()
-            settings['laser_mode'] = gui.laser_mode_combobox.currentIndex()
-            settings['white_threshold_parsing'] = gui.white_threshold_parsing_spinbox.value()
-            settings['max_power'] = gui.max_power_spinbox.value()
-            settings['min_power'] = gui.min_power_spinbox.value()
-            settings['max_speed'] = gui.max_speed_spinbox.value()
-            settings['min_speed'] = gui.min_speed_spinbox.value()
-            settings['offset_x'] = gui.offset_x_spinbox.value()
-            settings['offset_y'] = gui.offset_y_spinbox.value()
-            settings['offset_z'] = gui.offset_z_spinbox.value()
-            settings['export_format'] = gui.export_format_combobox.currentIndex()
-            settings['post_processing'] = gui.post_processing_combobox.currentIndex()
-            settings['power_format'] = gui.power_format_combobox.currentIndex()
-            settings['power_mode'] = gui.power_mode_combobox.currentIndex()
-            settings['speed_format'] = gui.speed_format_combobox.currentIndex()
-            settings['iterations'] = gui.iterations_spinbox.value()
-            # Add more hatching tab settings as needed
-        except Exception as e:
-            print(f"Error collecting hatching settings: {e}")
-        return settings
-    
     def open_color_database(self):
         self.editor_window = QtWidgets.QMainWindow()
         navigator = DatabaseNavigatorWidget(mode=NavigatorMode.FULL_EDIT)
@@ -178,4 +121,3 @@ class Settings:
         self.editor_window.setCentralWidget(navigator)
         self.editor_window.setGeometry(150, 150, 600, 850)
         self.editor_window.show()
-
