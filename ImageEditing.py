@@ -14,7 +14,9 @@ from core import fill, image_doc
 def _fill_mask_shape(mask_matrix, shape, x_min, y_min, x_max, y_max):
     """Set the pixels of a rectangle / ellipse (inclusive pixel bounds) to 1 (vectorized former per-pixel loops)."""
     height, width = mask_matrix.shape
-    ys, xs = slice(max(0, y_min), min(height, y_max + 1)), slice(max(0, x_min), min(width, x_max + 1))
+    # clamp both ends: a negative stop would count from the end of the array
+    ys = slice(max(0, y_min), max(0, min(height, y_max + 1)))
+    xs = slice(max(0, x_min), max(0, min(width, x_max + 1)))
     if shape == 'rectangle':
         mask_matrix[ys, xs] = 1
         return
