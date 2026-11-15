@@ -2,7 +2,6 @@ from PyQt6 import QtWidgets, QtGui, QtCore
 from pyqtgraph.opengl import GLViewWidget,GLLinePlotItem
 import numpy as np
 from HelperClasses import HatchData
-from OpenGL.GL import glDisable, GL_LIGHTING, glClearColor,glEnable, glBlendFunc, GL_BLEND, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA
 
 
 class HatchLinePlotter:
@@ -47,9 +46,6 @@ class HatchLinePlotter:
         self.view.opts['distance'] = 50  # Set the initial distance of the camera
         self.view.setCameraPosition(elevation=90, azimuth=-90)
         self.plot_canvas.layout().addWidget(self.view)  # Add the GLViewWidget to the layout
-        
-        # Initialize OpenGL settings
-        self.initializeGL()
 
     def add_data_to_plot_items(self, hatch_data:HatchData):
         #iterate over the hach cluster. apply the offset from ref_position
@@ -178,15 +174,6 @@ class HatchLinePlotter:
     #         item.mode = 'line_strip'
     #         item.setGLOptions("opaque")
     #         self.view.addItem(item)
-
-    def initializeGL(self):
-        """
-        Enable blending and disable lighting for consistent line colors.
-        """
-        glClearColor(1.0, 1.0, 1.0, 1.0)
-        glEnable(GL_BLEND)  # Enable blending
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)  # Set blending function
-        glDisable(GL_LIGHTING)  # Disable lighting effects
 
     def choose_background_color(self,color=None):
         """

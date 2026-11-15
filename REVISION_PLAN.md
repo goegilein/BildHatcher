@@ -110,20 +110,23 @@ tests/                   # pytest; core only, plus characterization tests
 | B18 | [ ] | [Point.pos setter, HelperClasses.py](HelperClasses.py) | Asserts shape `(1,3)` instead of `(3,)`. (Obsoleted by P2 data model, fix only if touched.) |
 | B19 | [ ] | [Settings.py](Settings.py) | Comboboxes persisted by index (breaks when items change); hatching/plotting thresholds and several other parameters not saved. |
 | B20 | [ ] | [ImageControlling.py:636](ImageControlling.py#L636) | `combine_images`: `avg_color` always `[0,0,0]` → monochrome is always black; Python per-pixel loop. |
-| B21 | [ ] | Plotting.initializeGL | GL calls made before a GL context exists (verify; likely no-op). |
-| B22 | [ ] | ImageUpscaling | Runs `realesrgan-x4plus` with `-s 2` (verify model supports it); blocking subprocess on UI thread; upscaler mutates `data_handler.image_matrix` as side effect. |
+| B21 | [x] | Plotting.initializeGL | Raw GL calls without a current GL context → `GLError 1282` (crashes headless start; worked in the app only by accident). Calls were redundant – removed. |
+| B22 | [ ] | ImageUpscaling | Runs `realesrgan-x4plus` with `-s 2` (verify model supports it); blocking subprocess on UI thread; upscaler mutates `data_handler.image_matrix` as side effect. Vendored engine lacks the `models/` folder, so `is_engine_available()` is always False and the ~33 MB download runs anyway; in a frozen build it would download into the PyInstaller temp dir. |
+| B23 | [ ] | [NCDataGeneration.py:174](NCDataGeneration.py#L174) | `get_sorted_unique_colors` sums `uint8` tuples → overflow (RuntimeWarning in tests); colour processing order is effectively arbitrary instead of bright→dark. Fixing it changes golden outputs (order only). |
+| B24 | [ ] | [PathManager.py](PathManager.py) | Uses `GUI_files` while the folder is `GUI_Files` – only works on case-insensitive file systems (Windows). |
+| B25 | [ ] | [EventHandling.py](EventHandling.py) | Event filter keeps firing during teardown → `RuntimeError: wrapped C/C++ object … has been deleted` on exit. |
 
 ---
 
 ## 5. Phases and tasks
 
-### Phase 0 – Safety net & hygiene  `[ ]`
-- [ ] P0.1 Untrack `__pycache__/` and `Database/__pycache__/` (`git rm --cached`), extend `.gitignore`.
-- [ ] P0.2 Remove `GUI_Files/BildHatcher_backup.ui`, `GUI_Files/BildHatcher_KI-changes.ui`, obsolete tkinter `profiler.py` (history keeps them).
-- [ ] P0.3 Decide on vendored `libraries/realesrgan/*.exe|dll` (keep vs. download-on-demand which already exists) and `Data-Architecture.pptx` (replace by section 3 of this file?).
-- [ ] P0.4 Pin `requirements.txt` versions; add `requirements-dev.txt` (pytest).
-- [ ] P0.5 Introduce `logging` (one config in `main.py`); new code uses `log` instead of `print`.
-- [ ] P0.6 **Characterization tests:** headless run (`QT_QPA_PLATFORM=offscreen`) of current hatcher + post-processor + parser on 3–4 reference images (flat meander, circular, cylindrical, contours) → store G-code as golden files in `tests/golden/`. Used to verify Phase 2 ports. Seed `random` for RandomMeander/Circular.
+### Phase 0 – Safety net & hygiene  `[~]`
+- [x] P0.1 Untrack `__pycache__/` and `Database/__pycache__/` (`git rm --cached`), extend `.gitignore`.
+- [x] P0.2 Remove `GUI_Files/BildHatcher_backup.ui`, `GUI_Files/BildHatcher_KI-changes.ui`, obsolete tkinter `profiler.py` (history keeps them).
+- [ ] P0.3 Decide on vendored `libraries/realesrgan/*.exe|dll` (see Q3) and `Data-Architecture.pptx` (replace by section 3 of this file?).
+- [x] P0.4 Pin `requirements.txt` versions; add `requirements-dev.txt` (pytest).
+- [x] P0.5 Introduce `logging` (one config in `main.py`); new code uses `log` instead of `print`. (Replacing existing `print`s happens per module as it is touched / P7.3.)
+- [x] P0.6 **Characterization tests:** headless run (`QT_QPA_PLATFORM=offscreen`) of current hatcher + post-processor + parser on 3–4 reference images (flat meander, circular, cylindrical, contours) → store G-code as golden files in `tests/golden/`. Used to verify Phase 2 ports. Seed `random` for RandomMeander/Circular.
 
 ### Phase 1 – Bug fixes in current code  `[ ]`
 - [ ] P1.1 Fix B01–B17, B19–B20 (see table). B18/B21/B22: verify, then fix or move to later phase.
@@ -159,7 +162,7 @@ tests/                   # pytest; core only, plus characterization tests
 - [ ] P4.7 Benchmark old vs. new (record numbers in Work Log); compare output against golden files (tolerances documented).
 
 ### Phase 5 – Output (post-processing, G-code, plotting)  `[ ]`
-- [ ] P5.1 `MachineProfile` JSON: header/footer, laser mode & power mode commands, enclosure fan, air assist, acceleration (now hardcoded 3000 mm/s²), travel speed (now hardcoded 100), over-drive fit parameters. Snapmaker Artisan = first profile.
+- [ ] P5.1 `MachineProfile` JSON (**user-facing feature**, multiple machines planned – see Q1): header/footer, laser mode & power mode commands, enclosure fan, air assist, acceleration (now hardcoded 3000 mm/s²), travel speed (now hardcoded 100), over-drive fit parameters. Snapmaker Artisan = first profile.
 - [ ] P5.2 Streaming, vectorized G-code / jcode / txt writer; shared block/iteration loop for all formats.
 - [ ] P5.3 Replace "Maximize Lines" by Ramer–Douglas–Peucker with tolerance in mm.
 - [ ] P5.4 Constant/Over Drive rewritten on arrays with guards (short polylines, zero-length segments).
@@ -193,10 +196,10 @@ tests/                   # pytest; core only, plus characterization tests
 
 | ID | Question | Answer |
 |---|---|---|
-| Q1 | Is the Snapmaker Artisan the only target machine, or should machine profiles be a real user-facing feature? | open |
-| Q2 | UI language: English or German? | open |
-| Q3 | Keep vendored Real-ESRGAN binaries in git? | open |
-| Q4 | Default for "treat pure white as background" on RGB load (proposed: ON). | open |
+| Q1 | Is the Snapmaker Artisan the only target machine, or should machine profiles be a real user-facing feature? | Multiple machines will follow → machine profiles become a user-facing feature (P5.1). |
+| Q2 | UI language: English or German? | **English.** |
+| Q3 | Keep vendored Real-ESRGAN binaries in git? | open – *Recommendation:* remove them from git (they are incomplete without `models/`, see B22) and rely on download-on-demand into a writable user folder (like the DB in `Documents/BildHatcher`). |
+| Q4 | Default for "treat pure white as background" on RGB load (proposed: ON). | **ON.** |
 
 ---
 
@@ -206,6 +209,8 @@ tests/                   # pytest; core only, plus characterization tests
 |---|---|
 | 2026-11-15 | Revision happens on branch `code_rev_2.0`; this file tracks status. |
 | 2026-11-15 | Background is modelled via binary alpha (RGBA, alpha ∈ {0,255}) instead of white. |
+| 2026-11-15 | Machine profiles are a user-facing feature (Q1). UI language is English (Q2). White-as-background default ON for RGB images (Q4). |
+| 2026-11-15 | `main.py` exposes `create_main_window()` / `create_components(gui)` so tests build the real app wiring headless. |
 
 ---
 
@@ -228,3 +233,4 @@ tests/                   # pytest; core only, plus characterization tests
 | Date | Task(s) | Notes |
 |---|---|---|
 | 2026-11-15 | – | Full code review done, plan created on branch `code_rev_2.0`. |
+| 2026-11-15 | P0.1, P0.2, P0.4, P0.5, P0.6, B21 | Untracked `__pycache__`, removed backup `.ui` files + obsolete tkinter `profiler.py`, pinned requirements (+ `requirements-dev.txt`), logging setup, `main.py` split into factory functions. Characterization tests: `python -m pytest` (14 golden G-code files in `tests/golden/`, 1 strict xfail for B05; ~20 s). New findings B23–B25. |
