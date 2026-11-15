@@ -7,6 +7,7 @@ from collections import defaultdict
 import random
 import dataclasses
 from HelperClasses import HatchData, HatchCluster
+from core import hatching
 from core.toolpath import Layer, polyline, X, Y, MOVE, MOVE_TRAVEL, MOVE_BURN
 import ezdxf
 
@@ -154,41 +155,6 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
 
         return hatch_data
 
-    def get_sorted_unique_colors(self, image_matrix):
-        """
-        Extracts all unique RGB colors from the image and sorts them by the sum of the RGB values in descending order.
-
-        Args:
-            image_matrix (numpy.ndarray): The image matrix with shape (height, width, 3).
-
-        Returns:
-            list: A list of unique RGB colors sorted by the sum of the RGB values in descending order.
-        """
-        # # Reshape the image matrix to a 2D array where each row is an RGB color
-        # reshaped_image = image_matrix.reshape(-1, 3)
-        
-        # # Get unique colors
-        # unique_colors = np.unique(reshaped_image, axis=0)
-        
-        # # Sort unique colors by the sum of the RGB values in descending order
-        # sorted_colors = sorted(unique_colors, key=lambda color: np.sum(color), reverse=True)
-        
-        # # Convert sorted colors to a list of tuples
-        # sorted_colors_list = [tuple(color) for color in sorted_colors]
-        # Reshape and convert rows to tuples
-
-        #new implementation for speed
-        reshaped = image_matrix.reshape(-1, 3)
-        reshaped = reshaped[reshaped[:, 0] >= 0]  # transparent pixels (-1) are background
-        
-        # Use a set to get unique colors (very fast)
-        unique_colors_set = set(map(tuple, reshaped))
-        
-        # Convert to list and sort by sum of RGB values
-        sorted_colors_list = sorted(unique_colors_set, key=lambda color: int(color[0]) + int(color[1]) + int(color[2]), reverse=True)  # B23: int() avoids uint8 overflow
-    
-        return sorted_colors_list
-    
     def collect_hatch_settings(self, mode="manual", **overrides):
         """Read all hatch parameters from the GUI. Must run on the GUI thread."""
         settings = dict(
@@ -258,10 +224,10 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
 
             for idx, hatch_cluster in enumerate(hatch_data.hatch_clusters):
                 cluster_progress = (idx+1)/len(hatch_data.hatch_clusters)*100
-                #first get the colors of the cluster
-                color_list = self.get_sorted_unique_colors(hatch_cluster.input_matrix)
+                #first get the colors of the cluster (as label image, transparent = -1)
+                labels, color_list = hatching.label_colors(hatch_cluster.input_matrix)
                 hatch_cluster.data = self.hatch_cluster(
-                    cluster_matrix = hatch_cluster.input_matrix,
+                    labels = labels,
                     cluster_center_for_hatch = hatch_cluster.cluster_center_for_hatch,
                     mode=mode,
                     color_list=color_list,
@@ -333,583 +299,63 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.worker.wait()
         self.hatch_progress_label.setText("Hatch State: Cancelled")
 
-    def hatch_cluster(self, cluster_matrix, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", hatch_dist_min=300, hatch_dist_max=700, cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, db_color_palette=None, cluster_progress=0):
+    def hatch_cluster(self, labels, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", hatch_dist_min=300, hatch_dist_max=700, cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, db_color_palette=None, cluster_progress=0):
+        """Hatch every colour of one cluster. labels: label image from hatching.label_colors, color_list: its colours."""
         hatched_cluster = []
-        color_cluster_counter = 0
         cyl_rad = cyl_rad_mm * self.pixel_per_mm
-        #cluster = np.flipud(self.image_matrix)
-        
-        # if self.center_for_hatch is None:
-        #     self.center_for_hatch = [(input_matrix.shape[1]-1)/2,
-        #                     (input_matrix.shape[0]-1)/2]
+        center = cluster_center_for_hatch
+        step_size = stepsize_mm * self.pixel_per_mm  # Step size in pixels
 
-        for color in color_list:
+        for color_index, color in enumerate(color_list):
             #check if hatching was cancelled
             if self.hatching_cancelled:
                 return None
-            
-            # Ensure the sum of RGB values is within a safe range
-            color = np.array(color, dtype=np.int64)
 
-            #if mode is automatic, get hatch settings from best fit color of database color palette   
+            #if mode is automatic, get hatch settings from best fit color of database color palette
             if mode == "automatic":
-                bestfit_color = db_color_palette.find_paramset_by_color(color)
+                bestfit_color = db_color_palette.find_paramset_by_color(np.array(color, dtype=np.int64))
                 hatch_distance = bestfit_color['hatch_distance']/1000
                 hatch_pattern = bestfit_color['hatch_pattern']
                 hatch_angle = bestfit_color['hatch_angle']
-            else:    
-                if hatch_dist_mode == "ColorRanged":
-                    # Define Hatch Dist depending on chosen Hatch_Mode
-                    hatch_distance = (hatch_dist_min + sum(color) / 765 * (hatch_dist_max - hatch_dist_min))/1000
-                elif hatch_dist_mode == "Fixed":
-                    hatch_distance = hatch_dist_min/1000
-                else:
-                    print("Hatch Distance Mode not recognized")
-                    continue
-
-            step_size = stepsize_mm * self.pixel_per_mm  # Step size in pixels
+            elif hatch_dist_mode == "ColorRanged":
+                hatch_distance = (hatch_dist_min + sum(color) / 765 * (hatch_dist_max - hatch_dist_min))/1000
+            elif hatch_dist_mode == "Fixed":
+                hatch_distance = hatch_dist_min/1000
+            else:
+                log.warning("Hatch distance mode %r not recognized", hatch_dist_mode)
+                continue
             hatch_distance = hatch_distance * self.pixel_per_mm  # Hatch distance in pixels
 
-            progress_state = [color_cluster_counter, len(color_list), cluster_progress]
+            def progress(fraction, done=color_index):
+                self._report_progress(np.ceil((done + fraction) / len(color_list) * cluster_progress))
+                return self.hatching_cancelled
 
-            if hatch_pattern in ["RandomMeander", "FixedMeander"]:
-                line_collection = self.hatch_meander(
-                    hatch_pattern, hatch_distance, hatch_angle, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
-                )
-                if line_collection == 0:
-                    return 0
-                else:
-                    hatched_cluster.append(_to_layer(color, line_collection))
+            args = (labels, color_index, center, self.pixel_per_mm)
+            kwargs = dict(hatch_mode=hatch_mode, cyl_rad=cyl_rad, progress=progress)
+            if hatch_pattern == "FixedMeander":
+                line_collections = [hatching.meander(*args, hatch_angle, hatch_distance, step_size, **kwargs)]
+            elif hatch_pattern == "RandomMeander":
+                theta = np.floor(random.uniform(0, 180))  # one random angle per colour
+                line_collections = [hatching.meander(*args, theta, hatch_distance, step_size, **kwargs)]
             elif hatch_pattern == "CrossedMeander":
-                line_collection1 = self.hatch_meander(
-                    hatch_pattern, hatch_distance, hatch_angle, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state, cross_angle=0
-                )
-                line_collection2 = self.hatch_meander(
-                    hatch_pattern, hatch_distance, hatch_angle, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state, cross_angle=90
-                )
-                if line_collection1 == 0:
-                    return 0
-                else:
-                    hatched_cluster.append(_to_layer(color, line_collection1))
-                    hatched_cluster.append(_to_layer(color, line_collection2))
+                line_collections = [hatching.meander(*args, hatch_angle + cross, hatch_distance, step_size, **kwargs) for cross in (0, 90)]
             elif hatch_pattern == "Circular":
-                line_collection = self.hatch_circular(
-                    hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
-                )
-                if line_collection == 0:
-                    return 0
-                else:
-                    hatched_cluster.append(_to_layer(color, line_collection))
+                line_collections = [hatching.circular(*args, hatch_distance, step_size, **kwargs)]
             elif hatch_pattern == "Spiral":
-                line_collection = self.hatch_spiral(
-                    hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
-                )
-                if line_collection == 0:
-                    return 0
-                else:
-                    hatched_cluster.append(_to_layer(color, line_collection))
+                line_collections = [hatching.spiral(*args, hatch_distance, step_size, **kwargs)]
             elif hatch_pattern == "Radial":
-                line_collection = self.hatch_radial(
-                    hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
-                )
-                if line_collection == 0:
-                    return 0
-                else:
-                    hatched_cluster.append(_to_layer(color, line_collection))
+                line_collections = [hatching.radial(*args, hatch_distance, step_size, **kwargs)]
             else:
-                print("Unknown hatch method")
-            color_cluster_counter += 1
-            
-            #check if hatching was cancelled
-            if self.hatching_cancelled:
+                log.warning("Unknown hatch pattern %r", hatch_pattern)
+                continue
+            if any(lines is None for lines in line_collections):  # cancelled
                 return None
-            
+            hatched_cluster.extend(_to_layer(color, lines) for lines in line_collections)
 
             # Update progress bar
-            self._report_progress(np.ceil(color_cluster_counter / len(color_list) * cluster_progress))
+            self._report_progress(np.ceil((color_index + 1) / len(color_list) * cluster_progress))
         return hatched_cluster
 
-    def hatch_meander(self, hatch_pattern, hatch_distance, hatch_angle, step_size, image_matrix, center, color, hatch_mode, cyl_rad, progress_state, cross_angle=None):
-        line_collection_poly=[]
-        hatch_line_dir=1
-        hatch_x_finished=False
-        hatch_y_finished=False
-        
-        # Choose slice angle based on user input
-        theta = 0  # Default angle is 0 degrees
-        if hatch_pattern == "FixedMeander":
-            theta = hatch_angle  # Get hatch angle from spinbox
-        elif hatch_pattern == "RandomMeander":
-            # Randomly choose theta between 0 and 179 degrees
-            theta = np.floor(random.uniform(0, 180))
-        elif hatch_pattern == "CrossedMeander":
-            theta = hatch_angle + cross_angle
-        theta = np.mod(theta, 180)  # Ensure theta is between 0 and 179 degrees
-        theta_rad = np.radians(theta)  # Convert theta to radians
-        cos_theta = np.cos(theta_rad)
-        sin_theta = np.sin(theta_rad)
-
-        #calculate step size in x and y direction. catch special cases of 0 an d 90 degrees
-        if theta == 0:
-            max_lines=image_matrix.shape[0]/hatch_distance
-            step_start_y=hatch_distance
-            step_start_x=1
-            hatch_x_finished = True
-        elif theta == 90:
-            max_lines=image_matrix.shape[1]/hatch_distance
-            step_start_x=hatch_distance
-            step_start_y=1
-            hatch_y_finished=True
-        else:
-            step_start_y = np.abs(hatch_distance/cos_theta)
-            step_start_x = np.abs(hatch_distance/sin_theta)
-            max_lines=image_matrix.shape[0]/step_start_y+image_matrix.shape[1]/step_start_x
-
-        # Determine the bounding box of the cluster.
-        min_y = -np.ceil(step_start_y)
-        max_y = image_matrix.shape[0]+np.ceil(step_start_y)
-        min_x = -np.ceil(step_start_x)
-        max_x = image_matrix.shape[1]+np.ceil(step_start_x)
-
-        # center = self.center_for_hatch
-        #center = [(max_x+min_x)/2, (max_y+min_y)/2] #depreciated: no defined globally
-
-        # Determine the starting point of the hatch lines.
-        if cos_theta >= 0:
-            hatch_start_x = max_x
-            hatch_start_y = min_y
-            incline = -1
-        else:
-            hatch_start_x = min_x
-            hatch_start_y = min_y
-            incline = 1
-
-        # Generate hatch lines within the bounding box
-        line_count = 0
-        hatching_done = False
-        #loop over hatchlines. will set hatching done when both x and y linestarts are outsinde the bounding box
-        while not hatching_done:
-            #check if hatching was cancelled
-            if self.hatching_cancelled:
-                return None
-            
-            prev_x = None
-            prev_y = None
-            point_outside=False  # B04: must be reset before the cylinder check below may set it
-            x_target = hatch_start_x
-            if hatch_mode == "CylEquidistX":
-                if np.abs(x_target-center[0])>cyl_rad:
-                    point_outside=True
-                    x=0 #just a dummy
-                else:
-                    x=np.asin((x_target-center[0])/cyl_rad)*(cyl_rad)+center[0]
-            else:
-                x=x_target
-            y = hatch_start_y
-            polyline = []
-            polyline_cache=[]
-            #loop over one hatchline until it is outside the bounding box. this is looped over A LOT. Limit ALL function calls as much as possible
-            current_pixel_color=np.array([-1,-1,-1]) #use non existend color when the point is outside the image
-            while ((x >= min_x or incline==1) and (x <= max_x or incline==-1) and y >= min_y):
-                #use a special rounding for x and y for efficiency. we know that they can never be negative (else it will be caught anyway)
-                if int(y)==int(y-0.5):
-                    y_round=int(y+1)
-                else:
-                    y_round=int(y)
-                if int(x)==int(x-0.5):
-                    x_round=int(x+1)
-                else:
-                    x_round=int(x)
-                    
-                #check if the current point is outside the image
-                if point_outside or y_round>=image_matrix.shape[0] or y_round<0 or x_round>= image_matrix.shape[1] or x_round<0:
-                    if polyline:
-                        x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
-                        y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
-                        z1=0
-                        polyline.append([x1, y1, z1, 1])
-                        polyline_cache.append(polyline)
-                        polyline=[]
-                    point_outside=False
-                    current_pixel_color=np.array([-1,-1,-1])
-                else:
-                    current_pixel_color=image_matrix[y_round, x_round]
-
-                #check if the current pixel is the same color as the hatch color
-                if current_pixel_color[0]==color[0] and current_pixel_color[1]==color[1] and current_pixel_color[2]==color[2]: #MUCH faster than np.array_equal
-                    
-                    if polyline:
-                        # polyline.append([x1, y1, z1, 1])
-                        pass
-                    else:
-                        x1=(x-center[0])/self.pixel_per_mm
-                        y1=(y-center[1])/self.pixel_per_mm
-                        z1=0
-                        polyline.append([x1, y1, z1, 0])
-                else:
-                    if polyline:
-                        x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
-                        y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
-                        z1=0
-                        polyline.append([x1, y1, z1, 1])
-                        polyline_cache.append(polyline)
-                        polyline=[]
-                        
-                #increase the x/y step and keep track of last position
-                x_target -= cos_theta * step_size
-                if hatch_mode == "CylEquidistX":
-                    if np.abs(x_target-center[0])>cyl_rad:
-                        point_outside=True
-                    else:
-                        prev_x=x
-                        x=np.asin((x_target-center[0])/cyl_rad)*(cyl_rad)+center[0]
-                else:
-                    prev_x=x
-                    x=x_target
-                prev_y = y
-                y -= sin_theta * step_size
-
-            #finally append the last line if there is one
-            if polyline:
-                        x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
-                        y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
-                        z1=0
-                        polyline.append([x1, y1, z1, 1])
-                        polyline_cache.append(polyline)
-                        polyline=[]
-            #append polyines here in correct order for meandering
-            if hatch_line_dir==1:
-                for poly_line in polyline_cache:
-                    line_collection_poly.append(poly_line)
-            else:
-                for poly_line in reversed(polyline_cache):
-                    poly_line[0][MOVE]=MOVE_BURN
-                    poly_line[-1][MOVE]=MOVE_TRAVEL
-                    line_collection_poly.append(list(reversed(poly_line)))
-
-            hatch_line_dir*=-1
-
-            # move to next line. First move along y, then along x
-            if not hatch_y_finished:
-                hatch_start_y += step_start_y 
-                if hatch_start_y >= max_y:
-                    hatch_y_finished = True #check if we are at the end of the bounding box in y-direction
-            elif not hatch_x_finished:
-                if hatch_y_finished and not hatch_start_y>=max_y:
-                    hatch_start_y=max_y+1 # this is just for 90deg case. y hast to be set manually
-                hatch_start_x += incline*step_start_x
-                if (hatch_start_x <= min_x or incline==1) and (hatch_start_x >= max_x or incline==-1): #check if we are at the end of the bounding box in x-direction
-                    hatch_x_finished = True
-            else:
-                hatching_done = True
-
-            #update progress bar
-            line_count+=1
-            current_state = np.ceil((progress_state[0]+line_count/max_lines)/progress_state[1]*progress_state[2])
-            self._report_progress(current_state)
-        return line_collection_poly
-        
-    def hatch_circular(self, hatch_distance, step_size, image_matrix, center, color, hatch_mode, cyl_rad, progress_state):
-        line_collection_poly=[]
-        # Maximum Radius of one circle defined by the cluster diagonal, plus extra space for one hatch line
-        max_rad = np.ceil(
-            np.sqrt((image_matrix.shape[0]/2)**2+(image_matrix.shape[1]/2)**2))+np.ceil(hatch_distance)
-
-        # center = self.center_for_hatch
-        # center = [(image_matrix.shape[1]-1)/2,
-        #           (image_matrix.shape[0]-1)/2]
-
-        point_outside=False
-        hatch_rad = hatch_distance/10 #just the start radius is smaller
-
-        #loop over circles. will stop when the circle is outside the image
-        while hatch_rad <= max_rad:
-            #check if hatching was cancelled
-            if self.hatching_cancelled:
-                return None
-            
-            angle_res = step_size/hatch_rad
-            if angle_res > 2*np.pi/36:
-                angle_res = 2*np.pi/36
-            # Randomly choose theta between 0 and 19 degrees
-            start_angle = np.deg2rad(np.floor(random.uniform(0, 20)))
-            polyline = []
-            current_pixel_color=np.array([-1,-1,-1]) #use non existend color when the point is outside the image
-
-            #loop over single circle. points are known so use a foor loop. The inside is called A LOT. Use as few function calls as possible
-            for angle in np.linspace(start_angle, start_angle+2*np.pi, int(np.ceil(2*np.pi/angle_res))):
-                x = center[0]+hatch_rad*np.cos(angle)
-                if hatch_mode == "CylEquidistX":
-                    if np.abs(x-center[0])>cyl_rad:
-                        point_outside=True
-                    else:
-                        x=np.asin((x-center[0])/cyl_rad)*(cyl_rad)+center[0]
-                y = center[1]+hatch_rad*np.sin(angle)
-
-                #use a special rounding for x and y for efficiency. we know that they can never be negative (else it will be caught anyway)
-                if int(y)==int(y-0.5):
-                    y_round=int(y+1)
-                else:
-                    y_round=int(y)
-                if int(x)==int(x-0.5):
-                    x_round=int(x+1)
-                else:
-                    x_round=int(x)
-
-                #check if current pixel is outside the image
-                if point_outside or y_round>=image_matrix.shape[0] or y_round<0 or x_round>= image_matrix.shape[1] or x_round<0:
-                    if polyline:
-                        if len(polyline) > 1:
-                            line_collection_poly.append(polyline)
-                        polyline = []
-                    point_outside=False
-                    current_pixel_color=np.array([-1,-1,-1])
-                else:
-                    current_pixel_color=image_matrix[y_round, x_round]
-
-                #check if current pixel is the color we want to hatch
-                if current_pixel_color[0]==color[0] and current_pixel_color[1]==color[1] and current_pixel_color[2]==color[2]: #MUCH faster than np.array_equal
-                    x1 = (x-center[0])/self.pixel_per_mm
-                    y1 = (y-center[1])/self.pixel_per_mm
-                    z1 = 0
-                    if polyline:
-                        polyline.append([x1, y1, z1, 1])
-                    else:
-                        polyline.append([x1, y1, z1, 0])
-                else:
-                    if polyline:
-                        if len(polyline) > 1:
-                            line_collection_poly.append(polyline)
-                        polyline = []
-
-                angle += angle_res
-            if polyline:  # if we have a last line add it
-                if len(polyline) > 1:
-                        line_collection_poly.append(polyline)
-                polyline = []
-            hatch_rad += hatch_distance
-            #update progress bar
-            current_state = np.ceil((progress_state[0]+hatch_rad/max_rad)/progress_state[1]*progress_state[2])
-            self._report_progress(current_state)
-        return line_collection_poly
-            
-    def hatch_spiral(self, hatch_distance, step_size, image_matrix, center, color, hatch_mode, cyl_rad, progress_state):
-        line_collection_poly=[]
-        # Maximum Radius of one circle defined by the cluster diagonal
-        max_rad = np.ceil(
-            np.sqrt((image_matrix.shape[0]/2)**2+(image_matrix.shape[1]/2)**2))+np.ceil(hatch_distance)
-
-        # center = self.center_for_hatch
-        # center = [(image_matrix.shape[1]-1)/2,
-        #           (image_matrix.shape[0]-1)/2]
-
-        x = center[0]
-        y = center[1]
-        hatch_rad_avg=hatch_distance/2
-        point_outside=False
-
-        #loop over spiral. will stop when the spiral is outside the image
-        while hatch_rad_avg+hatch_distance/2 <= max_rad:
-            #check if hatching was cancelled
-            if self.hatching_cancelled:
-                return None
-            
-            angle_res = step_size/hatch_rad_avg
-            if angle_res > 2*np.pi/36:
-                angle_res = 2*np.pi/36
-            polyline = []
-            angles = np.linspace(0, 2*np.pi, int(np.ceil(2*np.pi/angle_res)))
-            hatch_radii = np.linspace(hatch_rad_avg-hatch_distance/2, hatch_rad_avg+hatch_distance/2, int(np.ceil(2*np.pi/angle_res))) 
-            current_pixel_color=np.array([-1,-1,-1]) #use non existend color when the point is outside the image
-
-            #loop over single circle of the spiral. points are known so use a foor loop. The inside is called A LOT. Use as few function calls as possible
-            for angle, hatch_rad in zip(angles, hatch_radii):
-                x = center[0]+hatch_rad*np.cos(angle)
-                if hatch_mode == "CylEquidistX":
-                    if np.abs(x-center[0])>cyl_rad:
-                        point_outside=True
-                    else:
-                        x=np.asin((x-center[0])/cyl_rad)*(cyl_rad)+center[0]
-                y = center[1]+hatch_rad*np.sin(angle)
-
-                #use a special rounding for x and y for efficiency. we know that they can never be negative (else it will be caught anyway)
-                if int(y)==int(y-0.5):
-                    y_round=int(y+1)
-                else:
-                    y_round=int(y)
-                if int(x)==int(x-0.5):
-                    x_round=int(x+1)
-                else:
-                    x_round=int(x)
-
-                #check if current pixel is outside the image
-                if point_outside or y_round>=image_matrix.shape[0] or y_round<0 or x_round>= image_matrix.shape[1] or x_round<0:
-                    if polyline:
-                        if len(polyline) > 1:
-                            line_collection_poly.append(polyline)
-                        polyline = []
-                    point_outside=False
-                    current_pixel_color=np.array([-1,-1,-1])
-                else:
-                    current_pixel_color=image_matrix[y_round, x_round]
-
-                #check if current pixel is the color we want to hatch        
-                if current_pixel_color[0]==color[0] and current_pixel_color[1]==color[1] and current_pixel_color[2]==color[2]: #MUCH faster than np.array_equal
-                    x1 = (x-center[0])/self.pixel_per_mm
-                    y1 = (y-center[1])/self.pixel_per_mm
-                    z1 = 0
-                    if polyline:
-                        polyline.append([x1, y1, z1, 1])
-                    else:
-                        polyline.append([x1, y1, z1, 0])
-
-                else:
-                    if polyline:
-                        if len(polyline) > 1:
-                            line_collection_poly.append(polyline)
-                        polyline = []
-                angle += angle_res
-            if polyline:  # if we have a last line add it
-                if len(polyline) > 1:
-                        line_collection_poly.append(polyline)
-                polyline = []
-            hatch_rad_avg += hatch_distance
-            #update progress bar
-            current_state = np.ceil((progress_state[0]+hatch_rad_avg/max_rad)/progress_state[1]*progress_state[2])
-            self._report_progress(current_state)
-        return line_collection_poly
-            
-    def hatch_radial(self, hatch_distance, step_size, image_matrix, center, color, hatch_mode, cyl_rad,progress_state):
-        line_collection_poly=[]
-        hatch_line_dir=1
-        # We have to pad the array, since start points of hatchlines might lay outside the image
-        # Maximum Radius of one circle defined by the cluster diagonal
-        max_rad = np.ceil(
-            np.sqrt((image_matrix.shape[0]/2)**2+(image_matrix.shape[1]/2)**2))+np.ceil(hatch_distance)
-        
-        # center = self.center_for_hatch
-        # center = [(image_matrix.shape[1]-1)/2,
-        #           (image_matrix.shape[0]-1)/2]
-
-        hatch_start_x = center[0]
-        hatch_start_y = center[1]
-        angle_res=np.atan(hatch_distance/max_rad)*2
-        angles = np.linspace(0, 2*np.pi, int(np.ceil(2*np.pi/angle_res)))
-        
-        ray_count=0
-        
-        #loop over radial rays. ray number is known so use a for loop
-        for angle in angles:
-            #check if hatching was cancelled
-            if self.hatching_cancelled:
-                return None
-            
-            sin_angle=np.sin(angle)
-            cos_angle=np.cos(angle)
-            x_target = hatch_start_x
-            prev_x=None
-            prev_y=None
-            point_outside=False  # B04: must be reset before the cylinder check below may set it
-            if hatch_mode == "CylEquidistX":
-                if np.abs(x_target-center[0])>cyl_rad:
-                    point_outside=True
-                    x=0 # just a dummy
-                else:
-                    x=np.asin((x_target-center[0])/cyl_rad)*(cyl_rad)+center[0]
-            else:
-                x=x_target
-            y = hatch_start_y
-
-            polyline = []
-            polyline_cache=[]
-            current_pixel_color=np.array([-1,-1,-1]) #use non existend color when the point is outside the image
-
-            #loop over single ray. stop when the ray is outside the image. This is looped over A LOT. Limit ALL function calls as much as possible
-            while np.sqrt((x_target-center[0])**2+(y-center[1])**2) <= max_rad:
-                #use a special rounding for x and y for efficiency. we know that they can never be negative (else it will be caught anyway)
-                if int(y)==int(y-0.5):
-                    y_round=int(y+1)
-                else:
-                    y_round=int(y)
-                if int(x)==int(x-0.5):
-                    x_round=int(x+1)
-                else:
-                    x_round=int(x)
-
-                #check if current pixel is outside the image
-                if point_outside or y_round>=image_matrix.shape[0] or y_round<0 or x_round>= image_matrix.shape[1] or x_round<0:
-                    if polyline:
-                        x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
-                        y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
-                        z1=0
-                        polyline.append([x1, y1, z1, 1])
-                        polyline_cache.append(polyline)
-                        polyline=[]
-                    point_outside=False
-                    current_pixel_color=np.array([-1,-1,-1])
-                else:
-                    current_pixel_color=image_matrix[y_round, x_round]
-                
-                #check if current pixel is the color we want to hatch
-                if current_pixel_color[0]==color[0] and current_pixel_color[1]==color[1] and current_pixel_color[2]==color[2]: #MUCH faster than np.array_equal
-                    x1=(x-center[0])/self.pixel_per_mm
-                    y1=(y-center[1])/self.pixel_per_mm
-                    z1=0
-                    if polyline:
-                        pass
-                        # polyline.append([x1, y1, z1, 1])
-                    else:
-                        polyline.append([x1, y1, z1, 0])
-                else:
-                    if polyline:
-                        x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
-                        y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
-                        z1=0
-                        polyline.append([x1, y1, z1, 1])
-                        polyline_cache.append(polyline)
-                        polyline=[]
-                x_target += cos_angle * step_size
-                if hatch_mode == "CylEquidistX":
-                    if np.abs(x_target-center[0])>cyl_rad:
-                        point_outside=True
-                    else:
-                        prev_x=x
-                        x=np.asin((x_target-center[0])/cyl_rad)*(cyl_rad)+center[0]
-                else:
-                    prev_x=x
-                    x=x_target
-                prev_y=y
-                y += sin_angle * step_size
-            
-            #finally append line if there is an open one
-            if polyline:
-                    x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
-                    y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
-                    z1=0
-                    polyline.append([x1, y1, z1, 1])
-                    polyline_cache.append(polyline)
-                    polyline=[]
-
-            #append polyines here in correct order for meandering
-            if hatch_line_dir==1:
-                for poly_line in polyline_cache:
-                    line_collection_poly.append(poly_line)
-            else:
-                for poly_line in reversed(polyline_cache):
-                    poly_line[0][MOVE]=MOVE_BURN
-                    poly_line[-1][MOVE]=MOVE_TRAVEL
-                    line_collection_poly.append(list(reversed(poly_line)))
-
-            ray_count+=1
-            hatch_line_dir*=-1
-
-            #update progress bar
-            current_state = np.ceil((progress_state[0]+ray_count/len(angles))/progress_state[1]*progress_state[2])
-            self._report_progress(current_state)
-            #print("finished radial ray " + str(ray_count) + " / " + str(len(angles)))
-        return line_collection_poly
-            
-            
     def make_hatch_cylindrical(self, layers, cyl_rad_mm=100):
         """Wrap flat layers around a cylinder of radius cyl_rad_mm (x becomes the arc length)."""
         radius = cyl_rad_mm

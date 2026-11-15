@@ -17,7 +17,7 @@ This file is the single source of truth for status – update it in the same com
 | 1 – Bug fixes | done | B17, B22 partly deferred to P6.4 / P6.10 |
 | 2 – Core model & state | done | P2.1 rest → Phase 4, masks per document → P6.4 |
 | 3 – Transparency | done | widgets of the old thresholds still in `.ui` (P7) |
-| 4 – Hatching engine | **next** | |
+| 4 – Hatching engine | in progress | 4a done (13–33× faster), next 4b (B30) |
 | 5 – Output | open | |
 | 6 – Editing tools | open | |
 | 7 – Polish | open | |
@@ -161,7 +161,7 @@ Done in sub-steps, each one green against the golden files:
 - [x] **2c** `core/image_doc.py` `ImageDocument` (was `ImgObj`) is owned by the image list; `DataHandler.image_matrix` / `pixel_per_mm` / `image_matrix_original` read and write the active document directly (`set_active_document`). All `get_handler_data` syncing removed; upscaler works on a copy without side effects (rest of B22: threading → P6.10); undo actions share one `restore_image` helper (P2.7) that refuses to restore into a removed image.
 - [x] **2d** Coordinate transform (P2.5): only two image→machine conversions exist (hatcher center flip, contour export), so no extra module. Review found **B28** (1 px y offset), fixed at the source.
 
-- [~] P2.1 Create package layout (section 3); move pure functions out of UI classes. (output stage 2a, toolpath 2b, image document 2c; hatching algorithms move with Phase 4)
+- [x] P2.1 Create package layout (section 3); move pure functions out of UI classes. (output stage 2a, toolpath 2b, image document 2c, hatching patterns 4a)
 - [~] P2.2 `ImageDocument` (initially RGB, RGBA in Phase 3). Per-document hatch center and mask geometry: not yet (masks → P6.4).
 - [x] P2.3 Single source of truth for image state. *Changed:* no new `AppState` class – `DataHandler` is the app state; its plain callback lists and `ObservableList` stay (they work and are synchronous; Qt signals would only add churn). See Decisions.
 - [x] P2.4 `Layer` array model (no adapters needed – ported in one step, see 2b). `HatchData`/`HatchCluster` kept as containers for now.
@@ -180,14 +180,17 @@ Done in sub-steps, each one green against the golden files:
 - [x] P3.7 Save: alpha for PNG/SVG, white background for JPEG/BMP; save-format dialog with the "white as transparent" checkbox removed (plain file dialog).
 - [x] P3.8 Old RGB images load as before (white → background); old configs: `white_threshold_parsing` key is ignored. Golden G-code unchanged.
 
-### Phase 4 – Hatching engine  `[ ]`
-- [ ] P4.1 Label map once per cluster (`np.unique(..., return_inverse=True)`, background = −1).
-- [ ] P4.2 Generic engine: vectorized curve sampling → label lookup → run detection via `np.diff` → segments for **all labels in one pass**.
-- [ ] P4.3 Patterns as curve generators (meander, crossed, circular, spiral, radial); removes the 5 duplicated loops. CylEquidistX mapping vectorized.
-- [ ] P4.4 Meander ordering per label (alternating direction) preserved; seeded RNG for random patterns (seed saved in settings).
+### Phase 4 – Hatching engine  `[~]`
+
+- [x] **4a** `core/hatching.py`: the five per-pixel loops replaced by one vectorized engine (walks for meander/radial, point chains for circle/spiral; colours as label image). Exact port: all goldens byte-identical. Benchmark (6 colours, 0.1 mm step): 800×600 px 1.3–2.6 s → 0.11–0.18 s; 2400×1800 px 11–23 s → 0.7–0.9 s.
+- [ ] **4b** B30 (rounding of negative coordinates) – changes output at the low image edges.
+- [x] P4.1 Label map once per cluster (`hatching.label_colors`, packed RGB keys; background = −1).
+- [x] P4.2 Generic engine: vectorized curve sampling → label lookup → run detection. *Changed:* still one pass per colour (colours can have different hatch distance / random angle); the per-colour pass is vectorized, which removed the cost. One shared pass for equal settings: not needed (see benchmark).
+- [x] P4.3 Patterns share `_walk`/`_segments`/`_chains`; the 5 duplicated loops (~500 lines) are gone. CylEquidistX mapping vectorized.
+- [~] P4.4 Meander ordering per label (alternating direction) preserved; random numbers drawn in the old order. Seed in settings: open.
 - [ ] P4.5 Optional: exact pixel-edge intersection for straight lines (DDA) – segment ends independent of step size.
-- [ ] P4.6 Worker with frozen `HatchSettings`; signals only; automatic mode continues on result signal (no busy loop); proper cancel.
-- [ ] P4.7 Benchmark old vs. new (record numbers in Work Log); compare output against golden files (tolerances documented).
+- [x] P4.6 Worker gets its settings as a dict collected on the GUI thread; signals only; `QEventLoop` in automatic mode; cancel via progress callback (done in Phase 1, B02/B03).
+- [x] P4.7 Benchmark old vs. new (see 4a); outputs byte-identical.
 
 ### Phase 5 – Output (post-processing, G-code, plotting)  `[ ]`
 - [ ] P5.1 `MachineProfile` JSON (**user-facing feature**, multiple machines planned – see Q1): header/footer, laser mode & power mode commands, enclosure fan, air assist, acceleration (now hardcoded 3000 mm/s²), travel speed (now hardcoded 100), over-drive fit parameters. Snapmaker Artisan = first profile.
@@ -274,3 +277,4 @@ Done in sub-steps, each one green against the golden files:
 | 2026-11-15 | 2d, B28 | One-pixel y offset of all image-based hatching fixed; goldens regenerated and verified move-by-move (pure +0.1 mm Y shift where the sampling is unchanged). Phase 2 complete, 29 tests. |
 | 2026-11-15 | Phase 3 | Transparency as background end to end (load/save/display/edit/hatch/export/plot); white thresholds replaced by "Make Bright Colors Transparent"; B29 found and fixed. `tests/test_transparency.py`, 37 tests, goldens unchanged. Not covered by tests: brush eraser strokes, move-mask cutout, AI upscale path. |
 | 2026-11-15 | P3.2 | Feedback: checkerboard squares changed size with zoom (texture in image coordinates). Now drawn by the canvas in screen pixels (constant 8 px squares). |
+| 2026-11-15 | 4a | Vectorized hatching engine in `core/hatching.py`, goldens byte-identical, 13–33× faster on 2400×1800 px. First version was only 3–6× faster: `np.unique(axis=0)` for the colour labels took 3.2 s, replaced by packed 1-D keys. Suspected endless loop for very wide CylEquidistX clusters checked against the old code: does not occur. |
