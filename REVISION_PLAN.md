@@ -172,7 +172,7 @@ Done in sub-steps, each one green against the golden files:
 
 ### Phase 3 – Transparency  `[x]`
 - [x] P3.1 RGBA storage with binarized alpha (`core/image_doc.normalize`, applied in `ImageDocument` and on every `DataHandler.image_matrix` write; transparent pixels are always `(0,0,0,0)`); loader rules (section 2); "File → Load: Pure White as Transparent" (default on).
-- [x] P3.2 Display: RGBA pixmap, checkerboard item behind the image (image item uses `BoundingRectShape`, otherwise transparent pixels would clip overlays).
+- [x] P3.2 Display: RGBA pixmap; the canvas (`CustomUiElements.NoScrollGraphicsView.drawBackground`) draws a checkerboard in screen pixels behind the image, so the squares keep their size at every zoom/pixel size (first version as scene item scaled with the zoom). Image item uses `BoundingRectShape`, otherwise transparent pixels would clip overlays.
 - [x] P3.3 Downstream white thresholds removed from hatching/parsing/plotting/automatic (widgets hidden, removal from `.ui` in P7); "File → Make Bright Colors Transparent..." (mean RGB > X, default 230 – same rule as the old thresholds) with undo.
 - [x] P3.4 Replace all hardcoded white logic (crop background, cut to mask, save mask, split, combine, cleanup, move-mask cutout, new blank = transparent). `split_colors` vectorized, unused `clean_up_clusters` removed.
 - [x] P3.5 Quantization (all methods)/k-means/recolour/colour count only on opaque pixels. Filters (sharpness/brightness/contrast/bilateral/Canny) run on RGB with white background and keep the alpha. *shortcut:* white fill instead of inpainting at the edges (same behaviour as before).
@@ -273,3 +273,4 @@ Done in sub-steps, each one green against the golden files:
 | 2026-11-15 | 2c, P2.7 | Image state has one owner (`ImageDocument` in the image list); 11 `get_handler_data` sync calls and several full-image copies per action removed. New `tests/test_image_state.py` (switching keeps edits, upscale leaves source untouched, undo after removing an image, undo rotation). 28 tests. |
 | 2026-11-15 | 2d, B28 | One-pixel y offset of all image-based hatching fixed; goldens regenerated and verified move-by-move (pure +0.1 mm Y shift where the sampling is unchanged). Phase 2 complete, 29 tests. |
 | 2026-11-15 | Phase 3 | Transparency as background end to end (load/save/display/edit/hatch/export/plot); white thresholds replaced by "Make Bright Colors Transparent"; B29 found and fixed. `tests/test_transparency.py`, 37 tests, goldens unchanged. Not covered by tests: brush eraser strokes, move-mask cutout, AI upscale path. |
+| 2026-11-15 | P3.2 | Feedback: checkerboard squares changed size with zoom (texture in image coordinates). Now drawn by the canvas in screen pixels (constant 8 px squares). |

@@ -1,8 +1,6 @@
 from PIL import Image
 from PyQt6 import QtCore
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QImage, QColor, QPainter, QPen, QBrush, QTransform
-from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsItem
+from PyQt6.QtGui import QPixmap, QImage
 from core import image_doc
 import cv2
 from HelperClasses import HatchData, ObservableList
@@ -44,7 +42,6 @@ class DataHandler:
         self.active_document = document
         if document is None:
             self.gui.image_item.setPixmap(QPixmap())
-            self._checkerboard_item().setRect(0, 0, 0, 0)
             self._displayed_shape = None
         else:
             self.set_and_display_image()
@@ -119,9 +116,8 @@ class DataHandler:
             image_array = np.ascontiguousarray(self.image_matrix)
             image_qt = QImage(image_array.data, width_px, height_px, width_px * 4, QImage.Format.Format_RGBA8888)
 
-            # Display the image at native resolution, transparent areas show a checkerboard
+            # Display the image at native resolution (the canvas draws a checkerboard behind transparent pixels)
             self.gui.image_item.setPixmap(QPixmap.fromImage(image_qt))
-            self._checkerboard_item().setRect(0, 0, width_px, height_px)
             
             # Calculate display scale based on pixel_per_mm ratio
             # This determines how large pixels appear on the canvas
@@ -148,23 +144,6 @@ class DataHandler:
 
         except Exception as e:
             log.exception("Error displaying image")
-
-    def _checkerboard_item(self):
-        """Checkerboard behind the image item (made visible by transparent pixels). Created on first use."""
-        if getattr(self, "_checkerboard", None) is None:
-            tile = QImage(8, 8, QImage.Format.Format_RGB32)
-            tile.fill(QColor(255, 255, 255))
-            painter = QPainter(tile)
-            painter.fillRect(0, 0, 4, 4, QColor(204, 204, 204))
-            painter.fillRect(4, 4, 4, 4, QColor(204, 204, 204))
-            painter.end()
-            self._checkerboard = QGraphicsRectItem(self.gui.image_item)
-            self._checkerboard.setFlag(QGraphicsItem.GraphicsItemFlag.ItemStacksBehindParent, True)
-            self._checkerboard.setPen(QPen(Qt.PenStyle.NoPen))
-            brush = QBrush(QPixmap.fromImage(tile))
-            brush.setTransform(QTransform.fromScale(0.25, 0.25))  # small squares, independent of the pixel size
-            self._checkerboard.setBrush(brush)
-        return self._checkerboard
 
     def update_active_hatch_label(self):
         self.gui.active_hatch_label.setText("Active: " + self._hatch_data.type)

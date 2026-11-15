@@ -64,6 +64,7 @@ def create_main_window():
     # otherwise transparent pixels would clip away overlays and the checkerboard drawn on them.
     gui.image_item.setShapeMode(QtWidgets.QGraphicsPixmapItem.ShapeMode.BoundingRectShape)
     gui.image_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape, True)
+    gui.image_canvas.checkerboard_item = gui.image_item  # checkerboard behind transparent pixels
     return gui
 
 
