@@ -1,13 +1,6 @@
 import numpy as np
 from typing import List
         
-class ImgObj:
-    def __init__(self, image_matrix, original_image_matrix, pixel_per_mm, pixel_per_mm_original):
-        self.image_matrix = image_matrix
-        self.original_image_matrix = original_image_matrix
-        self.pixel_per_mm = pixel_per_mm
-        self.pixel_per_mm_original = pixel_per_mm_original
-
 class HatchCluster:
     """One hatch cluster: `data` is a list of core.toolpath.Layer (one per colour)."""
     def __init__(self, data: list, input_matrix: np.ndarray, ref_position: np.ndarray, cluster_center_for_hatch: np.ndarray, cylinder_radius: float, additional_code: str = ""):

@@ -3,24 +3,25 @@ from PyQt6 import QtCore
 from PyQt6.QtGui import QPixmap, QImage, QPixmap
 import cv2
 from HelperClasses import HatchData, ObservableList
+import logging
 import numpy as np
 from UndoRedo import UndoRedoManager
+
+log = logging.getLogger(__name__)
 
 class DataHandler:
     def __init__(self, gui):
         self.gui = gui
         self.undo_manager = UndoRedoManager(gui, self)
-        self.image_changed_callback_list = []  # List to hold callbacks for image changes (edits to original_image_matrix)
+        self.image_changed_callback_list = []  # called when another image document becomes active
         self.image_resized_callback_list = []  # List to hold callbacks for image resizing
         self.image_shape_changed_callback_list = []  # called when the pixel dimensions of image_matrix change
 
         #values to handle
         self._hatch_data = HatchData(None, None)
-        self.pixel_per_mm = None
+        self.active_document = None  # core.image_doc.ImageDocument shown on the canvas; owns pixels and pixel size
+        self._displayed_shape = None
         self.default_pixel_per_mm = 96/25.4  # Default pixel per mm value (96 DPI / 25.4 mm/inch)
-        self.image_matrix = None
-        self.image_matrix_original = None
-        self._image_matrix_original = None
         self.center_for_hatch = None
         self.contours_list=[]
         self.scale_factor = 1.0  # Scale factor between image and canvas display
@@ -35,25 +36,50 @@ class DataHandler:
         self.active_mask_index = -1  # Index of the currently active mask
         self.mask_overlays = [] # List of QGraphicsRectItem overlays
 
-    #create a watcher for the original image matrix. When the original image matrix is changed it means a new image was loaded.
+    def set_active_document(self, document):
+        """Make `document` (or None) the active image and notify the image-changed callbacks."""
+        self.active_document = document
+        if document is None:
+            self.gui.image_item.setPixmap(QPixmap())
+            self._displayed_shape = None
+        else:
+            self.set_and_display_image()
+        for callback in self.image_changed_callback_list:
+            callback()
+
+    # The active document is the single source of truth: these properties read/write it directly.
+    @property
+    def image_matrix(self):
+        return self.active_document.image_matrix if self.active_document is not None else None
+
+    @image_matrix.setter
+    def image_matrix(self, new_value):
+        if self.active_document is None:
+            log.warning("image_matrix set without an active document - ignored")
+            return
+        self.active_document.image_matrix = new_value
+        self.set_and_display_image()
+
     @property
     def image_matrix_original(self):
-        return self._image_matrix_original
-      
-    @image_matrix_original.setter
-    def image_matrix_original(self, new_value):
-        self._image_matrix_original = new_value
-        # call all callbacks in the list to notfiy the fucntions that the image has changed
-        for callback in self.image_changed_callback_list:
-            callback() 
-    
+        return self.active_document.original_image_matrix if self.active_document is not None else None
+
+    @property
+    def pixel_per_mm(self):
+        return self.active_document.pixel_per_mm if self.active_document is not None else None
+
+    @pixel_per_mm.setter
+    def pixel_per_mm(self, new_value):
+        if self.active_document is not None:
+            self.active_document.pixel_per_mm = new_value
+
     def add_image_changed_callback(self, callback):
-        """Add a callback to be called when the image changes."""
+        """Add a callback to be called when another image becomes active."""
         if callable(callback):
             self.image_changed_callback_list.append(callback)
         else:
             raise ValueError("Callback must be callable")
-    
+
     #add a callback list for image resized. These are called when the image display size changes (if scale factor is updated, and AFTER the image has been redrawn)
     def add_image_resized_callback(self, callback):
         """Add a callback to be called when the image is resized."""
@@ -61,20 +87,6 @@ class DataHandler:
             self.image_resized_callback_list.append(callback)
         else:
             raise ValueError("Callback must be callable")
-
-    #create a watcher for image_matrix. When image_matrix is updated, display the image
-    @property
-    def image_matrix(self):
-        return self._image_matrix
-
-    @image_matrix.setter
-    def image_matrix(self, new_value):
-        old_value = getattr(self, '_image_matrix', None)
-        self._image_matrix = new_value
-        if old_value is not None and new_value is not None and old_value.shape[:2] != new_value.shape[:2]:
-            for callback in self.image_shape_changed_callback_list:
-                callback()
-        self.set_and_display_image()
 
     #create a watcher for the hatch_data type. when it is changed, update the active_hatch_label
     @property
@@ -88,11 +100,17 @@ class DataHandler:
 
     def set_and_display_image(self, *args):
         try:
-            if self._image_matrix is None or (self._image_matrix.size == 1 and self._image_matrix.item() is None):
+            if self.image_matrix is None:
                 return
 
             # Get the image dimensions in pixels
             height_px, width_px = self.image_matrix.shape[:2]
+
+            # B17: masks etc. are pixel matrices of the displayed size -> notify when it changes
+            if self._displayed_shape is not None and self._displayed_shape != (height_px, width_px):
+                for callback in self.image_shape_changed_callback_list:
+                    callback()
+            self._displayed_shape = (height_px, width_px)
 
             # Fast preview resize using OpenCV
             image_array = np.array(self.image_matrix, dtype=np.uint8)
@@ -125,7 +143,7 @@ class DataHandler:
             self.gui.number_of_colors_label.setText(f"#Colors: {unique_color_count}")
 
         except Exception as e:
-            print(f"Error displaying image: {e}")
+            log.exception("Error displaying image")
 
     def update_active_hatch_label(self):
         self.gui.active_hatch_label.setText("Active: " + self._hatch_data.type)

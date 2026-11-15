@@ -1175,14 +1175,6 @@ class TextGeometryOverlayManager:
             )
             self.undo_manager.push_action(action)
 
-        # Update the active list item's ImgObj in gui if one exists
-        images_list_widget = getattr(self.gui, "images_ListWidget", None)
-        if images_list_widget is not None and images_list_widget.currentItem() is not None:
-            active_item = images_list_widget.currentItem()
-            img_obj = active_item.data(QtCore.Qt.ItemDataRole.UserRole)
-            if img_obj is not None:
-                img_obj.image_matrix = self.data_handler.image_matrix.copy()
-                active_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
 
     def _update_overlay_list(self):
         """Refresh the overlay list widget display."""

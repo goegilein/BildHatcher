@@ -22,8 +22,8 @@ class ImageUpscaler:
         "realesr-animevideov3"
     ]
 
-    def __init__(self, data_handler, library_path=None):
-        self.data_handler = data_handler
+    def __init__(self, image_matrix, library_path=None):
+        self.image_matrix = image_matrix
         if library_path is None:
             # Downloaded on demand into a writable user folder (same place as the database)
             self.library_path = os.path.join(os.path.expanduser("~"), "Documents", "BildHatcher", "libraries", "realesrgan")
@@ -111,9 +111,9 @@ class ImageUpscaler:
 
     def calculate_dimensions(self, scale: int) -> tuple[int, int]:
         """Calculate the resulting dimensions in pixels for a given upscale factor."""
-        if self.data_handler.image_matrix is None:
+        if self.image_matrix is None:
             return 0, 0
-        height, width = self.data_handler.image_matrix.shape[:2]
+        height, width = self.image_matrix.shape[:2]
         return width * scale, height * scale
 
     def palette_preserving_upscale(self, scale: int = 2, status_callback=None) -> np.ndarray | None:
@@ -121,12 +121,12 @@ class ImageUpscaler:
         Preserves the original palette exactly by using nearest-neighbor pixel replication.
         This does not create any blended or interpolated colors.
         """
-        if self.data_handler.image_matrix is None:
+        if self.image_matrix is None:
             if status_callback:
                 status_callback("Error: No image loaded.")
             return None
 
-        image_matrix = np.asarray(self.data_handler.image_matrix)
+        image_matrix = np.asarray(self.image_matrix)
         if image_matrix.ndim == 2:
             image_matrix = np.stack([image_matrix] * 3, axis=-1)
         elif image_matrix.shape[-1] == 4:
@@ -142,8 +142,7 @@ class ImageUpscaler:
 
         # Replicate each pixel block exactly to keep every original RGB value unchanged.
         upscaled_rgb = np.repeat(np.repeat(image_matrix, scale, axis=0), scale, axis=1)
-        self.data_handler.image_matrix = upscaled_rgb
-
+        
         if status_callback:
             status_callback("Palette-preserving upscaling completed.")
 
@@ -151,14 +150,14 @@ class ImageUpscaler:
 
     def upscale(self, scale: int = 4, model: str = "realesrgan-x4plus", use_gpu: bool = True, status_callback=None, preserve_palette: bool = False) -> np.ndarray | None:
         """
-        Upscales the current image in data_handler.image_matrix using the portable AI engine.
-        Saves output directly back to data_handler.image_matrix and returns it.
+        Upscales self.image_matrix using the portable AI engine.
+        Returns the upscaled image (the input is not modified).
         If preserve_palette is True, a palette-safe nearest-neighbor algorithm is used instead.
         """
         if preserve_palette:
             return self.palette_preserving_upscale(scale=scale, status_callback=status_callback)
 
-        if self.data_handler.image_matrix is None:
+        if self.image_matrix is None:
             if status_callback:
                 status_callback("Error: No image loaded.")
             return None
@@ -189,7 +188,7 @@ class ImageUpscaler:
 
         try:
             # Convert RGB image matrix to BGR for OpenCV write
-            image_matrix = self.data_handler.image_matrix
+            image_matrix = self.image_matrix
             bgr_image = cv2.cvtColor(image_matrix, cv2.COLOR_RGB2BGR)
             cv2.imwrite(temp_in, bgr_image)
 
@@ -237,9 +236,7 @@ class ImageUpscaler:
             if scale != 4:
                 upscaled_rgb = cv2.resize(upscaled_rgb, self.calculate_dimensions(scale), interpolation=cv2.INTER_AREA)
 
-            # Update data handler state
-            self.data_handler.image_matrix = upscaled_rgb
-
+            
             if status_callback:
                 status_callback("Upscaling completed successfully!")
 
@@ -272,15 +269,13 @@ class ImageUpscaler:
         Highest-quality traditional interpolation (Lanczos4)
         as an instant, robust, offline fallback.
         """
-        if self.data_handler.image_matrix is None:
+        if self.image_matrix is None:
             return None
 
-        image_matrix = self.data_handler.image_matrix
+        image_matrix = self.image_matrix
         new_w, new_h = self.calculate_dimensions(scale)
 
         # Apply OpenCV high-quality Lanczos4 interpolation
         upscaled_rgb = cv2.resize(image_matrix, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
 
-        # Update data handler state
-        self.data_handler.image_matrix = upscaled_rgb
         return upscaled_rgb

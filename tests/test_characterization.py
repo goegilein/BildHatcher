@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 from PyQt6 import QtCore
 
-from HelperClasses import ImgObj
+from core.image_doc import ImageDocument
 from core import gcode
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
@@ -42,7 +42,7 @@ def load_image(c, image_matrix, ppm=PIXEL_PER_MM, name="test.png"):
     """Mimics ImageControlling.BaseFunctions.load_image without the file dialog."""
     ctrl = c.image_controller
     ctrl.changeing_image = True
-    ctrl.add_listbox_item(ImgObj(image_matrix.copy(), image_matrix.copy(), ppm, ppm), name, set_selected=True)
+    ctrl.add_listbox_item(ImageDocument(image_matrix.copy(), image_matrix.copy(), ppm, ppm), name, set_selected=True)
     ctrl.changeing_image = False
     ctrl.set_handler_data(new_image=True)
     ctrl.update_dimension_fields()

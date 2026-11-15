@@ -9,6 +9,21 @@ import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 
+def restore_image(image_controller, data_handler, image_item, matrix, pixel_per_mm=None):
+    """Re-activate image_item and put matrix (and pixel size) back into its document.
+    Returns False if the image was removed from the list in the meantime (nothing is restored then)."""
+    if image_item is not None and image_controller is not None:
+        list_widget = image_controller.images_ListWidget
+        if list_widget.row(image_item) < 0:
+            return False  # restoring into whatever image is active now would corrupt it
+        if list_widget.currentItem() is not image_item:
+            list_widget.setCurrentItem(image_item)  # change_image activates its document
+    if pixel_per_mm is not None:
+        data_handler.pixel_per_mm = pixel_per_mm
+    data_handler.image_matrix = matrix.copy()
+    return True
+
+
 class Action:
     """Base class for all undoable and redoable actions."""
 
@@ -43,34 +58,8 @@ class ImageMatrixAction(Action):
         self.image_item = image_item
 
     def _sync_to_image_item(self, matrix, pixel_per_mm):
-        if matrix is None:
+        if matrix is None or not restore_image(self.image_controller, self.data_handler, self.image_item, matrix, pixel_per_mm):
             return
-
-        # Ensure correct image item is active if possible
-        if self.image_item is not None and hasattr(self.image_controller, "images_ListWidget"):
-            list_widget = self.image_controller.images_ListWidget
-            try:
-                row = list_widget.row(self.image_item)
-                if row >= 0 and list_widget.currentItem() != self.image_item:
-                    list_widget.setCurrentItem(self.image_item)
-                    self.image_controller.active_image_item = self.image_item
-            except Exception:
-                pass
-
-        # Update the active item's ImgObj
-        active_item = getattr(self.image_controller, "active_image_item", None)
-        if active_item is not None:
-            img_obj = active_item.data(QtCore.Qt.ItemDataRole.UserRole)
-            if img_obj is not None:
-                img_obj.image_matrix = matrix.copy()
-                if pixel_per_mm is not None:
-                    img_obj.pixel_per_mm = pixel_per_mm
-                active_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-
-        if pixel_per_mm is not None:
-            self.data_handler.pixel_per_mm = pixel_per_mm
-
-        self.data_handler.image_matrix = matrix.copy()
 
         # Update dimension spinboxes and canvas view if available
         if self.image_controller and hasattr(self.image_controller, "update_dimension_fields"):
@@ -147,24 +136,7 @@ class ImprintColorOverlaysAction(Action):
         self.image_item = image_item
 
     def _sync_matrix(self, matrix):
-        if self.image_item is not None and hasattr(self.image_controller, "images_ListWidget"):
-            list_widget = self.image_controller.images_ListWidget
-            try:
-                row = list_widget.row(self.image_item)
-                if row >= 0 and list_widget.currentItem() != self.image_item:
-                    list_widget.setCurrentItem(self.image_item)
-                    self.image_controller.active_image_item = self.image_item
-            except Exception:
-                pass
-
-        active_item = getattr(self.image_controller, "active_image_item", None)
-        if active_item is not None:
-            img_obj = active_item.data(QtCore.Qt.ItemDataRole.UserRole)
-            if img_obj is not None:
-                img_obj.image_matrix = matrix.copy()
-                active_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-
-        self.data_handler.image_matrix = matrix.copy()
+        restore_image(self.image_controller, self.data_handler, self.image_item, matrix)
 
     def undo(self):
         # 1. Restore previous pixel matrix
@@ -277,24 +249,7 @@ class TGImprintOverlaysAction(Action):
         self.image_item = image_item
 
     def _sync_matrix(self, matrix):
-        if self.image_item is not None and hasattr(self.image_controller, "images_ListWidget"):
-            list_widget = self.image_controller.images_ListWidget
-            try:
-                row = list_widget.row(self.image_item)
-                if row >= 0 and list_widget.currentItem() != self.image_item:
-                    list_widget.setCurrentItem(self.image_item)
-                    self.image_controller.active_image_item = self.image_item
-            except Exception:
-                pass
-
-        active_item = getattr(self.image_controller, "active_image_item", None)
-        if active_item is not None:
-            img_obj = active_item.data(QtCore.Qt.ItemDataRole.UserRole)
-            if img_obj is not None:
-                img_obj.image_matrix = matrix.copy()
-                active_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-
-        self.data_handler.image_matrix = matrix.copy()
+        restore_image(self.image_controller, self.data_handler, self.image_item, matrix)
 
     def undo(self):
         self._sync_matrix(self.before_matrix)
