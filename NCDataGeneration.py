@@ -5,22 +5,28 @@ import logging
 import numpy as np
 from collections import defaultdict
 import random
-from HelperClasses import Point, HatchData, HatchCluster
+import dataclasses
+from HelperClasses import HatchData, HatchCluster
+from core.toolpath import Layer, polyline, X, Y, MOVE, MOVE_TRAVEL, MOVE_BURN
 import ezdxf
 
 log = logging.getLogger(__name__)
+
+
+def _to_layer(color, line_collection):
+    """One hatched colour: list of row lists -> Layer with polyline arrays."""
+    return Layer((int(color[0]), int(color[1]), int(color[2])), [polyline(rows) for rows in line_collection])
 
 '''
 This module contains the Hatcher class, which is responsible for generating hatching patterns based on the input image and user settings. 
 It includes methods for creating different hatch patterns, calculating clusters for hatching, and managing the hatching process in a separate thread to keep the GUI responsive.
 
-DATA-ARCHITECTURE:
-The hatching data is organized in a hierarchical structure to efficiently manage the complex relationships between colors, clusters, and hatch lines. The structure is as follows:
-- HatchData: Contains a list of HatchClusters and a type description.
-- HatchCluster: Represents a cluster of pixels. Its Data contains a list of Line Collections for each color in that cluster, the original image matrix for the cluster, reference position for hatching, and additional metadata.
-- Line Collection: A list of polylines. Each line collection holds the polylines for a single color of the cluster. Each polyline represents a continuous hatch line.
-- Polyline: A list of Points that form a continuous line. Each Point contains x, y, z coordinates, move type (0 for move, 1 for draw), and color information.
-This architecture allows for efficient storage and retrieval of hatching data, enabling the application to handle complex images with multiple colors and hatch patterns while maintaining performance.
+DATA-ARCHITECTURE (see core/toolpath.py):
+- HatchData: a list of HatchClusters and a type description.
+- HatchCluster: one part of the image (cylindrical hatching may split the image). `data` is a list of Layers,
+  plus the input image matrix of the cluster, its reference position and the cylinder radius.
+- Layer: all polylines of one colour, with colour, speed and power of that colour.
+- Polyline: float ndarray (N, 4) with rows (x, y, z, move) in mm; move is MOVE_TRAVEL / MOVE_BURN / MOVE_RAPID.
 '''
 
 class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI thread
@@ -378,7 +384,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                 if line_collection == 0:
                     return 0
                 else:
-                    hatched_cluster.append(line_collection)
+                    hatched_cluster.append(_to_layer(color, line_collection))
             elif hatch_pattern == "CrossedMeander":
                 line_collection1 = self.hatch_meander(
                     hatch_pattern, hatch_distance, hatch_angle, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state, cross_angle=0
@@ -389,8 +395,8 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                 if line_collection1 == 0:
                     return 0
                 else:
-                    hatched_cluster.append(line_collection1)
-                    hatched_cluster.append(line_collection2)
+                    hatched_cluster.append(_to_layer(color, line_collection1))
+                    hatched_cluster.append(_to_layer(color, line_collection2))
             elif hatch_pattern == "Circular":
                 line_collection = self.hatch_circular(
                     hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
@@ -398,7 +404,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                 if line_collection == 0:
                     return 0
                 else:
-                    hatched_cluster.append(line_collection)
+                    hatched_cluster.append(_to_layer(color, line_collection))
             elif hatch_pattern == "Spiral":
                 line_collection = self.hatch_spiral(
                     hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
@@ -406,7 +412,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                 if line_collection == 0:
                     return 0
                 else:
-                    hatched_cluster.append(line_collection)
+                    hatched_cluster.append(_to_layer(color, line_collection))
             elif hatch_pattern == "Radial":
                 line_collection = self.hatch_radial(
                     hatch_distance, step_size, cluster_matrix, cluster_center_for_hatch, color, hatch_mode, cyl_rad, progress_state
@@ -414,7 +420,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                 if line_collection == 0:
                     return 0
                 else:
-                    hatched_cluster.append(line_collection)
+                    hatched_cluster.append(_to_layer(color, line_collection))
             else:
                 print("Unknown hatch method")
             color_cluster_counter += 1
@@ -526,7 +532,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                         x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
                         y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                         z1=0
-                        polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 1])
                         polyline_cache.append(polyline)
                         polyline=[]
                     point_outside=False
@@ -538,19 +544,19 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                 if current_pixel_color[0]==color[0] and current_pixel_color[1]==color[1] and current_pixel_color[2]==color[2]: #MUCH faster than np.array_equal
                     
                     if polyline:
-                        # polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
+                        # polyline.append([x1, y1, z1, 1])
                         pass
                     else:
                         x1=(x-center[0])/self.pixel_per_mm
                         y1=(y-center[1])/self.pixel_per_mm
                         z1=0
-                        polyline.append(Point(x1, y1, z1, 0, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 0])
                 else:
                     if polyline:
                         x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
                         y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                         z1=0
-                        polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 1])
                         polyline_cache.append(polyline)
                         polyline=[]
                         
@@ -573,7 +579,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                         x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
                         y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                         z1=0
-                        polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 1])
                         polyline_cache.append(polyline)
                         polyline=[]
             #append polyines here in correct order for meandering
@@ -582,8 +588,8 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                     line_collection_poly.append(poly_line)
             else:
                 for poly_line in reversed(polyline_cache):
-                    poly_line[0].move_type=1
-                    poly_line[-1].move_type=0
+                    poly_line[0][MOVE]=MOVE_BURN
+                    poly_line[-1][MOVE]=MOVE_TRAVEL
                     line_collection_poly.append(list(reversed(poly_line)))
 
             hatch_line_dir*=-1
@@ -672,9 +678,9 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                     y1 = (y-center[1])/self.pixel_per_mm
                     z1 = 0
                     if polyline:
-                        polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 1])
                     else:
-                        polyline.append(Point(x1, y1, z1, 0, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 0])
                 else:
                     if polyline:
                         if len(polyline) > 1:
@@ -758,9 +764,9 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                     y1 = (y-center[1])/self.pixel_per_mm
                     z1 = 0
                     if polyline:
-                        polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 1])
                     else:
-                        polyline.append(Point(x1, y1, z1, 0, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 0])
 
                 else:
                     if polyline:
@@ -841,7 +847,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                         x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
                         y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                         z1=0
-                        polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 1])
                         polyline_cache.append(polyline)
                         polyline=[]
                     point_outside=False
@@ -856,15 +862,15 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                     z1=0
                     if polyline:
                         pass
-                        # polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
+                        # polyline.append([x1, y1, z1, 1])
                     else:
-                        polyline.append(Point(x1, y1, z1, 0, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 0])
                 else:
                     if polyline:
                         x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
                         y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                         z1=0
-                        polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
+                        polyline.append([x1, y1, z1, 1])
                         polyline_cache.append(polyline)
                         polyline=[]
                 x_target += cos_angle * step_size
@@ -885,7 +891,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                     x1=((x+prev_x)/2-center[0])/self.pixel_per_mm
                     y1=((y+prev_y)/2-center[1])/self.pixel_per_mm
                     z1=0
-                    polyline.append(Point(x1, y1, z1, 1, color[0], color[1], color[2]))
+                    polyline.append([x1, y1, z1, 1])
                     polyline_cache.append(polyline)
                     polyline=[]
 
@@ -895,8 +901,8 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                     line_collection_poly.append(poly_line)
             else:
                 for poly_line in reversed(polyline_cache):
-                    poly_line[0].move_type=1
-                    poly_line[-1].move_type=0
+                    poly_line[0][MOVE]=MOVE_BURN
+                    poly_line[-1][MOVE]=MOVE_TRAVEL
                     line_collection_poly.append(list(reversed(poly_line)))
 
             ray_count+=1
@@ -909,56 +915,33 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         return line_collection_poly
             
             
-    def make_hatch_cylindrical(self, hatched_clusters,cyl_rad_mm=100):
-        hatched_clusters_cylindrical = []
+    def make_hatch_cylindrical(self, layers, cyl_rad_mm=100):
+        """Wrap flat layers around a cylinder of radius cyl_rad_mm (x becomes the arc length)."""
         radius = cyl_rad_mm
-        for line_collection in hatched_clusters:
+        layers_cylindrical = []
+        for layer in layers:
             #check if hatching was cancelled
             if self.hatching_cancelled:
                 return None
-            
-            line_collection_cylindrical = []
-            for polyline in line_collection:
-                polyline_cyl = []
-                if len(polyline) > 2:  # we have an actual polyline
 
-                    for point in polyline:
-                        x = point.x
-                        y = point.y
-                        z = point.z
-                        m=point.move_type
-                        r=point.r
-                        g=point.g
-                        b=point.b
-                        angle = x/radius
-                        x_cyl = radius*np.sin(angle)
-                        z_cyl = radius*np.cos(angle)-radius
-                        y_cyl = y
-
-                        polyline_cyl.append(Point(x_cyl, y_cyl, z_cyl, m, r, g, b))
-                elif len(polyline)==2:  # we have a single line of one color
-                    point1, point2 = polyline
-                    len_x = np.abs(point1.x-point2.x)*10 #100µm steps in x direction
-                    if len_x<2:
-                        len_x=2
-                    nodes_x = np.linspace(point1.x, point2.x, int(np.ceil(len_x)))
-                    nodes_y = np.linspace(point1.y, point2.y, int(np.ceil(len_x)))
-
-                    for i in range(len(nodes_x)):
-                        angle = nodes_x[i]/radius
-                        x_cyl = radius*np.sin(angle)
-                        z_cyl = radius*np.cos(angle)-radius
-                        y_cyl = nodes_y[i]
-                        if i == 0:
-                            polyline_cyl.append(Point(x_cyl, y_cyl, z_cyl, point1.move_type, point1.r, point1.g, point1.b))
-                        else:
-                            polyline_cyl.append(Point(x_cyl, y_cyl, z_cyl, point2.move_type, point2.r, point2.g, point2.b))
-                        
-                else:
-                    print("Single Hatch-Point encountered. This should not happen. Skipping it.")
-                line_collection_cylindrical.append(polyline_cyl)
-            hatched_clusters_cylindrical.append(line_collection_cylindrical)
-        return hatched_clusters_cylindrical
+            polylines_cyl = []
+            for line in layer.polylines:
+                if len(line) == 2:  # a single straight line: subdivide in 100 um steps along x before bending
+                    num_nodes = int(np.ceil(max(np.abs(line[0, X] - line[1, X]) * 10, 2)))
+                    line = np.column_stack([
+                        np.linspace(line[0, X], line[1, X], num_nodes),
+                        np.linspace(line[0, Y], line[1, Y], num_nodes),
+                        np.zeros(num_nodes),
+                        np.where(np.arange(num_nodes) == 0, line[0, MOVE], line[1, MOVE]),
+                    ])
+                elif len(line) < 2:
+                    log.warning("Single hatch point encountered. This should not happen. Skipping it.")
+                    continue
+                angle = line[:, X] / radius
+                polylines_cyl.append(np.column_stack([
+                    radius * np.sin(angle), line[:, Y], radius * np.cos(angle) - radius, line[:, MOVE]]))
+            layers_cylindrical.append(dataclasses.replace(layer, polylines=polylines_cyl))
+        return layers_cylindrical
     
     def create_contours(self):
         source = self.contour_source_combobox.currentText()
@@ -971,38 +954,23 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
 
     def contour_from_image(self):
         self.get_handler_data()
-        self.hatch_data = HatchData([], "")
-        line_collection=[]
-        height, width, _ = self.image_matrix.shape
-        # center = [(width)/2, (height)/2]
+        height = self.image_matrix.shape[0]
         center = self.center_for_hatch
-        for polyline in self.contours_list:
-            polyline_new=[]
-            if type(polyline[0])==int: #single point detected. skip it
+        polylines = []
+        for contour in self.contours_list:
+            if type(contour[0])==int: #single point detected. skip it
                 continue
-            for i, point in enumerate(polyline):
-                x=(point[0]-center[0])/self.pixel_per_mm
-                y=((height-point[1]-1)-center[1])/self.pixel_per_mm
-                z=0
-                if i==0:
-                    m=0
-                else: 
-                    m=1
-                r=0
-                g=0
-                b=0
-                polyline_new.append(Point(x,y,z,m,r,g,b))
-            #always close contours, by appending first point as last.
-            last_point=polyline[0]
-            x=(last_point[0]-center[0])/self.pixel_per_mm
-            y=((height-last_point[1]-1)-center[1])/self.pixel_per_mm
-            z=0
-            polyline_new.append(Point(x,y,z,1,0,0,0))
-            line_collection.append(polyline_new)
-        cluster_data = [line_collection] #need to pack it again. cluster data is a list of line collections per color (just one for contours), line collection is a list of polylines, polyline is a list of points
-        self.hatch_data.hatch_clusters.append(HatchCluster(cluster_data, self.image_matrix, ref_position=[0,0,0,0], cluster_center_for_hatch=self.center_for_hatch, cylinder_radius=0))
-        # self.hatch_data.hatch_clusters.append(polyline_cluster)
-        self.hatch_data.type = "Contours"
+            pixels = np.asarray(contour + contour[:1], dtype=np.float64)  # always close contours
+            moves = np.full(len(pixels), MOVE_BURN)
+            moves[0] = MOVE_TRAVEL
+            polylines.append(np.column_stack([
+                (pixels[:, 0] - center[0]) / self.pixel_per_mm,
+                ((height - pixels[:, 1] - 1) - center[1]) / self.pixel_per_mm,
+                np.zeros(len(pixels)),
+                moves,
+            ]))
+        cluster = HatchCluster([Layer((0, 0, 0), polylines)], self.image_matrix, ref_position=[0,0,0,0], cluster_center_for_hatch=self.center_for_hatch, cylinder_radius=0)
+        self.hatch_data = HatchData([cluster], "Contours")
         self.set_handler_data()
     
     def contour_from_dxf(self):
@@ -1010,7 +978,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         Reads a DXF file and gathers lines, polylines, circles, arcs, etc.
         Approximates arcs & circles into polylines.
         Then shifts everything so the top-left corner of the bounding box is (0,0).
-        Stores the result in self.hatch_data as a list of polylines (each a list of Point).
+        Stores the result in self.hatch_data as one Layer of polylines.
         """
         file_path, _ = QFileDialog.getOpenFileName()
         if not file_path:
@@ -1117,13 +1085,9 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         # move_type: 0 for the first point, 1 for subsequent points
         line_collection = []
         for poly in polylines_shifted:
-            point_list = []
-            for i, (px, py) in enumerate(poly):
-                move = 0 if i == 0 else 1
-                point_list.append(Point(px, py, 0, move, r=0, g=0, b=0))
-            line_collection.append(point_list)
+            line_collection.append([(px, py, 0, MOVE_TRAVEL if i == 0 else MOVE_BURN) for i, (px, py) in enumerate(poly)])
 
-        cluster_data = [line_collection] #need to pack it again. cluster data is a list of line collections per color (just one for contours), line collection is a list of polylines, polyline is a list of points
+        cluster_data = [_to_layer((0, 0, 0), line_collection)]
         self.hatch_data = HatchData([HatchCluster(cluster_data, None, ref_position=[0,0,0,0], cluster_center_for_hatch=None, cylinder_radius=0)], "DXF_Imported")
         self.set_handler_data()
 

@@ -57,38 +57,21 @@ class HatchLinePlotter:
                                         [0, 1, 0],
                                         [-np.sin(rot_angle), 0, np.cos(rot_angle)]])
         # Iterate over each hatch line
-            for hatch_lines in hatch_cluster.data:
+            for layer in hatch_cluster.data:
+                if not layer.polylines or sum(layer.color) / 3 > self.white_threshold_plotting_spinbox.value():
+                    continue
 
-                # Calculate the total number of points, including NaN break points
-                total_points = sum(len(polyline) + 1 for polyline in hatch_lines) - 1  # Add 1 NaN per polyline, except the last
+                # one NaN row between polylines disconnects the line strip
+                separator = np.full((1, 4), np.nan)
+                rows = np.concatenate([part for line in layer.polylines for part in (line, separator)][:-1])
+                pos = ((rows[:, :3] + offset) @ rot_matrix_y.T - np.array([0, 0, hatch_cluster.cylinder_radius])).astype(np.float32)
 
-                # Preallocate numpy arrays for positions and colors
-                pos = np.zeros((total_points, 3), dtype=np.float32)  # Shape (N, 3)
-                colors = np.zeros((total_points, 4), dtype=np.float32)  # Shape (N, 4)
-
-                # Fill the numpy arrays
-                index = 0
-                for polyline in hatch_lines:
-                    for point in polyline:
-                        # Fill position array
-                        if (point.r+point.g+point.b)/3 > self.white_threshold_plotting_spinbox.value():
-                            pos[index] = [np.nan, np.nan, np.nan]
-                        else:
-                            pos[index] =  rot_matrix_y @ (np.array([point.x, point.y, point.z])+offset)-np.array([0,0,hatch_cluster.cylinder_radius])
-
-                        # Fill color array
-                        if self.color_mode_plotting_combobox.currentText() == "Black":
-                            colors[index] = [0, 0, 0, 1.0]
-                        else:
-                            colors[index] = [point.r / 255, point.g / 255, point.b / 255, 1.0]  # RGB values normalized to [0, 1]
-                        
-                        index += 1
-
-                    # Add a NaN break point to disconnect the line
-                    if index < total_points:  # Avoid adding NaN after the last polyline
-                        pos[index] = [np.nan, np.nan, np.nan]
-                        colors[index] = [0, 0, 0, 0]  # Invisible color
-                        index += 1
+                if self.color_mode_plotting_combobox.currentText() == "Black":
+                    rgba = [0, 0, 0, 1.0]
+                else:
+                    rgba = [layer.color[0] / 255, layer.color[1] / 255, layer.color[2] / 255, 1.0]
+                colors = np.tile(np.array(rgba, dtype=np.float32), (len(rows), 1))
+                colors[np.isnan(rows[:, 0])] = 0  # separators invisible
 
                 # Create a line item for the current hatch line and add it to the view
                 line_item = GLLinePlotItem(pos=pos, color=colors, width=self.plot_linedwidth_spinbox.value(), mode='line_strip')

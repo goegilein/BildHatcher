@@ -1,85 +1,6 @@
 import numpy as np
 from typing import List
         
-class Point:
-    def __init__(self,x,y,z,move_type,r,g,b,speed=None,pwr=None):
-        self._x = x
-        self._y = y
-        self._z = z
-        self.move_type = move_type
-        self.r=r
-        self.g=g
-        self.b=b
-        self.speed = speed
-        self.pwr = pwr
-        self._pos = np.array([x,y,z])
-    
-    @property
-    def pos(self):
-        return self._pos
-    
-    @pos.setter
-    def pos(self, new_value:np.ndarray) -> None:
-        assert new_value.shape == (3,), f"Expected shape (3,), got {new_value.shape}"  # B18: was (1, 3)
-        self._x, self._y, self._z = new_value
-        self._pos = np.array(new_value)
-
-    @property
-    def x(self):
-        return self._x
-    
-    @x.setter
-    def x(self, new_value):
-        self._x = new_value
-        self._pos = np.array([self._x, self._y, self._z])
-
-    @property
-    def y(self):
-        return self._y
-    
-    @y.setter
-    def y(self, new_value):
-        self._y = new_value
-        self._pos = np.array([self._x, self._y, self._z])
-
-    @property
-    def z(self):
-        return self._z
-    
-    @z.setter
-    def z(self, new_value):
-        self._z = new_value
-        self._pos = np.array([self._x, self._y, self._z])
-
-    def copy_metadata(self):
-        return self.move_type, self.r, self.g, self.b, self.speed, self.pwr
-    
-    def clone_with(self, x=None, y=None, z=None, move_type=None, speed=None, pwr=None):
-        if x is None:
-            x = self.x
-        if y is None:
-            y = self.y
-        if z is None:
-            z = self.z
-        if move_type is None:
-            move_type = self.move_type
-        if speed is None:
-            speed = self.speed
-        if pwr is None:
-            pwr = self.pwr
-
-        return Point(
-            x,
-            y,
-            z,
-            move_type=move_type,
-            r=self.r,
-            g=self.g,
-            b=self.b,
-            speed=speed,
-            pwr=pwr
-        )
-    
 class ImgObj:
     def __init__(self, image_matrix, original_image_matrix, pixel_per_mm, pixel_per_mm_original):
         self.image_matrix = image_matrix
@@ -88,6 +9,7 @@ class ImgObj:
         self.pixel_per_mm_original = pixel_per_mm_original
 
 class HatchCluster:
+    """One hatch cluster: `data` is a list of core.toolpath.Layer (one per colour)."""
     def __init__(self, data: list, input_matrix: np.ndarray, ref_position: np.ndarray, cluster_center_for_hatch: np.ndarray, cylinder_radius: float, additional_code: str = ""):
         self.data=data
         self.input_matrix = input_matrix

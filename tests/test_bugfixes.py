@@ -51,35 +51,38 @@ def test_b01_dxf_import_with_arc(app_components, tmp_path, monkeypatch):
 
     clusters = app_components.data_handler.hatch_data.hatch_clusters
     assert len(clusters) == 1
-    polylines = clusters[0].data[0]
+    polylines = clusters[0].data[0].polylines
     assert len(polylines) == 3
     arc = next(p for p in polylines if len(p) not in (2, 101))
     assert len(arc) == 7  # 20 degree sweep -> ceil(20/360*100)=6 segments -> 7 points
 
 
-def _straight_polyline(n, move_type=1):
-    from HelperClasses import Point
-    return [Point(float(i), 0.0, 0.0, 0 if i == 0 else move_type, 0, 0, 0, speed=40, pwr=50) for i in range(n)]
+def _straight_polyline(n):
+    from core.toolpath import polyline
+    return polyline([(float(i), 0.0, 0.0, 0 if i == 0 else 1) for i in range(n)])
+
+
+def _layer(*polylines):
+    from core.toolpath import Layer
+    return Layer((0, 0, 0), list(polylines), speed=40, power=50)
 
 
 def test_b10_maximize_lines_removes_all_points_on_a_straight_line():
     from core.postprocess import PostProcessor
-    result = PostProcessor().maximize_line_length([[_straight_polyline(11)]])
-    assert [p.x for p in result[0][0]] == [0.0, 10.0]
+    result = PostProcessor().maximize_line_length([_layer(_straight_polyline(11))])
+    assert result[0].polylines[0][:, 0].tolist() == [0.0, 10.0]
 
 
 def test_b11_drive_modes_handle_degenerate_polylines():
     import numpy as np
     from core.postprocess import PostProcessor
-    from HelperClasses import Point
-    duplicate = _straight_polyline(4)
-    duplicate.insert(2, Point(1.0, 0.0, 0.0, 1, 0, 0, 0, speed=40, pwr=50))  # zero-length segment
+    line = _straight_polyline(4)
+    duplicate = np.insert(line, 2, line[1], axis=0)  # zero-length segment
     single = _straight_polyline(1)
     for mode in ("Constant Drive", "Over Drive"):
-        result = PostProcessor().set_drive_mode([[duplicate, single]], mode)
-        coords = np.array([p.pos for polyline in result[0] for p in polyline])
-        assert np.isfinite(coords).all()
-        assert len(result[0][1]) == 1
+        result = PostProcessor().set_drive_mode([_layer(duplicate, single)], mode)
+        assert np.isfinite(np.concatenate(result[0].polylines)).all()
+        assert len(result[0].polylines[1]) == 1
 
 
 def test_b15_b17_rotation_updates_center_and_drops_masks(app_components):
@@ -137,3 +140,19 @@ def test_b20_combine_monochrome_uses_average_colour(app_components):
     combined = c.image_controller.get_active_image_matrix()
     assert combined[0, 0].tolist() == [100, 0, 50] == combined[1, 1].tolist()
     assert (combined[2:, 2:] == 255).all()
+
+
+def test_plotting_builds_one_line_item_per_visible_layer(app_components):
+    import numpy as np
+    from test_characterization import run_hatching
+    c = app_components
+    load_image(c, make_test_image())
+    result = run_hatching(c, pattern="FixedMeander", angle=45.0, white_threshold=254)
+    c.gui.white_threshold_plotting_spinbox.setValue(254)  # hide white
+    c.hatch_line_plotter.plot_hatch_lines()
+    layers = [l for l in result.hatch_clusters[0].data if l.polylines and sum(l.color) / 3 <= 254]
+    items = c.hatch_line_plotter.plot_line_items
+    assert len(items) == len(layers)
+    expected_rows = sum(l.point_count + len(l.polylines) - 1 for l in layers)  # + NaN separators
+    assert sum(len(i.pos) for i in items) == expected_rows
+    assert np.isfinite(items[0].pos).any()

@@ -1,7 +1,10 @@
-import numpy as np
 import copy
+import dataclasses
+
+import numpy as np
 
 from HelperClasses import HatchData, ProcessBlock
+from core.toolpath import polyline, MOVE_TRAVEL, MOVE_BURN, MOVE_RAPID
 
 class PostProcessor:
     def __init__(self):
@@ -30,39 +33,30 @@ class PostProcessor:
         if offset == [0, 0, 0]:
             return data
         
-        data_offset = []
-        for line_collection in data:
-            hatch_lines_new = []
-            for polyline in line_collection:
-                polyline_new = []
-                for point in polyline:
-                    point_new = point.clone_with(x=point.pos[0] + offset[0], y=point.pos[1] + offset[1], z=point.pos[2] + offset[2])
-                    polyline_new.append(point_new)
-                hatch_lines_new.append(polyline_new)
-            data_offset.append(hatch_lines_new)
-        return data_offset
+        shift = np.array([offset[0], offset[1], offset[2], 0.0])
+        return [dataclasses.replace(layer, polylines=[line + shift for line in layer.polylines]) for layer in data]
 
     def maximize_line_length(self, data):
         # self.get_handler_data()
         data_processed = []
         max_deviation = np.radians(1)
-        for hatch_lines in data:
+        for layer in data:
             hatch_lines_new=[]
-            for polyline in hatch_lines:
-                if len(polyline) < 3:
-                    hatch_lines_new.append(polyline)
+            for line in layer.polylines:
+                if len(line) < 3:
+                    hatch_lines_new.append(line)
                     continue
-                polyline_new=polyline[0:1]
+                keep = [0]
                 deviation_sum = 0  # B10: accumulated bend (pi = straight) since the last kept point
-                for i in range(1,len(polyline)-1):
-                    cos_angle=self.calculate_3d_angle(polyline[i-1].pos,polyline[i].pos,polyline[i+1].pos)
+                for i in range(1,len(line)-1):
+                    cos_angle=self.calculate_3d_angle(line[i-1, :3],line[i, :3],line[i+1, :3])
                     deviation_sum += np.pi - np.acos(cos_angle)
                     if deviation_sum > max_deviation:
-                        polyline_new.append(polyline[i])
+                        keep.append(i)
                         deviation_sum = 0
-                polyline_new.append(polyline[-1])
-                hatch_lines_new.append(polyline_new)
-            data_processed.append(hatch_lines_new)
+                keep.append(len(line)-1)
+                hatch_lines_new.append(line[keep])
+            data_processed.append(dataclasses.replace(layer, polylines=hatch_lines_new))
 
         return data_processed
     
@@ -73,62 +67,57 @@ class PostProcessor:
         over_drive_len=0.2 #just default to this. 
         crit_cos_angle=np.cos(np.radians(170))
         angle_sum=np.pi #here we will track the accumulated polylines angle-difference to 180 degrees.
-        for hatch_lines in data:
-            if not hatch_lines:
+        for layer in data:
+            if not layer.polylines:
                 continue
             hatch_lines_new=[]
-            #speed an power in one hatchline array should always be the same
-            speed=hatch_lines[0][0].speed
+            speed=layer.speed
             # const_drive_len=np.maximum(1, speed*0.04) #set constant drive length to 4% of speed/s in mm but at
             const_drive_len=np.maximum(0.1, 1.1*speed**2/(2*3000)) #assuming a constant acceleration/deceleration of 3000 mm/s^2 and using a 10% buffer
             #over_drive_len= (-0.075*speed**2+7.05*speed+37.5)/1000 #from a fit to measured data (10mm/s:100um, 20mm/s:150um, 30mm/s:180um, 40mm/2:200um)
             over_drive_len = 0.24484+(0.10634-0.24484)/(1+(speed/27.3937)**5.82549) #logistics fit to measured data of horz lines (31.01.2025) (10mm/s:110um, 20mm/s:120um, 30mm/s:200um, 40mm/2:220um, 50mm/s:250um, 60mm/s:230um, 70mm/s:240um, 100mm/s:260um)
-            for polyline in hatch_lines:
-                if len(polyline) < 2:  # B11: nothing to elongate
-                    hatch_lines_new.append(polyline)
+            for line in layer.polylines:
+                if len(line) < 2:  # B11: nothing to elongate
+                    hatch_lines_new.append(line)
                     continue
+                pos = line[:, :3]
                 #always start with a constant drive motion
-                A_new, A_pre, B_new, B_post = self.elongate_line(polyline[0].pos, polyline[1].pos, const_drive_len)
-                polyline_new = [polyline[0].clone_with(x=A_pre[0], y=A_pre[1], z=A_pre[2],move_type=0, speed = 100), polyline[0]] #these are two G0 commands as first command from Hatcher is ALWAYS G0. we can maximize speed on first G0 command for efficiency
-                point_prev = polyline[0]
-                for i in range(1,len(polyline)-1):
-                    point_now = polyline[i]
-                    point_next = polyline[i+1]
-                    cos_angle=self.calculate_3d_angle(point_prev.pos,point_now.pos,point_next.pos)
+                A_new, A_pre, B_new, B_post = self.elongate_line(pos[0], pos[1], const_drive_len)
+                # first command from the hatcher is ALWAYS a travel move: approach the lead-in point at rapid speed
+                rows = [(*A_pre, MOVE_RAPID), line[0]]
+                for i in range(1,len(line)-1):
+                    cos_angle=self.calculate_3d_angle(pos[i-1],pos[i],pos[i+1])
                     angle_sum+=np.acos(cos_angle)%np.pi
                     if np.cos(angle_sum) > np.cos(np.radians(179)) and cos_angle <= crit_cos_angle:
-                        polyline_new.append(point_now)
+                        rows.append(line[i])
                         angle_sum=np.pi
 
                     elif cos_angle > crit_cos_angle: # do a constant drive motion here so that decelaration is done in a G0 move
                         if mode == "Constant Drive":
-                            A_new, A_pre, B_new1, B_post = self.elongate_line(point_prev.pos, point_now.pos, const_drive_len)
-                            B_new2, B_pre, C_new, C_post = self.elongate_line(point_now.pos, point_next.pos, const_drive_len)
-                            polyline_new.append(point_now)
+                            A_new, A_pre, B_new1, B_post = self.elongate_line(pos[i-1], pos[i], const_drive_len)
+                            B_new2, B_pre, C_new, C_post = self.elongate_line(pos[i], pos[i+1], const_drive_len)
+                            rows.append(line[i])
                         elif mode == "Over Drive":
-                            A_new, A_pre, B_new1, B_post = self.elongate_line(point_prev.pos, point_now.pos, const_drive_len, over_drive_len)
-                            B_new2, B_pre, C_new, C_post = self.elongate_line(point_now.pos, point_next.pos, const_drive_len, over_drive_len)
-                            polyline_new.append(point_now.clone_with(x=B_new1[0], y=B_new1[1], z=B_new1[2],move_type=1))
+                            A_new, A_pre, B_new1, B_post = self.elongate_line(pos[i-1], pos[i], const_drive_len, over_drive_len)
+                            B_new2, B_pre, C_new, C_post = self.elongate_line(pos[i], pos[i+1], const_drive_len, over_drive_len)
+                            rows.append((*B_new1, MOVE_BURN))
                         else:
                             print("Postprocessing Mode not recognized!")
-                        polyline_new.append(point_now.clone_with(x=B_post[0], y=B_post[1], z=B_post[2],move_type=0))
-                        polyline_new.append(point_now.clone_with(x=B_pre[0], y=B_pre[1], z=B_pre[2],move_type=0))
-                        polyline_new.append(point_now.clone_with(move_type=0))
-                    point_prev = point_now
+                        rows.append((*B_post, MOVE_TRAVEL))
+                        rows.append((*B_pre, MOVE_TRAVEL))
+                        rows.append((*pos[i], MOVE_TRAVEL))
                 #finally also finish with a constant drive motion
                 if mode == "Constant Drive":
-                    A_new, A_pre, B_new, B_post = self.elongate_line(polyline[-2].pos, polyline[-1].pos, const_drive_len)
-                    polyline_new.append(polyline[-1])
-                    polyline_new.append(polyline[-1].clone_with(x=B_post[0], y=B_post[1], z=B_post[2],move_type=0))
-                    
+                    A_new, A_pre, B_new, B_post = self.elongate_line(pos[-2], pos[-1], const_drive_len)
+                    rows.append(line[-1])
+                    rows.append((*B_post, MOVE_TRAVEL))
+
                 elif mode== "Over Drive":
-                    A_new, A_pre, B_new, B_post = self.elongate_line(polyline[-2].pos, polyline[-1].pos, const_drive_len, over_drive_len)
-                    polyline_new.append(polyline[-1].clone_with(x=B_new[0], y=B_new[1], z=B_new[2],move_type=1))
-                    polyline_new.append(polyline[-1].clone_with(x=B_post[0], y=B_post[1], z=B_post[2],move_type=0))
-                hatch_lines_new.append(polyline_new)
-            data_processed.append(hatch_lines_new)
-        # self.hatch_data_processed = data_processed
-        # self.set_handler_data()
+                    A_new, A_pre, B_new, B_post = self.elongate_line(pos[-2], pos[-1], const_drive_len, over_drive_len)
+                    rows.append((*B_new, MOVE_BURN))
+                    rows.append((*B_post, MOVE_TRAVEL))
+                hatch_lines_new.append(polyline(rows))
+            data_processed.append(dataclasses.replace(layer, polylines=hatch_lines_new))
         return data_processed
 
 
@@ -221,24 +210,21 @@ class PostProcessor:
 def apply_speed_and_power(hatch_data_in: HatchData, white_threshold, power_mode, speed_mode,
                           min_pwr=None, max_pwr=None, min_speed=None, max_speed=None,
                           pwr_struc_num=1, speed_struc_num=1, db_color_palette=None):
-    """Return a deep copy of hatch_data with speed and power set on every point.
+    """Return a deep copy of hatch_data with speed and power set on every layer.
     power_mode / speed_mode: "constant (max. Val.)", "color-scaled", "test_structure" or "db_based"."""
     #work on a deepcopy of the raw data to avoid pointing issues
     hatch_data = copy.deepcopy(hatch_data_in)
 
     #data = HatchData(hatch_data, hatch_data.type)
     for hatch_cluster in hatch_data.hatch_clusters:
-        for counter, line_collection in enumerate(hatch_cluster.data):
-            if not line_collection:  # B09: colour without any hatch lines
+        for counter, layer in enumerate(hatch_cluster.data):
+            if not layer.polylines:  # B09: colour without any hatch lines
                 continue
-
-            # Get first point for color of the entire cluster
-            first_point = line_collection[0][0]
-            color = [first_point.r, first_point.g, first_point.b]
+            color = list(layer.color)
 
             # Check for white threshold. If the color is too bright, remove the data
             if sum(color)/3>white_threshold:
-                hatch_cluster.data[counter]=[] 
+                layer.polylines = []
                 continue
 
 
@@ -246,7 +232,7 @@ def apply_speed_and_power(hatch_data_in: HatchData, white_threshold, power_mode,
             if power_mode=="constant (max. Val.)":
                 pwr = max_pwr
             elif power_mode=="color-scaled":
-                pwr=int(max_pwr-(max_pwr-min_pwr)*sum([first_point.r,first_point.g,first_point.b])/765)
+                pwr=int(max_pwr-(max_pwr-min_pwr)*sum(color)/765)
             elif power_mode=="test_structure":
                 if pwr_struc_num>1:
                     pwr=int(min_pwr+(max_pwr-min_pwr)*np.floor(counter/speed_struc_num)/(pwr_struc_num-1))
@@ -262,7 +248,7 @@ def apply_speed_and_power(hatch_data_in: HatchData, white_threshold, power_mode,
             if speed_mode=="constant (max. Val.)":
                 speed = max_speed
             elif speed_mode=="color-scaled":
-                speed=int(min_speed+(max_speed-min_speed)*sum([first_point.r,first_point.g,first_point.b])/765)
+                speed=int(min_speed+(max_speed-min_speed)*sum(color)/765)
             elif speed_mode=="test_structure":
                 if speed_struc_num>1:
                     speed=int((min_speed+(max_speed-min_speed)*(counter%speed_struc_num/(speed_struc_num-1))))
@@ -274,10 +260,7 @@ def apply_speed_and_power(hatch_data_in: HatchData, white_threshold, power_mode,
             else:
                 print("error: SpeedMode not recognized")
 
-            #set data in every point
-            for polyline in line_collection:
-                for point in polyline:
-                    point.speed=speed
-                    point.pwr=pwr
+            layer.speed = speed
+            layer.power = pwr
 
     return hatch_data

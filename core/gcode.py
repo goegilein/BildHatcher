@@ -4,9 +4,8 @@ shortcut: header/footer/commands are Snapmaker Artisan specific, machine profile
 """
 import datetime
 
-import numpy as np
-
 from HelperClasses import ProcessBlock
+from core.toolpath import MOVE_BURN, MOVE_RAPID, RAPID_SPEED
 
 FEEDRATE_DEFAULT = 6000
 
@@ -60,7 +59,7 @@ def generate_gcode(process_block:ProcessBlock=None, cluster_index=None):
     gcode_commands.append(f"; Post Processing: {process_block.post_processing} | Laser Mode: {process_block.laser_mode} | Air Assist: {process_block.air_assist} | Power Mode: {process_block.power_mode} | Enclosure Fan: {process_block.enclosure_fan}%")
     gcode_commands.append(f"; Offset: X={process_block.offset[0]} Y={process_block.offset[1]} Z={process_block.offset[2]}")
     gcode_commands.append(f"; Number of color clusters: {len(hatch_cluster_data)}")
-    gcode_commands.append(f"; Number of points: {sum(len(polyline) for cluster in hatch_cluster_data for polyline in cluster)}")
+    gcode_commands.append(f"; Number of points: {sum(layer.point_count for layer in hatch_cluster_data)}")
     gcode_commands.append("")
 
     #set laser mode
@@ -99,21 +98,17 @@ def generate_gcode(process_block:ProcessBlock=None, cluster_index=None):
     feedG0_prev=0
     prev_gcode_command=""
 
-    for counter, line_collection in enumerate(hatch_cluster_data):
-        for polyline in line_collection:
-            for point in polyline:
-
-                move_type = point.move_type
-                x = point.x
-                y = point.y
-                z = point.z
-                feed = point.speed*60 #feed is in mm/min while speed is in mm/s
-                pwr_P = point.pwr
-                pwr_S = pwr_P/100*255 #pwr_S is in 8bit format (0-255)
+    for layer in hatch_cluster_data:
+        pwr_P = layer.power
+        pwr_S = pwr_P/100*255 if pwr_P is not None else None #pwr_S is in 8bit format (0-255)
+        for line in layer.polylines:
+            for x, y, z, move_type in line:
+                speed = RAPID_SPEED if move_type == MOVE_RAPID else layer.speed
+                feed = speed*60 #feed is in mm/min while speed is in mm/s
 
 
 
-                if move_type == 0:
+                if move_type != MOVE_BURN:
                     # Rapid move (G0)
                     # if not prev_gcode_command=="G0":
                     #     gcode_commands.append("M05")
@@ -165,7 +160,7 @@ def generate_gcode(process_block:ProcessBlock=None, cluster_index=None):
 def generate_txt_code(process_block):
     txt_commands=[]
     for hatch_cluster in process_block.hatch_data.hatch_clusters:  # B06: was process_block.data
-        for polyline in (p for line_collection in hatch_cluster.data for p in line_collection):
-            for point in polyline:
-                txt_commands.append(f"{point.x:.3f} {point.y:.3f} {point.z:.3f} {np.abs(point.move_type-1)}")
+        for line in (p for layer in hatch_cluster.data for p in layer.polylines):
+            for x, y, z, move in line:
+                txt_commands.append(f"{x:.3f} {y:.3f} {z:.3f} {int(move != MOVE_BURN)}")
     return "\n".join(txt_commands)
