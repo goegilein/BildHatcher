@@ -4,8 +4,25 @@ Living plan for the major revision of the codebase. Work happens on branch **`co
 This file is the single source of truth for status – update it in the same commit as the work it describes.
 
 - Baseline commit: `93966c1` (main). All `file:line` references below refer to that commit and will drift as work proceeds.
-- Status markers: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped (give reason)
+- Status markers in task lists: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped (give reason). Keep the **Current status** table up to date.
 - Task IDs (e.g. `B03`, `P4.2`) are stable – reference them in commit messages, e.g. `B03: fix jcode save path handling`.
+
+---
+
+## Current status
+
+| Phase | State | Notes |
+|---|---|---|
+| 0 – Safety net & hygiene | done (except P0.3 pptx) | tests: `python -m pytest` |
+| 1 – Bug fixes | done | B17, B22 partly deferred to P6.4 / P6.10 |
+| 2 – Core model & state | **next** | |
+| 3 – Transparency | open | |
+| 4 – Hatching engine | open | |
+| 5 – Output | open | |
+| 6 – Editing tools | open | |
+| 7 – Polish | open | |
+
+Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
 
 ---
 
@@ -90,39 +107,39 @@ tests/                   # pytest; core only, plus characterization tests
 
 | ID | Status | Location | Problem |
 |---|---|---|---|
-| B01 | [x] | [NCDataGeneration.py:1083](NCDataGeneration.py#L1083) | DXF ARC: `segments` is a float → `range()` TypeError; degrees treated as radians. Any DXF with an ARC fails. `contour_from_dxf` also appends to previous clusters instead of resetting. |
-| B02 | [x] | [NCDataGeneration.py:206-209](NCDataGeneration.py#L206-L209), [:284](NCDataGeneration.py#L284) | Automatic mode busy-waits; if hatching returns `None` (e.g. image too large for cylinder) `waiting_for_worker` is never cleared → app hangs at 100 % CPU. |
-| B03 | [x] | `HatchingWorker` / `create_hatching_worker` | Worker thread reads spinboxes, sets labels, calls `processEvents()`, reads `progress_dialog.value()` – not thread-safe. Signal `finished` shadows `QThread.finished`. Progress dialog never closed on success. |
-| B04 | [x] | [NCDataGeneration.py:488/497](NCDataGeneration.py#L488) | CylEquidistX: `point_outside=True` is overwritten with `False` a few lines later → first point of a line never treated as outside (same pattern in `hatch_radial`). |
-| B05 | [x] | [TestStructures.py](TestStructures.py) (all generators) | `hatch_clusters` set to plain lists instead of `HatchCluster` → `add_process_block` and plotting raise AttributeError. Test structures are unusable. |
-| B06 | [x] | [Parsing.py:415](Parsing.py#L415) | `.txt` export uses non-existent `process_block.data` → always fails. File naming inconsistent (`_block-` vs `_cluster-`). |
-| B07 | [x] | [Parsing.py:235](Parsing.py#L235), [:260](Parsing.py#L260) | jcode: cancelling save dialog → crash on `open('')`. If path doesn't end in `.jcode`, cluster files get the main file's name and overwrite it. Header written before "no blocks" check. |
-| B08 | [x] | [Parsing.py:320-323](Parsing.py#L320-L323) | `save_gcode` appends the footer after every cluster and once more at the end. |
-| B09 | [x] | [Parsing.py:440](Parsing.py#L440) | `line_collection[0][0]` IndexError when a colour produced no lines. |
-| B10 | [x] | [PostProcessing.py:389-392](PostProcessing.py#L389-L392) | "Maximize Lines" angle accumulation is wrong: on a perfectly straight polyline every 2nd point is kept → at most halves point count. |
-| B11 | [x] | [PostProcessing.py:419](PostProcessing.py#L419) | `set_drive_mode` crashes for polylines with < 2 points; zero-length segments → NaN (division by zero in `elongate_line`). Dead statement at line 442. |
-| B12 | [x] | [ImageEditing.py:1098](ImageEditing.py#L1098), [:1150](ImageEditing.py#L1150) | Flood fill "Similar Color" / "Diagonals + Similar": without masks the matrix is `uint8` → subtraction wraps around, tolerance check wrong. |
-| B13 | [x] | [ImageEditing.py:1738](ImageEditing.py#L1738) | "Clean up colors" uses the colour-count spinbox (default 256) as kernel size; allocates H×W×N float32. |
-| B14 | [x] | [ImageEditing.py:1323](ImageEditing.py#L1323), [:1334](ImageEditing.py#L1334) | DB recolour: cancelling profile dialog → AttributeError (or silently reuses old profile). Distance array pixels×palette×3 can exhaust memory. |
-| B15 | [x] | [ImageControlling.py:1219](ImageControlling.py#L1219) | Hatch centre computed from the *original* image shape → wrong after rotate/crop of non-square images. |
-| B16 | [x] | [ImageControlling.py:469](ImageControlling.py#L469) | Unlocked-ratio resize result discarded (dead code; checkbox disabled). Remove or implement. |
-| B17 | [~] | masks (ImageEditing) | Mask matrices not cleared/transformed after rotate/crop/upscale/image switch → shape mismatch in flood fill/replace. Mask outlines live in scene coords → drift after pixel-size change. |
-| B18 | [x] | [Point.pos setter, HelperClasses.py](HelperClasses.py) | Asserts shape `(1,3)` instead of `(3,)`. (Obsoleted by P2 data model, fix only if touched.) |
-| B19 | [x] | [Settings.py](Settings.py) | Comboboxes persisted by index (breaks when items change); hatching/plotting thresholds and several other parameters not saved. |
-| B20 | [x] | [ImageControlling.py:636](ImageControlling.py#L636) | `combine_images`: `avg_color` always `[0,0,0]` → monochrome is always black; Python per-pixel loop. |
-| B21 | [x] | Plotting.initializeGL | Raw GL calls without a current GL context → `GLError 1282` (crashes headless start; worked in the app only by accident). Calls were redundant – removed. |
-| B22 | [~] | ImageUpscaling | Runs `realesrgan-x4plus` with `-s 2` (verify model supports it); blocking subprocess on UI thread; upscaler mutates `data_handler.image_matrix` as side effect. Vendored engine lacks the `models/` folder, so `is_engine_available()` is always False and the ~33 MB download runs anyway; in a frozen build it would download into the PyInstaller temp dir. |
-| B23 | [x] | [NCDataGeneration.py:174](NCDataGeneration.py#L174) | `get_sorted_unique_colors` sums `uint8` tuples → overflow (RuntimeWarning in tests); colour processing order is effectively arbitrary instead of bright→dark. Fixing it changes golden outputs (order only). |
-| B24 | [x] | [PathManager.py](PathManager.py) | Uses `GUI_files` while the folder is `GUI_Files` – only works on case-insensitive file systems (Windows). |
-| B25 | [x] | [EventHandling.py](EventHandling.py) | Event filter keeps firing during teardown → `RuntimeError: wrapped C/C++ object … has been deleted` on exit. |
-| B26 | [x] | [NCDataGeneration.py:115](NCDataGeneration.py#L115) | Cylinder radius < laser distance (17 mm, hardcoded) → `acos` of a value < −1 → NaN; worked only by accident. Clipped. (Laser distance belongs into the machine profile, P5.1.) |
-| B27 | [x] | [ImageControlling.py](ImageControlling.py) `combine_images`, `change_image` | Combining with all images selected crashed (pixel size read from an already removed item); `change_image` then wrote into a non-existing active item. |
+| B01 | done | [NCDataGeneration.py:1083](NCDataGeneration.py#L1083) | DXF ARC: `segments` is a float → `range()` TypeError; degrees treated as radians. Any DXF with an ARC fails. `contour_from_dxf` also appends to previous clusters instead of resetting. |
+| B02 | done | [NCDataGeneration.py:206-209](NCDataGeneration.py#L206-L209), [:284](NCDataGeneration.py#L284) | Automatic mode busy-waits; if hatching returns `None` (e.g. image too large for cylinder) `waiting_for_worker` is never cleared → app hangs at 100 % CPU. |
+| B03 | done | `HatchingWorker` / `create_hatching_worker` | Worker thread reads spinboxes, sets labels, calls `processEvents()`, reads `progress_dialog.value()` – not thread-safe. Signal `finished` shadows `QThread.finished`. Progress dialog never closed on success. |
+| B04 | done | [NCDataGeneration.py:488/497](NCDataGeneration.py#L488) | CylEquidistX: `point_outside=True` is overwritten with `False` a few lines later → first point of a line never treated as outside (same pattern in `hatch_radial`). |
+| B05 | done | [TestStructures.py](TestStructures.py) (all generators) | `hatch_clusters` set to plain lists instead of `HatchCluster` → `add_process_block` and plotting raise AttributeError. Test structures are unusable. |
+| B06 | done | [Parsing.py:415](Parsing.py#L415) | `.txt` export uses non-existent `process_block.data` → always fails. File naming inconsistent (`_block-` vs `_cluster-`). |
+| B07 | done | [Parsing.py:235](Parsing.py#L235), [:260](Parsing.py#L260) | jcode: cancelling save dialog → crash on `open('')`. If path doesn't end in `.jcode`, cluster files get the main file's name and overwrite it. Header written before "no blocks" check. |
+| B08 | done | [Parsing.py:320-323](Parsing.py#L320-L323) | `save_gcode` appends the footer after every cluster and once more at the end. |
+| B09 | done | [Parsing.py:440](Parsing.py#L440) | `line_collection[0][0]` IndexError when a colour produced no lines. |
+| B10 | done | [PostProcessing.py:389-392](PostProcessing.py#L389-L392) | "Maximize Lines" angle accumulation is wrong: on a perfectly straight polyline every 2nd point is kept → at most halves point count. |
+| B11 | done | [PostProcessing.py:419](PostProcessing.py#L419) | `set_drive_mode` crashes for polylines with < 2 points; zero-length segments → NaN (division by zero in `elongate_line`). Dead statement at line 442. |
+| B12 | done | [ImageEditing.py:1098](ImageEditing.py#L1098), [:1150](ImageEditing.py#L1150) | Flood fill "Similar Color" / "Diagonals + Similar": without masks the matrix is `uint8` → subtraction wraps around, tolerance check wrong. |
+| B13 | done | [ImageEditing.py:1738](ImageEditing.py#L1738) | "Clean up colors" uses the colour-count spinbox (default 256) as kernel size; allocates H×W×N float32. |
+| B14 | done | [ImageEditing.py:1323](ImageEditing.py#L1323), [:1334](ImageEditing.py#L1334) | DB recolour: cancelling profile dialog → AttributeError (or silently reuses old profile). Distance array pixels×palette×3 can exhaust memory. |
+| B15 | done | [ImageControlling.py:1219](ImageControlling.py#L1219) | Hatch centre computed from the *original* image shape → wrong after rotate/crop of non-square images. |
+| B16 | done | [ImageControlling.py:469](ImageControlling.py#L469) | Unlocked-ratio resize result discarded (dead code; checkbox disabled). Remove or implement. |
+| B17 | partial | masks (ImageEditing) | Mask matrices not cleared/transformed after rotate/crop/upscale/image switch → shape mismatch in flood fill/replace. Mask outlines live in scene coords → drift after pixel-size change. |
+| B18 | done | [Point.pos setter, HelperClasses.py](HelperClasses.py) | Asserts shape `(1,3)` instead of `(3,)`. (Obsoleted by P2 data model, fix only if touched.) |
+| B19 | done | [Settings.py](Settings.py) | Comboboxes persisted by index (breaks when items change); hatching/plotting thresholds and several other parameters not saved. |
+| B20 | done | [ImageControlling.py:636](ImageControlling.py#L636) | `combine_images`: `avg_color` always `[0,0,0]` → monochrome is always black; Python per-pixel loop. |
+| B21 | done | Plotting.initializeGL | Raw GL calls without a current GL context → `GLError 1282` (crashes headless start; worked in the app only by accident). Calls were redundant – removed. |
+| B22 | partial | ImageUpscaling | Runs `realesrgan-x4plus` with `-s 2` (verify model supports it); blocking subprocess on UI thread; upscaler mutates `data_handler.image_matrix` as side effect. Vendored engine lacks the `models/` folder, so `is_engine_available()` is always False and the ~33 MB download runs anyway; in a frozen build it would download into the PyInstaller temp dir. |
+| B23 | done | [NCDataGeneration.py:174](NCDataGeneration.py#L174) | `get_sorted_unique_colors` sums `uint8` tuples → overflow (RuntimeWarning in tests); colour processing order is effectively arbitrary instead of bright→dark. Fixing it changes golden outputs (order only). |
+| B24 | done | [PathManager.py](PathManager.py) | Uses `GUI_files` while the folder is `GUI_Files` – only works on case-insensitive file systems (Windows). |
+| B25 | done | [EventHandling.py](EventHandling.py) | Event filter keeps firing during teardown → `RuntimeError: wrapped C/C++ object … has been deleted` on exit. |
+| B26 | done | [NCDataGeneration.py:115](NCDataGeneration.py#L115) | Cylinder radius < laser distance (17 mm, hardcoded) → `acos` of a value < −1 → NaN; worked only by accident. Clipped. (Laser distance belongs into the machine profile, P5.1.) |
+| B27 | done | [ImageControlling.py](ImageControlling.py) `combine_images`, `change_image` | Combining with all images selected crashed (pixel size read from an already removed item); `change_image` then wrote into a non-existing active item. |
 
 ---
 
 ## 5. Phases and tasks
 
-### Phase 0 – Safety net & hygiene  `[~]`
+### Phase 0 – Safety net & hygiene  `[~]` (only P0.3 pptx left)
 - [x] P0.1 Untrack `__pycache__/` and `Database/__pycache__/` (`git rm --cached`), extend `.gitignore`.
 - [x] P0.2 Remove `GUI_Files/BildHatcher_backup.ui`, `GUI_Files/BildHatcher_KI-changes.ui`, obsolete tkinter `profiler.py` (history keeps them).
 - [~] P0.3 Vendored Real-ESRGAN removed, engine downloads into `~/Documents/BildHatcher/libraries/realesrgan` (done). Open: `Data-Architecture.pptx` (replace by section 3 of this file?).
@@ -130,7 +147,7 @@ tests/                   # pytest; core only, plus characterization tests
 - [x] P0.5 Introduce `logging` (one config in `main.py`); new code uses `log` instead of `print`. (Replacing existing `print`s happens per module as it is touched / P7.3.)
 - [x] P0.6 **Characterization tests:** headless run (`QT_QPA_PLATFORM=offscreen`) of current hatcher + post-processor + parser on 3–4 reference images (flat meander, circular, cylindrical, contours) → store G-code as golden files in `tests/golden/`. Used to verify Phase 2 ports. Seed `random` for RandomMeander/Circular.
 
-### Phase 1 – Bug fixes in current code  `[~]`
+### Phase 1 – Bug fixes in current code  `[x]`
 - [x] P1.1 Fix B01–B27 (see table). Remaining parts: B17 mask outline drift after pixel-size change → P6.4; B22 upscaler threading/side effects → P6.10.
 - [x] P1.2 Regenerate golden files where a fix intentionally changes output (document which). → None needed: all 14 golden outputs unchanged (B23 happened to keep the test colours' order; B04/B10 do not trigger on the golden inputs). New golden file: `test_structure_filled_squares_horz`.
 
