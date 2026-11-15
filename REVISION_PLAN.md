@@ -19,7 +19,7 @@ This file is the single source of truth for status – update it in the same com
 | 3 – Transparency | done | widgets of the old thresholds still in `.ui` (P7) |
 | 4 – Hatching engine | done | 13–33× faster, exact edges for lines, random seed |
 | 5 – Output | done | machine profiles, RDP, fast drive modes |
-| 6 – Editing tools | **next** | |
+| 6 – Editing tools | in progress | fill + quantize done |
 | 7 – Polish | open | |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
@@ -137,6 +137,7 @@ tests/                   # pytest; core only, plus characterization tests
 | B28 | done | [NCDataGeneration.py](NCDataGeneration.py) `get_handler_data` | Image rows are flipped as r → H−1−r, but the hatch center as cy → H−cy: every image-based output was shifted by one pixel in −y (0.1 mm at 10 px/mm). Fix changes all image goldens: meander/contour/cylinder outputs are a pure +1 px y shift, circle/spiral/radial are resampled around the true center. |
 | B29 | done | [ImageEditing.py](ImageEditing.py) `invert_colors` | Inverted a cached copy (`image_current`) instead of the current image: from the second invert on, all edits made in between were lost. |
 | B30 | done | [core/hatching.py](core/hatching.py) `_pixel_index` (former `int(y)==int(y-0.5)` rounding in every pattern loop) | Rounding was wrong for coordinates < 0.5: [−1.5, 0) mapped to pixel 0 and [0, 1.5) to pixel 1, so the bottom and left image edges were shifted by up to one pixel and lines overshot there. |
+| B32 | done | [core/fill.py](core/fill.py) (former `ImageColorer.flood_fill`) | With masks, "To Contours" and "To Color" ignored the mask boundary (they do not compare colours, so the out-of-mask sentinel had no effect) and filled beyond it. |
 
 ---
 
@@ -206,10 +207,10 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 - [x] P5.6 Plotting: one `GLLinePlotItem` per layer, vectorized position/colour arrays (2b).
 - [-] P5.7 DB colour matching: called once per colour, cost negligible; ΔE would change results without a request.
 
-### Phase 6 – Image editing tools  `[ ]`
+### Phase 6 – Image editing tools  `[~]`
 - [ ] P6.1 Non-destructive adjustment pipeline `result = pipeline(base, params)`; slider debounce (~50 ms); undo stores parameter changes.
-- [ ] P6.2 K-means on sample (~50k opaque px), predict all; optional Lab space.
-- [ ] P6.3 Flood fill via `cv2.floodFill` / connected components for all modes ("Fill Lines" = `target & dilate(fill, r)`).
+- [x] P6.2 K-means on the distinct colours weighted by pixel count (same objective as all pixels), random sample above 100k colours; 64 colours on 800×600: 3.0 → 0.1 s, same error. Lab space: not done.
+- [x] P6.3 `core/fill.py`: all 7 fill modes as "allowed pixels" + `cv2.connectedComponents`; verified against a reference BFS; 4 Mpx fill < 1 s (old Python BFS: minutes). Contours kept as a bool mask instead of a pixel list.
 - [ ] P6.4 (incl. rest of B17) Masks: geometry as source of truth, rasterize with `cv2.rectangle/ellipse/fillPoly`; outlines as children of `image_item` in image coords; transform/clear on geometry change; extract `MaskManager` from `ImageColorer`.
 - [ ] P6.5 Colour overlays cropped to bounding box (not full-size RGBA per fill); pixmap overlays imprinted in numpy, vector items via QPainter into RGBA layer.
 - [ ] P6.6 Vectorize split colours, combine images, clean-up colours/clusters (remove unused `clean_up_clusters` if still unused).
@@ -289,3 +290,4 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 | 2026-11-15 | P4.5 | Exact edges for straight hatch lines; meander/radial goldens regenerated (other goldens unchanged), geometric property test added. Speed unchanged (2400×1800 px: 0.8–1.0 s). 44 tests. |
 | 2026-11-15 | 5a | RDP + vectorized drive modes; `tests/test_postprocess.py`. 47 tests. |
 | 2026-11-15 | 5b | Machine profiles; `tests/test_machine.py` (old header/footer reproduced, second profile changes commands/options). 50 tests. |
+| 2026-11-15 | P6.2, P6.3, B32 | Vectorized flood fill (`tests/test_fill.py`), weighted k-means. 54 tests. |
