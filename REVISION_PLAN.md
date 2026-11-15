@@ -20,7 +20,7 @@ This file is the single source of truth for status – update it in the same com
 | 4 – Hatching engine | done | 13–33× faster, exact edges for lines, random seed |
 | 5 – Output | done | machine profiles, RDP, fast drive modes |
 | 6 – Editing tools | done | fill/quantize/clean-up fast, B17/B33 fixed |
-| 7 – Polish | in progress | P7.2, P7.3 done |
+| 7 – Polish | done | version 2.0.0 |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
 
@@ -221,14 +221,14 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 - [x] P6.10 Upscaler runs in a `QThread` (status messages via queued signal), no side effects (2c). *Open:* verify the 4x-then-resize path with the real engine (not covered by tests).
 - [x] P6.11 Checked: grid and center cross live in the scene, so they follow pan/zoom; the cross is redrawn on rescale. Fixed: the grid only covered one viewport size around the origin (missing when zoomed out) – now image + one view size, redrawn on zoom, max. 500 lines per direction.
 
-### Phase 7 – Polish  `[~]`
+### Phase 7 – Polish  `[x]`
 
 - [x] Old white-threshold widgets (8) removed from `BildHatcher.ui` and the code that hid them.
 - [x] P7.1 Settings: one key → widget table (B19), comboboxes stored by text, old index configs load, hatching config also stores machine profile and random seed. *Not done:* single config file with sections (separate image/hatching files kept).
 - [x] P7.2 UI is English (the German texts were in the image load/save code, translated in Phase 3; no German strings left in `.py`/`.ui`).
 - [x] P7.3 All `print` → `logging` (with tracebacks in `except` blocks); log file `~/Documents/BildHatcher/bildhatcher.log` (rotating, 1 MB – the built app has no console); `sys.excepthook` shows unhandled exceptions in a message box instead of PyQt aborting the app. *Changed:* existing `try/except` blocks are kept (some catch routine cases like an empty image list), they now log with traceback.
-- [ ] P7.4 Update `build_executable.py` for new package layout; bump version to 2.0.0.
-- [ ] P7.5 README: architecture overview, dev setup, running tests.
+- [x] P7.4 Version 2.0.0; build bundles `machine_profiles/` and now also the seed database `Database/laser_database.db` (was never bundled, the exe always started with an empty database); non-ASCII console output of the build script removed (crashed with redirected output). Built and started `dist/BildHatcher_v2.0.0.exe` (startup ~30 s for the one-file unpacking; creates log file and profile folder).
+- [x] P7.5 `README.md`: setup, run, tests/goldens, project structure, user folder, machine profiles, build.
 
 ---
 
@@ -301,3 +301,4 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 | 2026-11-15 | P6.4–P6.7 | Cropped overlays, memory-light clean-up, colour-region contours, vectorized mask shapes. Phase 6 complete, 63 tests. |
 | 2026-11-15 | P7.2, P7.3 | Logging everywhere, log file, error dialog for unhandled exceptions. 64 tests. |
 | 2026-11-15 | P7 | Hidden threshold widgets removed from the `.ui`. |
+| 2026-11-15 | P7.4, P7.5 | Version 2.0.0, build checked (exe starts), README. All phases done. |

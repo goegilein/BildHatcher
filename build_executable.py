@@ -81,8 +81,8 @@ def build_executable():
         "--windowed",
         "--add-data", "GUI_Files;GUI_Files",  # Include GUI files
         "--add-data", "machine_profiles;machine_profiles",  # bundled machine profiles (copied to the user folder)
+        "--add-data", "Database/laser_database.db;Database",  # seed database (copied to the user folder on first start)
         "--add-data", "version.json;.",       # Include version.json
-        # "--add-data", "Drivers;Drivers",      # Include drivers
         "--distpath", OUTPUT_DIR,
         "--workpath", "build",   # ← FIXED HERE
     ]
@@ -105,11 +105,11 @@ def build_executable():
         
         if result.returncode == 0:
             exe_path = Path(OUTPUT_DIR) / f"{exe_name}.exe"
-            print(f"\n✓ Build successful!")
-            print(f"✓ Executable: {exe_path}")
-            print(f"✓ Version: {VERSION_STRING}")
+            print(f"\nBuild successful!")
+            print(f"Executable: {exe_path}")
+            print(f"Version: {VERSION_STRING}")
         else:
-            print(f"\n✗ Build failed with return code {result.returncode}")
+            print(f"\nBuild failed with return code {result.returncode}")
             sys.exit(1)
             
     except FileNotFoundError:
