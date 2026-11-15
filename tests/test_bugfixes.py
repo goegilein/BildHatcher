@@ -187,3 +187,15 @@ def test_b17_mask_outline_follows_pixel_size_change(app_components):
     bottom_right = c.gui.image_item.mapFromScene(overlay.rect().bottomRight())
     assert (round(top_left.x(), 6), round(top_left.y(), 6)) == (10, 5)  # still on the mask pixels
     assert (round(bottom_right.x(), 6), round(bottom_right.y(), 6)) == (20, 15)
+
+
+def test_p73_unhandled_exceptions_are_shown_not_fatal(qapp, monkeypatch):
+    import main
+    from PyQt6 import QtWidgets
+    shown = []
+    monkeypatch.setattr(QtWidgets.QMessageBox, "critical", lambda *args: shown.append(args))
+    try:
+        raise ValueError("boom")
+    except ValueError as e:
+        main.show_unhandled_exception(type(e), e, e.__traceback__)
+    assert shown and "ValueError: boom" in shown[0][2]

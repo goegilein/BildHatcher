@@ -1,6 +1,9 @@
 import numpy as np
 from HelperClasses import HatchData, HatchCluster
 from core import toolpath
+import logging
+
+log = logging.getLogger(__name__)
 
 class Teststructures:
     def __init__(self, data_handler, gui):
@@ -74,8 +77,7 @@ class Teststructures:
         elif "Filled Squares" in selection:
             self.create_filled_squares(selection)
         else:
-            print("Error: Test pattern not supported!")
-
+            log.error("Error: Test pattern not supported!")
     def create_subfield_structure(self, selection, fieldSize=25, subfields=[5, 5]):
         fieldNum_row = self.structnum_pwr_spinbox.value()
         fieldNum_col = self.structnum_speed_spinbox.value()
@@ -123,7 +125,7 @@ class Teststructures:
                                 line_dir *= -1
                                 hatch_lines_poly.append(polyline)
                             else:
-                                print("Error: Unknown selection for subfield structure")
+                                log.error("Error: Unknown selection for subfield structure")
                 hatched_test_structure.append(hatch_lines_poly)
 
         self.set_handler_data(hatched_test_structure, "Test: Subfield Structure")
@@ -236,7 +238,7 @@ class Teststructures:
                         line_dir*=-1
                         hatch_lines_poly.append(polyline)
                     else:
-                        print("Error: Unknown selection for subfield structure")
+                        log.error("Error: Unknown selection for subfield structure")
                 hatched_test_structure.append(hatch_lines_poly)
 
         self.set_handler_data(hatched_test_structure, "Test: Filled Squares")

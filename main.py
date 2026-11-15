@@ -1,6 +1,7 @@
 import sys
 import json
 import logging
+import logging.handlers
 from pathlib import Path
 from types import SimpleNamespace
 from PyQt6 import QtWidgets, uic
@@ -26,12 +27,35 @@ log = logging.getLogger(__name__)
 MAIN_GUI_PATH = get_gui_file_path("BildHatcher.ui")
 
 
+LOG_FILE = Path.home() / "Documents" / "BildHatcher" / "bildhatcher.log"
+
+
 def setup_logging(level=logging.INFO):
+    """Console + rotating log file (the built app has no console)."""
+    handlers = [logging.StreamHandler()]
+    try:
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=1_000_000, backupCount=1, encoding="utf-8"))
+    except OSError:
+        pass
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
+        handlers=handlers,
     )
+
+
+def show_unhandled_exception(exc_type, exc, tb):
+    """sys.excepthook: log and show the error instead of letting PyQt abort the application."""
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc, tb)
+        return
+    log.critical("Unhandled exception", exc_info=(exc_type, exc, tb))
+    if QtWidgets.QApplication.instance() is not None:
+        QtWidgets.QMessageBox.critical(
+            None, "Unexpected Error",
+            f"{exc_type.__name__}: {exc}\n\nThe action was not completed. Details are in the log file:\n{LOG_FILE}")
 
 
 def load_version():
@@ -96,6 +120,7 @@ def create_components(gui):
 
 def main():
     setup_logging()
+    sys.excepthook = show_unhandled_exception
     app = QtWidgets.QApplication(sys.argv)
 
     gui = create_main_window()

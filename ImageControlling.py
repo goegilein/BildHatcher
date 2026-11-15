@@ -338,8 +338,7 @@ class BaseFunctions:
                 self.set_handler_data(new_image = False)
                 self.update_dimension_fields()
         except Exception as e:
-            print(f"Error updating dimensions: {e}")
-
+            log.exception("Error updating dimensions")
     def update_dimension_fields(self):
         height, width = self.get_active_image_matrix().shape[:2]
         width_mm = width / self.get_active_pixel_per_mm()
@@ -1141,9 +1140,7 @@ class ImageMover(QtCore.QObject):
             self.image_scene.addItem(vertical_line)
             
         except Exception as e:
-            print(f"Error drawing center cross: {e}")
-
-
+            log.exception("Error drawing center cross")
 class NewBlankDialog(QtWidgets.QDialog):
     """Dialog for creating a new blank image with user-defined dimensions."""
     
@@ -1345,8 +1342,4 @@ class NewBlankDialog(QtWidgets.QDialog):
             
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"Error creating blank image: {e}")
-            print(f"Error creating blank image: {e}")
-        
-
-
-
+            log.exception("Error creating blank image")

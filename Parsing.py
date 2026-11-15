@@ -6,6 +6,9 @@ from HelperClasses import ProcessBlock, HatchData, HatchCluster
 from core import gcode, machine
 from core.postprocess import PostProcessor, apply_speed_and_power
 import copy
+import logging
+
+log = logging.getLogger(__name__)
 
 class Parser:
     def __init__(self, data_handler, gui):
@@ -312,8 +315,7 @@ class Parser:
             self.save_gcode()
         elif format == ".txt":
             self.save_txt()
-        print("finished exporting")
-
+        log.info("finished exporting")
     def get_handler_data(self):
         self.hatch_data = self.data_handler.hatch_data
 

@@ -5,6 +5,9 @@ import datetime
 
 from HelperClasses import ProcessBlock
 from core.toolpath import MOVE_BURN, MOVE_RAPID
+import logging
+
+log = logging.getLogger(__name__)
 
 
 def generate_gcode_header(machine):
@@ -37,7 +40,7 @@ def generate_gcode_footer(machine):
 def generate_gcode(process_block:ProcessBlock=None, cluster_index=None):
     gcode_commands = []
     if process_block is None:
-        print("Error: No ProcessBlock provided for G-code generation")
+        log.error("Error: No ProcessBlock provided for G-code generation")
         return gcode_commands
 
     hatch_cluster_data = process_block.hatch_data.hatch_clusters[cluster_index].data

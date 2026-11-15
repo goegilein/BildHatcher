@@ -5,6 +5,9 @@ import numpy as np
 
 from HelperClasses import HatchData, ProcessBlock
 from core.toolpath import polyline, MOVE_TRAVEL, MOVE_BURN, MOVE_RAPID
+import logging
+
+log = logging.getLogger(__name__)
 
 MAXIMIZE_LINES_TOLERANCE = 0.01  # mm. shortcut: fixed, far below the laser spot size; make it a setting if needed
 
@@ -247,8 +250,7 @@ def apply_speed_and_power(hatch_data_in: HatchData, power_mode, speed_mode,
                 bestfit_color = db_color_palette.find_paramset_by_color(color)
                 pwr = bestfit_color['laser_power']
             else:
-                print("error: PowerMode not recognized")
-
+                log.error("error: PowerMode not recognized")
             #speed/feedrate settings
             if speed_mode=="constant (max. Val.)":
                 speed = max_speed
@@ -263,8 +265,7 @@ def apply_speed_and_power(hatch_data_in: HatchData, power_mode, speed_mode,
                 bestfit_color = db_color_palette.find_paramset_by_color(color)
                 speed = bestfit_color['speed']
             else:
-                print("error: SpeedMode not recognized")
-
+                log.error("error: SpeedMode not recognized")
             layer.speed = speed
             layer.power = pwr
 

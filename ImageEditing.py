@@ -10,6 +10,9 @@ from HelperClasses import DBColorPalette
 import random
 from UndoRedo import ColorOverlayAction, ImprintColorOverlaysAction, ImageMatrixAction
 from core import fill, image_doc
+import logging
+
+log = logging.getLogger(__name__)
 
 def _fill_mask_shape(mask_matrix, shape, x_min, y_min, x_max, y_max):
     """Set the pixels of a rectangle / ellipse (inclusive pixel bounds) to 1 (vectorized former per-pixel loops)."""
@@ -201,8 +204,7 @@ class ImageAdjuster:
             self._write("brightness", image_doc.with_rgb(self.image_matrix_base, np.array(image)))
 
         except Exception as e:
-            print(f"Error applying adjustments: {e}")
-
+            log.exception("Error applying adjustments")
     def quantize_image_color(self):
 
         if self.dont_update:
@@ -274,8 +276,7 @@ class ImageAdjuster:
             self._write("quantize", result)
 
         except Exception as e:
-            print(f"Error changing color scheme: {e}")
-    
+            log.exception("Error changing color scheme")
     def convolute_image(self, median_blur=5, sigma_color=100, sigma_space=100):
 
         """
@@ -313,8 +314,7 @@ class ImageAdjuster:
                     self.last_adjustment = "invert"
                     self.set_handler_data(image_doc.with_rgb(image, 255 - image[..., :3]))
         except Exception as e:
-            print(f"Error inverting colors: {e}")
-    
+            log.exception("Error inverting colors")
     def restore_original_color(self):
         try:
             ctx = self.undo_manager.record_image_matrix("Restore Colors") if self.undo_manager else nullcontext()
@@ -344,8 +344,7 @@ class ImageAdjuster:
                 self.dont_update = False  # Prevents unnecessary updates during restoration
 
         except Exception as e:
-            print(f"Error restoring original color: {e}")
-
+            log.exception("Error restoring original color")
     def set_handler_data(self, image_matrix):
         self.data_handler.image_matrix= image_matrix
 
@@ -780,8 +779,7 @@ class ImageColorer(QtCore.QObject):
                 self.clear_edit_handles()
                     
         except Exception as e:
-            print(f"Error in set_single_toggle_state: {e}")
-
+            log.exception("Error in set_single_toggle_state")
     #### SELECT COLOR METHODS ####
 
     def select_color(self):
@@ -1206,7 +1204,7 @@ class ImageColorer(QtCore.QObject):
 
         color_list = self.db_color_palette.get_color_list()
         if not color_list:
-            print("No colors available in the database.")
+            log.error("No colors available in the database.")
             return
         
         # Recolor all opaque pixels; transparent pixels stay transparent (alpha of the overlay = alpha of the image)
@@ -1548,8 +1546,7 @@ class ImageColorer(QtCore.QObject):
             self.data_handler.contours_list = self.contours_list
 
         except Exception as e:
-            print(f"Error finding image outlines: {e}")
-    
+            log.exception("Error finding image outlines")
     def clean_up_image_colors(self):
         """
         Removes thin artifact lines of intermediate colors using a majority vote,

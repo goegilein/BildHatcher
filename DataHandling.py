@@ -181,7 +181,7 @@ class DataHandler:
             return len(np.unique(packed[img[..., 3].reshape(-1) > 0]))
                 
         except Exception as e:
-            print(f"Error getting unique color count: {e}")
+            log.exception("Error getting unique color count")
             return 0
     
     #Coordinate conversion functions
@@ -205,7 +205,7 @@ class DataHandler:
             return canvas_pos.x(), canvas_pos.y()
         
         except Exception as e:
-            print(f"Error converting image to canvas coordinates: {e}")
+            log.exception("Error converting image to canvas coordinates")
             return None
     
     def canvas_to_scene_coords(self, x_canvas, y_canvas):
@@ -215,7 +215,7 @@ class DataHandler:
             scene_point = self.gui.image_canvas.mapToScene(int(x_canvas), int(y_canvas))
             return scene_point.x(), scene_point.y()
         except Exception as e:
-            print(f"Error converting canvas to scene coordinates: {e}")
+            log.exception("Error converting canvas to scene coordinates")
             return None
     
     def scene_to_canvas_coords(self, x_scene, y_scene):
@@ -225,7 +225,7 @@ class DataHandler:
             viewport_point = self.gui.image_canvas.mapFromScene(scene_point)
             return viewport_point.x(), viewport_point.y()
         except Exception as e:
-            print(f"Error converting scene to canvas coordinates: {e}")
+            log.exception("Error converting scene to canvas coordinates")
             return None
     
     def scene_to_image_coords(self, x_scene, y_scene):
@@ -248,7 +248,7 @@ class DataHandler:
             return x_img, y_img
 
         except Exception as e:
-            print(f"Error converting scene to image coordinates: {e}")
+            log.exception("Error converting scene to image coordinates")
             return None
     
     def image_to_scene_coords(self, x_img, y_img):
@@ -268,6 +268,6 @@ class DataHandler:
             return scene_x, scene_y
 
         except Exception as e:
-            print(f"Error converting image to scene coordinates: {e}")
+            log.exception("Error converting image to scene coordinates")
             return None
     

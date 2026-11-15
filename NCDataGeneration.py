@@ -422,8 +422,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         elif source == ".dxf File":
             self.contour_from_dxf()
         else:
-            print("Error: contour source not supported.")
-
+            log.error("Error: contour source not supported.")
     def contour_from_image(self):
         self.get_handler_data()
         height = self.image_matrix.shape[0]
