@@ -19,9 +19,6 @@ class Parser:
 
         # Initialize GUI elements from the preloaded PyQt6 GUI
         self.post_processing_combobox = gui.post_processing_combobox
-        # shortcut: Phase 3 replaced the white threshold by transparency; widgets stay in the .ui until P7 cleanup
-        for name in ("white_threshold_parsing_spinbox", "white_threshold_parsing_label"):
-            getattr(gui, name).hide()
         self.laser_mode_combobox = gui.laser_mode_combobox
         self.min_power_spinbox = gui.min_power_spinbox
         self.max_power_spinbox = gui.max_power_spinbox

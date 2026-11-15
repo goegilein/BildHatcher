@@ -1076,16 +1076,6 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                   </property>
                  </widget>
                 </item>
-                <item row="0" column="1">
-                 <widget class="QLabel" name="white_threshold_plotting_label">
-                  <property name="text">
-                   <string>White Threshold (0-255)</string>
-                  </property>
-                  <property name="alignment">
-                   <set>Qt::AlignCenter</set>
-                  </property>
-                 </widget>
-                </item>
                 <item row="3" column="0">
                  <widget class="QLineEdit" name="plot_background_color_edit">
                   <property name="enabled">
@@ -1108,22 +1098,6 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                   </property>
                   <property name="alignment">
                    <set>Qt::AlignCenter</set>
-                  </property>
-                 </widget>
-                </item>
-                <item row="1" column="1">
-                 <widget class="QSpinBox" name="white_threshold_plotting_spinbox">
-                  <property name="alignment">
-                   <set>Qt::AlignCenter</set>
-                  </property>
-                  <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::NoButtons</enum>
-                  </property>
-                  <property name="maximum">
-                   <number>255</number>
-                  </property>
-                  <property name="value">
-                   <number>230</number>
                   </property>
                  </widget>
                 </item>
@@ -3081,16 +3055,6 @@ from
                   <property name="bottomMargin">
                    <number>0</number>
                   </property>
-                  <item row="0" column="3">
-                   <widget class="QLabel" name="label_4">
-                    <property name="text">
-                     <string>White Threshold</string>
-                    </property>
-                    <property name="alignment">
-                     <set>Qt::AlignCenter</set>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="3" column="1">
                    <widget class="QSpinBox" name="hatch_dist_min_spinbox">
                     <property name="minimumSize">
@@ -3120,22 +3084,6 @@ from
                    <widget class="QLabel" name="hatch_dist_mode_label">
                     <property name="text">
                      <string>Hatch Distance</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="1" column="3">
-                   <widget class="QSpinBox" name="white_threshold_hatching_spinbox">
-                    <property name="alignment">
-                     <set>Qt::AlignCenter</set>
-                    </property>
-                    <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
-                    </property>
-                    <property name="maximum">
-                     <number>255</number>
-                    </property>
-                    <property name="value">
-                     <number>255</number>
                     </property>
                    </widget>
                   </item>
@@ -3516,22 +3464,6 @@ from
                   <property name="bottomMargin">
                    <number>0</number>
                   </property>
-                  <item row="1" column="1">
-                   <widget class="QSpinBox" name="white_threshold_parsing_spinbox">
-                    <property name="alignment">
-                     <set>Qt::AlignCenter</set>
-                    </property>
-                    <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
-                    </property>
-                    <property name="maximum">
-                     <number>255</number>
-                    </property>
-                    <property name="value">
-                     <number>230</number>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="5" column="2">
                    <widget class="QComboBox" name="power_format_combobox"/>
                   </item>
@@ -3815,16 +3747,6 @@ from
                    <widget class="QLabel" name="iterations_label">
                     <property name="text">
                      <string>Iterations</string>
-                    </property>
-                    <property name="alignment">
-                     <set>Qt::AlignCenter</set>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="1">
-                   <widget class="QLabel" name="white_threshold_parsing_label">
-                    <property name="text">
-                     <string>White Threshold</string>
                     </property>
                     <property name="alignment">
                      <set>Qt::AlignCenter</set>
@@ -4183,29 +4105,6 @@ from
                   <property name="bottomMargin">
                    <number>0</number>
                   </property>
-                  <item row="1" column="1">
-                   <widget class="QSpinBox" name="automatic_white_threshold_spinBox">
-                    <property name="alignment">
-                     <set>Qt::AlignCenter</set>
-                    </property>
-                    <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
-                    </property>
-                    <property name="maximum">
-                     <number>255</number>
-                    </property>
-                    <property name="value">
-                     <number>254</number>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="1" column="0">
-                   <widget class="QLabel" name="label_9">
-                    <property name="text">
-                     <string>White Threshold</string>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="0" column="0">
                    <widget class="QLabel" name="label_8">
                     <property name="text">

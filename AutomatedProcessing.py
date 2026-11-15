@@ -24,9 +24,6 @@ class AutomatedProcessor:
         self.automatic_gcode_file_button.clicked.connect(self.automatic_gcode_file)
         self.automatic_post_processing_comboBox = gui.automatic_post_processing_comboBox
         self.automatic_post_processing_comboBox.addItems(["None", "Maximize Lines", "Constant Drive", "Over Drive"])
-        # shortcut: Phase 3 replaced the white threshold by transparency; widgets stay in the .ui until P7 cleanup
-        for name in ("automatic_white_threshold_spinBox", "label_9"):
-            getattr(gui, name).hide()
         self.automatic_hatch_mode_comboBox = gui.automatic_hatch_mode_comboBox
         self.automatic_hatch_mode_comboBox.addItems(["Flat", "CylEquidistX", "CylEquidistRad"])
         self.automatic_cyl_rad_spinBox = gui.automatic_cyl_rad_spinBox

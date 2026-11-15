@@ -75,9 +75,6 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.hatch_progress_label = gui.hatch_progress_label
         self.create_contours_button = gui.create_contours_button
         self.contour_source_combobox = gui.contour_source_combobox
-        # shortcut: Phase 3 replaced the white threshold by transparency; widgets stay in the .ui until P7 cleanup
-        for name in ("white_threshold_hatching_spinbox", "label_4"):
-            getattr(gui, name).hide()
 
         # P4.4: random seed for RandomMeander / Circular (0 = new random pattern every time); uses the freed cell
         gui.random_seed_label = QtWidgets.QLabel("Random Seed")

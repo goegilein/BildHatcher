@@ -16,9 +16,6 @@ class HatchLinePlotter:
         # Initialize GUI elements from the preloaded PyQt6 GUI
         self.plot_canvas = gui.plot_canvas  # QGraphicsView for the plot
         self.color_mode_plotting_combobox = gui.color_mode_plotting_combobox  # QComboBox for color mode
-        # shortcut: Phase 3 replaced the white threshold by transparency; widgets stay in the .ui until P7 cleanup
-        for name in ("white_threshold_plotting_spinbox", "white_threshold_plotting_label"):
-            getattr(gui, name).hide()
         self.plot_button = gui.plot_hatch_button  # QPushButton for plotting active hatchlines
         self.plot_process_blocks_button = gui.plot_process_blocks_button # QPushButton for plotting active hatchblocks
         self.plot_linedwidth_spinbox = gui.plot_linewidth_spinbox  # QSpinBox for line width
