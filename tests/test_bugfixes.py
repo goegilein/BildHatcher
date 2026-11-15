@@ -156,3 +156,14 @@ def test_plotting_builds_one_line_item_per_visible_layer(app_components):
     expected_rows = sum(l.point_count + len(l.polylines) - 1 for l in layers)  # + NaN separators
     assert sum(len(i.pos) for i in items) == expected_rows
     assert np.isfinite(items[0].pos).any()
+
+
+def test_b28_image_center_maps_to_machine_origin(app_components):
+    import numpy as np
+    c = app_components
+    load_image(c, np.full((20, 20, 3), 255, np.uint8))  # 10 px/mm, default center = middle of the image
+    c.data_handler.contours_list = [[[5, 5], [14, 5], [14, 14], [5, 14]]]  # square centred in the image
+    c.image_hatcher.contour_from_image()
+    line = c.data_handler.hatch_data.hatch_clusters[0].data[0].polylines[0]
+    assert sorted({round(v, 6) for v in line[:, 0]}) == [-0.45, 0.45]
+    assert sorted({round(v, 6) for v in line[:, 1]}) == [-0.45, 0.45]  # was shifted by -0.1 (one pixel)

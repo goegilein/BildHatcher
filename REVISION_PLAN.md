@@ -15,8 +15,8 @@ This file is the single source of truth for status – update it in the same com
 |---|---|---|
 | 0 – Safety net & hygiene | done (except P0.3 pptx) | tests: `python -m pytest` |
 | 1 – Bug fixes | done | B17, B22 partly deferred to P6.4 / P6.10 |
-| 2 – Core model & state | in progress | 2a–2c done, next 2d (coordinate transform) |
-| 3 – Transparency | open | |
+| 2 – Core model & state | done | P2.1 rest → Phase 4, masks per document → P6.4 |
+| 3 – Transparency | **next** | |
 | 4 – Hatching engine | open | |
 | 5 – Output | open | |
 | 6 – Editing tools | open | |
@@ -134,6 +134,7 @@ tests/                   # pytest; core only, plus characterization tests
 | B25 | done | [EventHandling.py](EventHandling.py) | Event filter keeps firing during teardown → `RuntimeError: wrapped C/C++ object … has been deleted` on exit. |
 | B26 | done | [NCDataGeneration.py:115](NCDataGeneration.py#L115) | Cylinder radius < laser distance (17 mm, hardcoded) → `acos` of a value < −1 → NaN; worked only by accident. Clipped. (Laser distance belongs into the machine profile, P5.1.) |
 | B27 | done | [ImageControlling.py](ImageControlling.py) `combine_images`, `change_image` | Combining with all images selected crashed (pixel size read from an already removed item); `change_image` then wrote into a non-existing active item. |
+| B28 | done | [NCDataGeneration.py](NCDataGeneration.py) `get_handler_data` | Image rows are flipped as r → H−1−r, but the hatch center as cy → H−cy: every image-based output was shifted by one pixel in −y (0.1 mm at 10 px/mm). Fix changes all image goldens: meander/contour/cylinder outputs are a pure +1 px y shift, circle/spiral/radial are resampled around the true center. |
 
 ---
 
@@ -149,24 +150,24 @@ tests/                   # pytest; core only, plus characterization tests
 
 ### Phase 1 – Bug fixes in current code  `[x]`
 - [x] P1.1 Fix B01–B27 (see table). Remaining parts: B17 mask outline drift after pixel-size change → P6.4; B22 upscaler threading/side effects → P6.10.
-- [x] P1.2 Regenerate golden files where a fix intentionally changes output (document which). → None needed: all 14 golden outputs unchanged (B23 happened to keep the test colours' order; B04/B10 do not trigger on the golden inputs). New golden file: `test_structure_filled_squares_horz`.
+- [x] P1.2 Regenerate golden files where a fix intentionally changes output (document which). → Phase 1: none needed. (B28 in Phase 2 regenerated all image goldens, see bug table.) Phase 1 detail: all 14 golden outputs unchanged (B23 happened to keep the test colours' order; B04/B10 do not trigger on the golden inputs). New golden file: `test_structure_filled_squares_horz`.
 
-### Phase 2 – Core model & state  `[~]`
+### Phase 2 – Core model & state  `[x]` (P2.1 rest and P2.2 mask/center per document move to Phases 4 / 6)
 
 Done in sub-steps, each one green against the golden files:
 - [x] **2a** Qt-free `core/` package for the output stage: `core/postprocess.py` (was `PostProcessing.py`, plus `apply_speed_and_power` – formerly `Parser.set_speed_and_pwr`, GUI values now passed in), `core/gcode.py` (header/footer/G-code/txt generation). `Parsing.py` only collects GUI values and writes files.
 - [x] **2b** Array toolpath model (P2.4) – `core/toolpath.py`: `Layer(color, polylines, speed, power)`, polyline = ndarray (N,4) rows `(x, y, z, move)`. Hatching output, cylinder wrap (vectorized), contours/DXF, post-processing, G-code/txt, plotting (vectorized) and test structures ported; `Point` removed. Goldens byte-identical.
 - [x] **2c** `core/image_doc.py` `ImageDocument` (was `ImgObj`) is owned by the image list; `DataHandler.image_matrix` / `pixel_per_mm` / `image_matrix_original` read and write the active document directly (`set_active_document`). All `get_handler_data` syncing removed; upscaler works on a copy without side effects (rest of B22: threading → P6.10); undo actions share one `restore_image` helper (P2.7) that refuses to restore into a removed image.
-- [ ] **2d** Coordinate transform (P2.5).
+- [x] **2d** Coordinate transform (P2.5): only two image→machine conversions exist (hatcher center flip, contour export), so no extra module. Review found **B28** (1 px y offset), fixed at the source.
 
-- [~] P2.1 Create package layout (section 3); move pure functions out of UI classes. (output stage done in 2a)
+- [~] P2.1 Create package layout (section 3); move pure functions out of UI classes. (output stage 2a, toolpath 2b, image document 2c; hatching algorithms move with Phase 4)
 - [~] P2.2 `ImageDocument` (initially RGB, RGBA in Phase 3). Per-document hatch center and mask geometry: not yet (masks → P6.4).
 - [x] P2.3 Single source of truth for image state. *Changed:* no new `AppState` class – `DataHandler` is the app state; its plain callback lists and `ObservableList` stay (they work and are synchronous; Qt signals would only add churn). See Decisions.
 - [x] P2.4 `Layer` array model (no adapters needed – ported in one step, see 2b). `HatchData`/`HatchCluster` kept as containers for now.
-- [ ] P2.5 `core/transform.py`: one image-px ↔ machine-mm transform; remove ad-hoc flips (`np.flipud`, `height - y - 1`, center flip).
-- [ ] P2.6 Port existing hatching, contours, DXF, test structures, post-processing, G-code **1:1** onto the new model; verify against golden files.
+- [x] P2.5 Image-px ↔ machine-mm conversion checked; *changed:* no `core/transform.py` (two call sites only), B28 fixed instead.
+- [x] P2.6 Port existing hatching, contours, DXF, test structures, post-processing, G-code **1:1** onto the new model; verify against golden files. (2b)
 - [x] P2.7 Consolidate the three duplicated `_sync_matrix` implementations in `UndoRedo.py` into one helper (`restore_image`).
-- [ ] P2.8 Unit tests for core modules.
+- [x] P2.8 Unit tests for core modules (post-processing B10/B11, toolpath via goldens, image state).
 
 ### Phase 3 – Transparency  `[ ]`
 - [ ] P3.1 RGBA storage with binarized alpha; loader rules (section 2); "white as background" option for RGB files.
@@ -268,3 +269,4 @@ Done in sub-steps, each one green against the golden files:
 | 2026-11-15 | 2a | Output stage moved into Qt-free `core/` (`gcode.py`, `postprocess.py`); functions moved by script (unchanged code), goldens identical. |
 | 2026-11-15 | 2b | Array toolpath model, `Point` removed from all modules; per-point Python objects gone from hatch output, post-processing, G-code and plotting. 24 tests, goldens unchanged. Hatch sampling loops themselves are still Python (Phase 4). |
 | 2026-11-15 | 2c, P2.7 | Image state has one owner (`ImageDocument` in the image list); 11 `get_handler_data` sync calls and several full-image copies per action removed. New `tests/test_image_state.py` (switching keeps edits, upscale leaves source untouched, undo after removing an image, undo rotation). 28 tests. |
+| 2026-11-15 | 2d, B28 | One-pixel y offset of all image-based hatching fixed; goldens regenerated and verified move-by-move (pure +0.1 mm Y shift where the sampling is unchanged). Phase 2 complete, 29 tests. |

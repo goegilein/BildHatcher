@@ -1099,7 +1099,8 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
     def get_handler_data(self):
         self.image_matrix = np.flipud(self.data_handler.image_matrix) #account for the fact that image coordinates are flipped in y direction compared to canvas coordinates
         self.pixel_per_mm = self.data_handler.pixel_per_mm
-        self.center_for_hatch = [self.data_handler.center_for_hatch[0], self.data_handler.image_matrix.shape[0] - self.data_handler.center_for_hatch[1]]
+        # B28: rows are flipped as r -> H-1-r (flipud above), the center must use the same mapping (was H-r: 1 px y offset)
+        self.center_for_hatch = [self.data_handler.center_for_hatch[0], self.data_handler.image_matrix.shape[0] - 1 - self.data_handler.center_for_hatch[1]]
         self.contours_list = self.data_handler.contours_list
 
 
