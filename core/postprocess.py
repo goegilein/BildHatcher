@@ -1,5 +1,7 @@
 import numpy as np
-from HelperClasses import ProcessBlock
+import copy
+
+from HelperClasses import HatchData, ProcessBlock
 
 class PostProcessor:
     def __init__(self):
@@ -214,4 +216,68 @@ class PostProcessor:
         B_post = B_new + elong_v_const_drive
 
         return A_new, A_pre, B_new, B_post
-    
+
+
+def apply_speed_and_power(hatch_data_in: HatchData, white_threshold, power_mode, speed_mode,
+                          min_pwr=None, max_pwr=None, min_speed=None, max_speed=None,
+                          pwr_struc_num=1, speed_struc_num=1, db_color_palette=None):
+    """Return a deep copy of hatch_data with speed and power set on every point.
+    power_mode / speed_mode: "constant (max. Val.)", "color-scaled", "test_structure" or "db_based"."""
+    #work on a deepcopy of the raw data to avoid pointing issues
+    hatch_data = copy.deepcopy(hatch_data_in)
+
+    #data = HatchData(hatch_data, hatch_data.type)
+    for hatch_cluster in hatch_data.hatch_clusters:
+        for counter, line_collection in enumerate(hatch_cluster.data):
+            if not line_collection:  # B09: colour without any hatch lines
+                continue
+
+            # Get first point for color of the entire cluster
+            first_point = line_collection[0][0]
+            color = [first_point.r, first_point.g, first_point.b]
+
+            # Check for white threshold. If the color is too bright, remove the data
+            if sum(color)/3>white_threshold:
+                hatch_cluster.data[counter]=[] 
+                continue
+
+
+            #power settings
+            if power_mode=="constant (max. Val.)":
+                pwr = max_pwr
+            elif power_mode=="color-scaled":
+                pwr=int(max_pwr-(max_pwr-min_pwr)*sum([first_point.r,first_point.g,first_point.b])/765)
+            elif power_mode=="test_structure":
+                if pwr_struc_num>1:
+                    pwr=int(min_pwr+(max_pwr-min_pwr)*np.floor(counter/speed_struc_num)/(pwr_struc_num-1))
+                else:
+                    pwr=max_pwr
+            elif power_mode=="db_based":
+                bestfit_color = db_color_palette.find_paramset_by_color(color)
+                pwr = bestfit_color['laser_power']
+            else:
+                print("error: PowerMode not recognized")
+
+            #speed/feedrate settings
+            if speed_mode=="constant (max. Val.)":
+                speed = max_speed
+            elif speed_mode=="color-scaled":
+                speed=int(min_speed+(max_speed-min_speed)*sum([first_point.r,first_point.g,first_point.b])/765)
+            elif speed_mode=="test_structure":
+                if speed_struc_num>1:
+                    speed=int((min_speed+(max_speed-min_speed)*(counter%speed_struc_num/(speed_struc_num-1))))
+                else:    
+                    speed=max_speed
+            elif speed_mode=="db_based":
+                bestfit_color = db_color_palette.find_paramset_by_color(color)
+                speed = bestfit_color['speed']
+            else:
+                print("error: SpeedMode not recognized")
+
+            #set data in every point
+            for polyline in line_collection:
+                for point in polyline:
+                    point.speed=speed
+                    point.pwr=pwr
+
+    return hatch_data

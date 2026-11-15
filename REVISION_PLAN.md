@@ -15,7 +15,7 @@ This file is the single source of truth for status – update it in the same com
 |---|---|---|
 | 0 – Safety net & hygiene | done (except P0.3 pptx) | tests: `python -m pytest` |
 | 1 – Bug fixes | done | B17, B22 partly deferred to P6.4 / P6.10 |
-| 2 – Core model & state | **next** | |
+| 2 – Core model & state | in progress | 2a done, next 2b (array toolpath) |
 | 3 – Transparency | open | |
 | 4 – Hatching engine | open | |
 | 5 – Output | open | |
@@ -151,8 +151,15 @@ tests/                   # pytest; core only, plus characterization tests
 - [x] P1.1 Fix B01–B27 (see table). Remaining parts: B17 mask outline drift after pixel-size change → P6.4; B22 upscaler threading/side effects → P6.10.
 - [x] P1.2 Regenerate golden files where a fix intentionally changes output (document which). → None needed: all 14 golden outputs unchanged (B23 happened to keep the test colours' order; B04/B10 do not trigger on the golden inputs). New golden file: `test_structure_filled_squares_horz`.
 
-### Phase 2 – Core model & state  `[ ]`
-- [ ] P2.1 Create package layout (section 3); move pure functions out of UI classes.
+### Phase 2 – Core model & state  `[~]`
+
+Done in sub-steps, each one green against the golden files:
+- [x] **2a** Qt-free `core/` package for the output stage: `core/postprocess.py` (was `PostProcessing.py`, plus `apply_speed_and_power` – formerly `Parser.set_speed_and_pwr`, GUI values now passed in), `core/gcode.py` (header/footer/G-code/txt generation). `Parsing.py` only collects GUI values and writes files.
+- [ ] **2b** Array toolpath model (P2.4) – port hatching output, post-processing, G-code, plotting, test structures; remove `Point`.
+- [ ] **2c** `ImageDocument` + `AppState` (P2.2, P2.3).
+- [ ] **2d** Coordinate transform (P2.5) + undo sync consolidation (P2.7).
+
+- [~] P2.1 Create package layout (section 3); move pure functions out of UI classes. (output stage done in 2a)
 - [ ] P2.2 `ImageDocument` (initially RGB, RGBA in Phase 3) incl. per-document hatch center and mask geometry.
 - [ ] P2.3 `AppState(QObject)` with signals; replace `DataHandler` callbacks, `ObservableList`, `get/set_handler_data`; image list widget becomes a view of `AppState.documents`.
 - [ ] P2.4 `Toolpath` / `Layer` array model; adapters from/to old `HatchData` while porting.
@@ -229,6 +236,7 @@ tests/                   # pytest; core only, plus characterization tests
 | 2026-11-15 | Revision happens on branch `code_rev_2.0`; this file tracks status. |
 | 2026-11-15 | Background is modelled via binary alpha (RGBA, alpha ∈ {0,255}) instead of white. |
 | 2026-11-15 | Machine profiles are a user-facing feature (Q1). UI language is English (Q2). White-as-background default ON for RGB images (Q4). |
+| 2026-11-15 | `core/` lives at the repo root next to the UI modules (no extra `bildhatcher/` wrapper package); UI modules move into `ui/` only if it pays off later. |
 | 2026-11-15 | `main.py` exposes `create_main_window()` / `create_components(gui)` so tests build the real app wiring headless. |
 
 ---
@@ -255,3 +263,4 @@ tests/                   # pytest; core only, plus characterization tests
 | 2026-11-15 | P0.1, P0.2, P0.4, P0.5, P0.6, B21 | Untracked `__pycache__`, removed backup `.ui` files + obsolete tkinter `profiler.py`, pinned requirements (+ `requirements-dev.txt`), logging setup, `main.py` split into factory functions. Characterization tests: `python -m pytest` (14 golden G-code files in `tests/golden/`, 1 strict xfail for B05; ~20 s). New findings B23–B25. |
 | 2026-11-15 | Q3, B24 | Vendored Real-ESRGAN removed (download into user folder); build script no longer references missing `settings/` and `libraries/`; `GUI_Files` casing fixed. |
 | 2026-11-15 | P1: B01–B27 | Hatching worker rewritten to be thread-safe (settings collected on GUI thread, single completion slot on `QThread.finished`, `QEventLoop` wait in automatic mode; note: `QProgressDialog.close()` emits `canceled`, and slots on non-QObject receivers run in the emitting thread – both handled). All other Phase-1 bugs fixed, new findings B26/B27. Tests: 23 passing (`tests/test_bugfixes.py` added). One full run once took 17 min, not reproducible (5 reruns ~3.5 s). Not done: manual GUI click-through of the fixed features. |
+| 2026-11-15 | 2a | Output stage moved into Qt-free `core/` (`gcode.py`, `postprocess.py`); functions moved by script (unchanged code), goldens identical. |

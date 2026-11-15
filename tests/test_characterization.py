@@ -19,6 +19,7 @@ import pytest
 from PyQt6 import QtCore
 
 from HelperClasses import ImgObj
+from core import gcode
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
 UPDATE_GOLDEN = os.environ.get("UPDATE_GOLDEN") == "1"
@@ -101,7 +102,7 @@ def run_parser(c, post_processing="None", power_format="color-scaled", speed_for
     lines = [f"; hatch type: {c.data_handler.hatch_data.type}"]
     for idx, cluster in enumerate(block.hatch_data.hatch_clusters):
         lines.append(f"; cluster {idx} ref_position {[round(float(v), 6) for v in cluster.ref_position]}")
-        lines.extend(parser.generate_gcode(block, idx))
+        lines.extend(gcode.generate_gcode(block, idx))
     return "\n".join(lines) + "\n"
 
 
