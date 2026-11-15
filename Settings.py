@@ -28,7 +28,6 @@ HATCHING_SETTINGS = {
     'hatch_precision': 'hatch_precision_spinbox',
     'contour_source': 'contour_source_combobox',
     'laser_mode': 'laser_mode_combobox',
-    'white_threshold_parsing': 'white_threshold_parsing_spinbox',
     'max_power': 'max_power_spinbox',
     'min_power': 'min_power_spinbox',
     'max_speed': 'max_speed_spinbox',

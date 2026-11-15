@@ -16,8 +16,8 @@ This file is the single source of truth for status – update it in the same com
 | 0 – Safety net & hygiene | done (except P0.3 pptx) | tests: `python -m pytest` |
 | 1 – Bug fixes | done | B17, B22 partly deferred to P6.4 / P6.10 |
 | 2 – Core model & state | done | P2.1 rest → Phase 4, masks per document → P6.4 |
-| 3 – Transparency | **next** | |
-| 4 – Hatching engine | open | |
+| 3 – Transparency | done | widgets of the old thresholds still in `.ui` (P7) |
+| 4 – Hatching engine | **next** | |
 | 5 – Output | open | |
 | 6 – Editing tools | open | |
 | 7 – Polish | open | |
@@ -135,6 +135,7 @@ tests/                   # pytest; core only, plus characterization tests
 | B26 | done | [NCDataGeneration.py:115](NCDataGeneration.py#L115) | Cylinder radius < laser distance (17 mm, hardcoded) → `acos` of a value < −1 → NaN; worked only by accident. Clipped. (Laser distance belongs into the machine profile, P5.1.) |
 | B27 | done | [ImageControlling.py](ImageControlling.py) `combine_images`, `change_image` | Combining with all images selected crashed (pixel size read from an already removed item); `change_image` then wrote into a non-existing active item. |
 | B28 | done | [NCDataGeneration.py](NCDataGeneration.py) `get_handler_data` | Image rows are flipped as r → H−1−r, but the hatch center as cy → H−cy: every image-based output was shifted by one pixel in −y (0.1 mm at 10 px/mm). Fix changes all image goldens: meander/contour/cylinder outputs are a pure +1 px y shift, circle/spiral/radial are resampled around the true center. |
+| B29 | done | [ImageEditing.py](ImageEditing.py) `invert_colors` | Inverted a cached copy (`image_current`) instead of the current image: from the second invert on, all edits made in between were lost. |
 
 ---
 
@@ -169,15 +170,15 @@ Done in sub-steps, each one green against the golden files:
 - [x] P2.7 Consolidate the three duplicated `_sync_matrix` implementations in `UndoRedo.py` into one helper (`restore_image`).
 - [x] P2.8 Unit tests for core modules (post-processing B10/B11, toolpath via goldens, image state).
 
-### Phase 3 – Transparency  `[ ]`
-- [ ] P3.1 RGBA storage with binarized alpha; loader rules (section 2); "white as background" option for RGB files.
-- [ ] P3.2 Display: RGBA pixmap, checkerboard background brush.
-- [ ] P3.3 Remove downstream white thresholds (hatching/parsing/plotting); add "brighter than X → transparent" tool.
-- [ ] P3.4 Replace all hardcoded white logic (crop background, cut to mask, save mask, split, combine, cleanup, move-mask cutout, new blank).
-- [ ] P3.5 Quantization/k-means/recolour/colour count only on opaque pixels; filter edge handling (inpaint → filter → re-mask).
-- [ ] P3.6 Imprint keeps alpha; eraser tool; transparent swatch.
-- [ ] P3.7 Save: alpha for PNG/SVG, composite for JPEG/BMP; drop "white as transparent" checkbox (or keep as conversion).
-- [ ] P3.8 Config/backward compatibility check with old images & configs.
+### Phase 3 – Transparency  `[x]`
+- [x] P3.1 RGBA storage with binarized alpha (`core/image_doc.normalize`, applied in `ImageDocument` and on every `DataHandler.image_matrix` write; transparent pixels are always `(0,0,0,0)`); loader rules (section 2); "File → Load: Pure White as Transparent" (default on).
+- [x] P3.2 Display: RGBA pixmap, checkerboard item behind the image (image item uses `BoundingRectShape`, otherwise transparent pixels would clip overlays).
+- [x] P3.3 Downstream white thresholds removed from hatching/parsing/plotting/automatic (widgets hidden, removal from `.ui` in P7); "File → Make Bright Colors Transparent..." (mean RGB > X, default 230 – same rule as the old thresholds) with undo.
+- [x] P3.4 Replace all hardcoded white logic (crop background, cut to mask, save mask, split, combine, cleanup, move-mask cutout, new blank = transparent). `split_colors` vectorized, unused `clean_up_clusters` removed.
+- [x] P3.5 Quantization (all methods)/k-means/recolour/colour count only on opaque pixels. Filters (sharpness/brightness/contrast/bilateral/Canny) run on RGB with white background and keep the alpha. *shortcut:* white fill instead of inpainting at the edges (same behaviour as before).
+- [x] P3.6 Imprint keeps alpha; "Transparent" colour button = eraser for brush/fill/replace (checkerboard preview, `DestinationOut` on imprint).
+- [x] P3.7 Save: alpha for PNG/SVG, white background for JPEG/BMP; save-format dialog with the "white as transparent" checkbox removed (plain file dialog).
+- [x] P3.8 Old RGB images load as before (white → background); old configs: `white_threshold_parsing` key is ignored. Golden G-code unchanged.
 
 ### Phase 4 – Hatching engine  `[ ]`
 - [ ] P4.1 Label map once per cluster (`np.unique(..., return_inverse=True)`, background = −1).
@@ -240,6 +241,7 @@ Done in sub-steps, each one green against the golden files:
 | 2026-11-15 | `core/` lives at the repo root next to the UI modules (no extra `bildhatcher/` wrapper package); UI modules move into `ui/` only if it pays off later. |
 | 2026-11-15 | Toolpath move codes: `MOVE_TRAVEL`=0, `MOVE_BURN`=1, `MOVE_RAPID`=2 (lead-in travel at the fixed rapid speed of the drive post-processing). Speed/power are per layer. |
 | 2026-11-15 | `DataHandler` stays the application state object (no separate `AppState`); it exposes the active `ImageDocument` through properties. Callback lists / `ObservableList` are kept. |
+| 2026-11-15 | Phase 3: transparent pixels are stored as `(0,0,0,0)` and `normalize()` is the single choke point (any RGB result becomes opaque RGBA). The transparent colour is an eraser; erasing overlays are drawn as a checkerboard and imprinted with `DestinationOut`. |
 | 2026-11-15 | `main.py` exposes `create_main_window()` / `create_components(gui)` so tests build the real app wiring headless. |
 
 ---
@@ -270,3 +272,4 @@ Done in sub-steps, each one green against the golden files:
 | 2026-11-15 | 2b | Array toolpath model, `Point` removed from all modules; per-point Python objects gone from hatch output, post-processing, G-code and plotting. 24 tests, goldens unchanged. Hatch sampling loops themselves are still Python (Phase 4). |
 | 2026-11-15 | 2c, P2.7 | Image state has one owner (`ImageDocument` in the image list); 11 `get_handler_data` sync calls and several full-image copies per action removed. New `tests/test_image_state.py` (switching keeps edits, upscale leaves source untouched, undo after removing an image, undo rotation). 28 tests. |
 | 2026-11-15 | 2d, B28 | One-pixel y offset of all image-based hatching fixed; goldens regenerated and verified move-by-move (pure +0.1 mm Y shift where the sampling is unchanged). Phase 2 complete, 29 tests. |
+| 2026-11-15 | Phase 3 | Transparency as background end to end (load/save/display/edit/hatch/export/plot); white thresholds replaced by "Make Bright Colors Transparent"; B29 found and fixed. `tests/test_transparency.py`, 37 tests, goldens unchanged. Not covered by tests: brush eraser strokes, move-mask cutout, AI upscale path. |

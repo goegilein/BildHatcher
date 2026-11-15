@@ -1158,8 +1158,7 @@ class TextGeometryOverlayManager:
         # copy buffer so python owns the data
         arr = np.frombuffer(ptr, np.uint8).reshape((height, width, 4)).copy()
         
-        # Drop alpha as we work in RGB only
-        self.data_handler.image_matrix = arr[:,:,:3]
+        self.data_handler.image_matrix = arr  # RGBA; the data handler binarizes the alpha
 
         after_matrix = self.data_handler.image_matrix.copy()
         if self.undo_manager and before_matrix is not None:

@@ -10,6 +10,7 @@ from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
 from HelperClasses import DBColorPalette
 import random
 from UndoRedo import ColorOverlayAction, ImprintColorOverlaysAction, ImageMatrixAction
+from core import image_doc
 
 class ImageAdjuster:
     def __init__(self, data_handler, gui):
@@ -18,7 +19,6 @@ class ImageAdjuster:
         self.undo_manager = getattr(data_handler, "undo_manager", None)
         self.image_matrix_base = None
         self.image_matrix_original = None
-        self.image_current = None
         self.inverted_colors = False
         self.last_adjustment = "None"
         self.sharpness_old = 0
@@ -113,38 +113,7 @@ class ImageAdjuster:
         """Invalidate adjustment state when a different image becomes active."""
         self.image_matrix_base = None
         self.image_matrix_original = None
-        self.image_current = None
         self.last_adjustment = "None"
-
-    def update_current_image(self, *args):
-        self.get_handler_data()
-        if self.image_matrix_base is None:
-            return
-        try:
-            # Ensure the color count is a valid integer
-            num_colors = self.color_count_spinbox.value()
-            if num_colors > 256:
-                self.color_count_spinbox.setValue(256)
-            if num_colors <= 0:
-                return  # Invalid number of colors; do not proceed
-        except ValueError:
-            return  # Non-integer input; do not proceed
-        
-        # Always start with original image and do masking first
-        self.image_current = Image.fromarray(self.image_matrix_base.copy())
-
-        # Apply adjustments first
-        self.image_current = self.update_bright_cont_sharp()
-
-        # Apply image quantization
-        self.image_current = self.quantize_image_color()
-
-        # Invert image colors if active
-        if self.inverted_colors:
-            self.image_current = Image.eval(self.image_current, lambda x: 255 - x)
-        
-        # Update image data in handler
-        self.set_handler_data(np.array(self.image_current))
 
     def update_bright_cont_sharp(self):
         """Apply sharpening and brightness adjustments based on slider values."""
@@ -160,8 +129,8 @@ class ImageAdjuster:
         if self.image_matrix_base is None:
             return
         else:
-            image = Image.fromarray(self.image_matrix_base.copy())
-        
+            image = Image.fromarray(image_doc.rgb_filled(self.image_matrix_base))
+
         try:
             # Apply sharpening/blurring
             sharpness_value = self.sharpness_slider.value()
@@ -186,7 +155,7 @@ class ImageAdjuster:
 
             # Update the last adjustment type and return
             self.last_adjustment = "brightness"
-            self.set_handler_data(np.array(image))
+            self.set_handler_data(image_doc.with_rgb(self.image_matrix_base, np.array(image)))
 
         except Exception as e:
             print(f"Error applying adjustments: {e}")
@@ -218,9 +187,12 @@ class ImageAdjuster:
             self.get_handler_data()
         if self.image_matrix_base is None:
             return
-        else:
-            image = Image.fromarray(self.image_matrix_base.copy())
-        
+        opaque = image_doc.opaque_mask(self.image_matrix_base)
+        if not opaque.any():
+            return
+        # all opaque pixels as a 1 x N image, so every quantizer only sees real colours
+        image = Image.fromarray(self.image_matrix_base[opaque][None, :, :3])
+
         try:
             num_colors = self.color_count_spinbox.value()
             quantize_method = self.quantize_method_combobox.currentText()
@@ -228,6 +200,7 @@ class ImageAdjuster:
                 image_matrix = np.array(image)
                 # Flatten the image into a list of pixels
                 pixels = image_matrix.reshape((-1, 3))
+                num_colors = min(num_colors, len(np.unique(pixels, axis=0)))  # KMeans needs >= n distinct pixels
                  # Cluster pixels into dominant colors
                 kmeans = KMeans(n_clusters=num_colors, random_state=42, n_init='auto')
                 kmeans.fit(pixels)
@@ -252,7 +225,9 @@ class ImageAdjuster:
 
             # Update the last adjustment type and return the quantized image
             self.last_adjustment = "quantize"
-            self.set_handler_data(np.array(image))
+            result = self.image_matrix_base.copy()
+            result[opaque, :3] = np.array(image)[0]
+            self.set_handler_data(result)
 
         except Exception as e:
             print(f"Error changing color scheme: {e}")
@@ -281,12 +256,8 @@ class ImageAdjuster:
                 )
                 return
             
-            # Ensure the input image is in the right format
-            if image_matrix.shape[2] == 3 and image_matrix.dtype != np.uint8:
-                image_matrix = image_matrix.astype(np.uint8)
-
-            # Apply edge-preserving smoothing
-            smoothed = cv2.bilateralFilter(image_matrix, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
+            # Apply edge-preserving smoothing (on RGB with white background, alpha is kept)
+            smoothed = cv2.bilateralFilter(image_doc.rgb_filled(image_matrix), d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
 
             # Optional extra smoothing to reduce small pixel noise
             smoothed = cv2.medianBlur(smoothed, median_blur)
@@ -294,19 +265,17 @@ class ImageAdjuster:
             # Convert to PIL image for return
             #return Image.fromarray(simplified_image)
             self.last_adjustment = "convoluted"
-            self.set_handler_data(smoothed)
+            self.set_handler_data(image_doc.with_rgb(image_matrix, smoothed))
 
     def invert_colors(self):
         try:
             ctx = self.undo_manager.record_image_matrix("Invert Colors") if self.undo_manager else nullcontext()
             with ctx:
                 self.inverted_colors = not self.inverted_colors
-                if self.image_current is None and self.data_handler.image_matrix is not None:
-                    self.image_current = Image.fromarray(self.data_handler.image_matrix.copy())
-                if self.image_current is not None:
-                    self.image_current = Image.eval(self.image_current, lambda x: 255 - x)
+                image = self.data_handler.image_matrix
+                if image is not None:
                     self.last_adjustment = "invert"
-                    self.set_handler_data(np.array(self.image_current))
+                    self.set_handler_data(image_doc.with_rgb(image, 255 - image[..., :3]))
         except Exception as e:
             print(f"Error inverting colors: {e}")
     
@@ -369,7 +338,7 @@ class ImageColorer(QtCore.QObject):
         self.event_handler = event_handler
         self.gui = gui
         self.undo_manager = getattr(data_handler, "undo_manager", None)
-        self.active_color = [255, 255, 255]
+        self.active_color = [255, 255, 255, 255]  # RGBA, alpha 0 = transparent (erases)
 
         #Flags and variables for contouring
         self.contours_visible = False
@@ -423,7 +392,7 @@ class ImageColorer(QtCore.QObject):
         self.flood_fill_mode_combobox = gui.flood_fill_mode_combobox
         self.fill_options_grid_layout = gui.fill_options_grid_layout
         self.flood_fill_parameter_value = 0
-        self.limit_color = [0, 0, 0]
+        self.limit_color = [0, 0, 0, 255]
         self.limit_color_choose_on = False
         self.limit_color_source_dropdown = None
         self.limit_color_indicator = None
@@ -605,6 +574,11 @@ class ImageColorer(QtCore.QObject):
             
             # Add the button to the layout
             self.default_color_buttons_layout.addWidget(btn, row, col)
+
+        transparent_btn = QtWidgets.QPushButton("Transparent")
+        transparent_btn.setToolTip("Paint/fill with transparency: the area becomes background and is not hatched")
+        transparent_btn.clicked.connect(lambda checked: self.set_active_color(list(image_doc.TRANSPARENT)))
+        self.default_color_buttons_layout.addWidget(transparent_btn, 3, 0, 1, 3)
     
     ### EVENT HANDLING METHODS ###
 
@@ -821,23 +795,43 @@ class ImageColorer(QtCore.QObject):
 
         selected_color = None
         if 0 <= x_img < width_px and 0 <= y_img < height_px:
-            r, g, b = image_matrix[y_img, x_img]
-            selected_color = [int(r), int(g), int(b)]
+            selected_color = [int(v) for v in image_matrix[y_img, x_img]]
 
         # Disable pick mode after one pick
         self.choose_color_on = False
         return selected_color
 
     def set_active_color(self, color_list):
-        self.active_color = color_list
-        self.pixel_pen.setColor(QColor(*self.active_color))
-        
+        """color_list: [r, g, b] or [r, g, b, a]; a == 0 selects the transparent colour (eraser)."""
+        self.active_color = [int(v) for v in color_list] + [255] * (4 - len(color_list))
+        if self.active_color[3] == 0:
+            self.active_color = list(image_doc.TRANSPARENT)
+            self.pixel_pen.setBrush(QBrush(QPixmap.fromImage(self._checker_qimage(8, 8))))
+            self.active_color_dislplay_edit.setText("Transparent")
+            self.active_color_dislplay_edit.setStyleSheet("color: black; background-color: white")
+            return
+        self.pixel_pen.setColor(QColor(*self.active_color[:3]))
+
         #show chosen color in the color display
-        color = QtGui.QColor(*self.active_color)
+        color = QtGui.QColor(*self.active_color[:3])
         opposite_color = QtGui.QColor(255 - color.red(), 255 - color.green(), 255 - color.blue())
         color_string = f"R{color.red()}, G{color.green()}, B{color.blue()}"
         self.active_color_dislplay_edit.setText(color_string)
         self.active_color_dislplay_edit.setStyleSheet(f"color: {opposite_color.name()}; background-color: {color.name()}")
+
+    @property
+    def erasing(self):
+        return self.active_color[3] == 0
+
+    @staticmethod
+    def _checker_rgba(h, w):
+        """Light checkerboard (4 px squares): the look of 'will become transparent'."""
+        yy, xx = np.indices((h, w))
+        gray = np.where(((yy // 4) + (xx // 4)) % 2 == 0, 255, 204).astype(np.uint8)
+        return np.dstack([gray, gray, gray, np.full((h, w), 255, np.uint8)])
+
+    def _checker_qimage(self, h, w):
+        return QImage(np.ascontiguousarray(self._checker_rgba(h, w)).data, w, h, QImage.Format.Format_RGBA8888).copy()
 
     def set_limit_color(self, color_list):
         self.limit_color = color_list
@@ -846,7 +840,7 @@ class ImageColorer(QtCore.QObject):
     def update_limit_color_indicator(self):
         if self.limit_color_indicator is None:
             return
-        r, g, b = self.limit_color
+        r, g, b = self.limit_color[:3]
         style = f"background-color: rgb({r}, {g}, {b}); border: 1px solid #444;"
         self.limit_color_indicator.setStyleSheet(style)
 
@@ -943,7 +937,7 @@ class ImageColorer(QtCore.QObject):
             return [int(hex_string[i:i+2], 16) for i in (0, 2, 4)]
 
         def on_palette_color(chosen_color):
-            self.set_limit_color(chosen_color)
+            self.set_limit_color(chosen_color + [255])
             dialog.accept()
             if self.limit_color_source_dropdown is not None:
                 self.limit_color_source_dropdown.setCurrentIndex(0)
@@ -961,7 +955,7 @@ class ImageColorer(QtCore.QObject):
     def prompt_limit_color_from_db(self):
         def on_color_received(color_data):
             color_string = color_data['color_rgb']
-            self.set_limit_color([int(c) for c in color_string.split(',')])
+            self.set_limit_color([int(c) for c in color_string.split(',')] + [255])
             if self.limit_color_source_dropdown is not None:
                 self.limit_color_source_dropdown.setCurrentIndex(0)
 
@@ -986,8 +980,7 @@ class ImageColorer(QtCore.QObject):
         x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
 
         if 0 <= x_img < width_px and 0 <= y_img < height_px:
-            r, g, b = image_matrix[y_img, x_img]
-            self.set_limit_color([int(r), int(g), int(b)])
+            self.set_limit_color([int(v) for v in image_matrix[y_img, x_img]])
 
         self.limit_color_choose_on = False
         if self.limit_color_source_dropdown is not None:
@@ -1023,6 +1016,7 @@ class ImageColorer(QtCore.QObject):
         #add as Children of the image item so they move with it and are clipped to its shape
         self.temp_path_item = QGraphicsPathItem(self.current_path, self.gui.image_item)
         self.temp_path_item.setPen(self.pixel_pen)
+        self.temp_path_item.erases = self.erasing
         self.temp_path_item.setZValue(10) # Layer above image
         
         # self.gui.image_scene.addItem(self.temp_path_item)
@@ -1075,7 +1069,7 @@ class ImageColorer(QtCore.QObject):
         # Compare colors (comparison must be in the same color space)
         # We assume image_matrix is RGBA
         target_color = image_matrix[y_image, x_image].copy() 
-        fill_color_arr = np.array([self.active_color[0], self.active_color[1], self.active_color[2]], dtype=np.uint8)
+        fill_color_arr = np.array(self.active_color, dtype=np.uint8)
         
         # Abort if color is equal (tolerance could be added here)
         if np.array_equal(target_color, fill_color_arr): return
@@ -1120,7 +1114,7 @@ class ImageColorer(QtCore.QObject):
                     if 0 <= ny < h and 0 <= nx < w:
                         if (ny, nx) not in visited:
                             # Check pixel color
-                            if np.array_equal(mask_matrix[ny, nx][:3], target_color):
+                            if np.array_equal(mask_matrix[ny, nx], target_color):
                                 visited.add((ny, nx))
                                 queue.append((ny, nx))
 
@@ -1136,7 +1130,7 @@ class ImageColorer(QtCore.QObject):
                         ny, nx = cy + dy, cx + dx
                         if 0 <= ny < h and 0 <= nx < w:
                             if (ny, nx) not in visited:
-                                if np.array_equal(mask_matrix[ny, nx][:3], target_color):
+                                if np.array_equal(mask_matrix[ny, nx], target_color):
                                     visited.add((ny, nx))
                                     queue.append((ny, nx))
         
@@ -1148,7 +1142,7 @@ class ImageColorer(QtCore.QObject):
                     ny, nx = cy + dy, cx + dx
                     if 0 <= ny < h and 0 <= nx < w:
                         if (ny, nx) not in visited:
-                            color_diff = np.linalg.norm(mask_matrix[ny, nx][:3] - target_color)
+                            color_diff = np.linalg.norm(mask_matrix[ny, nx] - target_color)
                             if color_diff <= tolerance:
                                 visited.add((ny, nx))
                                 queue.append((ny, nx))
@@ -1164,7 +1158,7 @@ class ImageColorer(QtCore.QObject):
                         ny, nx = cy + dy, cx + dx
                         if 0 <= ny < h and 0 <= nx < w:
                             if (ny, nx) not in visited:
-                                color_diff = np.linalg.norm(mask_matrix[ny, nx][:3] - target_color)
+                                color_diff = np.linalg.norm(mask_matrix[ny, nx] - target_color)
                                 if color_diff <= tolerance:
                                     visited.add((ny, nx))
                                     queue.append((ny, nx))
@@ -1205,7 +1199,7 @@ class ImageColorer(QtCore.QObject):
                     if 0 <= ny < h and 0 <= nx < w:
                         if (ny, nx) not in visited:
                             # Check pixel color
-                            if not np.array_equal(mask_matrix[ny, nx][:3], limit_color):
+                            if not np.array_equal(mask_matrix[ny, nx], limit_color):
                                 visited.add((ny, nx))
                                 queue.append((ny, nx))
         
@@ -1221,12 +1215,12 @@ class ImageColorer(QtCore.QObject):
                     if 0 <= ny < h and 0 <= nx < w:
                         if (ny, nx) not in visited:
                             # Check pixel color
-                            if np.array_equal(mask_matrix[ny, nx][:3], target_color):
+                            if np.array_equal(mask_matrix[ny, nx], target_color):
                                 for ry in range(-radius, radius+1):
                                     for rx in range(-radius, radius+1):
                                         check_y, check_x = ny + ry, nx + rx
                                         if 0 <= check_y < h and 0 <= check_x < w:
-                                            if np.array_equal(mask_matrix[check_y, check_x][:3], fill_color_arr):
+                                            if np.array_equal(mask_matrix[check_y, check_x], fill_color_arr):
                                                 visited.add((ny, nx))
                                                 queue.append((ny, nx))
 
@@ -1287,7 +1281,7 @@ class ImageColorer(QtCore.QObject):
         # Create color_mask: which pixels are equal to the target color?
         # np.all checks over the last axis (Color Channels)
         # We compare only the first 3 channels (RGB), ignoring alpha
-        color_mask = np.all(mask_matrix[:, :, :3] == target_color, axis=2)
+        color_mask = np.all(mask_matrix == target_color, axis=2)
 
         # Create overlay
         if np.any(color_mask):
@@ -1331,9 +1325,9 @@ class ImageColorer(QtCore.QObject):
             print("No colors available in the database.")
             return
         
-        # Recolor the entire image
+        # Recolor all opaque pixels; transparent pixels stay transparent (alpha of the overlay = alpha of the image)
         image_matrix = self.data_handler.image_matrix.copy()
-        pixels = image_matrix.reshape(-1, 3)  # (num_pixels, 3)
+        pixels = image_matrix[..., :3].reshape(-1, 3)  # (num_pixels, 3)
         palette = np.stack(color_list)        # (num_palette, 3)
 
         # B14: match only the unique colours (pixels x palette x 3 could exhaust memory)
@@ -1345,21 +1339,10 @@ class ImageColorer(QtCore.QObject):
         recolored_pixels = palette[closest][inverse.reshape(-1)]  # (num_pixels, 3)
 
         # Reshape back to image
-        recolored_image = recolored_pixels.reshape(image_matrix.shape)
-        recolored_image = recolored_image.astype(np.uint8)
+        recolored_image = image_doc.with_rgb(image_matrix, recolored_pixels.reshape(image_matrix.shape[:2] + (3,)))
 
         h, w = recolored_image.shape[:2]
-        
-        # Convert to QImage
-        # Assumption: new_image_matrix is uint8 RGB or RGBA
-        if recolored_image.shape[2] == 3:
-            fmt = QImage.Format.Format_RGB888
-            bytes_per_line = w * 3
-        else:
-            fmt = QImage.Format.Format_RGBA8888
-            bytes_per_line = w * 4
-            
-        img = QImage(recolored_image.data, w, h, bytes_per_line, fmt)
+        img = QImage(recolored_image.data, w, h, w * 4, QImage.Format.Format_RGBA8888)
         img = img.copy() # Important: data copy
         
         # This is not a transparent overlay, but a completely new image
@@ -1388,13 +1371,11 @@ class ImageColorer(QtCore.QObject):
         # 1. Create RGBA array (4 channels: R, G, B, Alpha)
         rgba_overlay = np.zeros((h, w, 4), dtype=np.uint8)
         
-        # 2. Set color (r, g, b, alpha)
-        r, g, b = self.active_color
-        
-        # 3. Only set pixels where the mask is True
-        # Numpy broadcasting is extremely fast here (also for 4K/8K)
-        # Set alpha to 255 for full opacity
-        rgba_overlay[mask_boolean] = [r, g, b, 255]
+        # 2./3. Only set pixels where the mask is True; transparent colour shows a checkerboard and erases on imprint
+        if self.erasing:
+            rgba_overlay[mask_boolean] = self._checker_rgba(h, w)[mask_boolean]
+        else:
+            rgba_overlay[mask_boolean] = self.active_color
         
         # 4. Convert to QImage
         # Format_RGBA8888 expects 4 bytes per pixel (R, G, B, A)
@@ -1403,6 +1384,7 @@ class ImageColorer(QtCore.QObject):
         # 5. Create QGraphicsItem as child of image item
         pixmap_item = QGraphicsPixmapItem(QPixmap.fromImage(overlay_img), self.gui.image_item)
         pixmap_item.setZValue(10) # Above background
+        pixmap_item.erases = self.erasing
         return pixmap_item
 
     def imprint_color_overlays(self):
@@ -1433,6 +1415,9 @@ class ImageColorer(QtCore.QObject):
         # overlay_items.extend(self.data_handler.geometry_overlays)
 
         for item in overlay_items:
+            erases = getattr(item, "erases", False)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut if erases
+                                       else QPainter.CompositionMode.CompositionMode_SourceOver)
             if isinstance(item, QGraphicsPathItem):
                 painter.setPen(item.pen())
                 painter.drawPath(item.path())
@@ -1485,7 +1470,7 @@ class ImageColorer(QtCore.QObject):
         # copy buffer so python owns the data
         arr = np.frombuffer(ptr, np.uint8).reshape((height, width, 4)).copy()
         
-        self.data_handler.image_matrix = arr[:,:,:3]  # Drop alpha as we work in RGB only
+        self.data_handler.image_matrix = arr  # RGBA; the data handler binarizes the alpha
 
         after_matrix = self.data_handler.image_matrix.copy()
         if self.undo_manager and before_matrix is not None:
@@ -1598,7 +1583,7 @@ class ImageColorer(QtCore.QObject):
             
 
             # Get the current image data
-            image_matrix = self.data_handler.image_matrix.copy()
+            image_matrix = image_doc.rgb_filled(self.data_handler.image_matrix)
             height, width = image_matrix.shape[:2]
 
             # Only apply edge detection to the masked region if there is one, otherwise to the whole image
@@ -1668,67 +1653,10 @@ class ImageColorer(QtCore.QObject):
         except Exception as e:
             print(f"Error finding image outlines: {e}")
     
-    def clean_up_clusters(self):
-        """
-        Cleans up image colors by applying a median blur filter to each color patch
-        and recombining them, taking the darker color if a pixel is colored in multiple patches.
-        """
-        ctx = self.undo_manager.record_image_matrix("Clean Clusters") if self.undo_manager else nullcontext()
-        with ctx:
-            image_matrix = self.data_handler.image_matrix.copy()
-            if image_matrix is None:
-                return
-            # Find all unique colors (excluding white)
-            unique_colors = np.unique(image_matrix.reshape(-1, 3), axis=0)
-            
-            # Ask user if he wants to continue if more than 10 colors are present
-            if len(unique_colors) > 10:
-                reply = QtWidgets.QMessageBox.question(
-                    self.gui, "Too many colors",
-                    f"This image has {len(unique_colors)} different colors. "
-                    "Do you want to continue cleaning up the image.\nIt might take very long if more than 10 colors are present?",
-                    QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
-                )
-                if reply == QtWidgets.QMessageBox.StandardButton.No:
-                    return
-            white = np.array([255, 255, 255], dtype=np.uint8)
-            color_patches = []
-            for color in unique_colors:
-                if np.all(color == white):
-                    continue
-                # Create a mask for this color
-                mask = np.all(image_matrix == color, axis=-1)
-                patch = np.ones_like(image_matrix, dtype=np.uint8) * 255
-                patch[mask] = color
-                # Apply median blur to the patch
-                patch_blur = cv2.medianBlur(patch, 5)
-                color_patches.append(patch_blur)
-            if not color_patches:
-                return
-            # Recombine patches: for each pixel, take the darkest color (lowest sum)
-            combined = np.ones_like(image_matrix, dtype=np.uint8) * 255
-            for patch in color_patches:
-                # Where patch is not white, compare to current combined
-                mask = ~np.all(patch == 255, axis=-1)
-                # For those pixels, if patch is darker, use it
-                current = combined[mask]
-                candidate = patch[mask]
-                # Compare sum of RGB (lower is darker)
-                darker = np.sum(candidate, axis=-1) < np.sum(current, axis=-1)
-                # Update only where candidate is darker
-                indices = np.where(mask)
-                if len(indices[0]) > 0:
-                    darker_indices = np.where(darker)[0]
-                    for idx in darker_indices:
-                        combined[indices[0][idx], indices[1][idx]] = candidate[idx]
-            # Update the data handler with the cleaned image
-            self.data_handler.image_matrix_adjusted = combined
-            self.data_handler.image_matrix = combined
-
     def clean_up_image_colors(self):
         """
         Removes thin artifact lines of intermediate colors using a majority vote,
-        but strictly prevents non-white pixels from being changed to white (background).
+        but strictly prevents opaque pixels from being changed to the transparent background.
         
         :param quantized_image: The already color-reduced image (RGB, numpy array).
         :param kernel_size: Odd integer (3, 5, 7) determining the filter size.
@@ -1743,7 +1671,7 @@ class ImageColorer(QtCore.QObject):
             kernel_size = 3  # B13: was the colour-count spinbox. shortcut: fixed size, add a UI control if needed (P6.6)
            
             # 1. Extract all unique colors present in the image
-            pixels = quantized_image.reshape(-1, 3)
+            pixels = quantized_image.reshape(-1, 4)
             unique_colors = np.unique(pixels, axis=0)
             
             h, w, _ = quantized_image.shape
@@ -1758,7 +1686,7 @@ class ImageColorer(QtCore.QObject):
             # 2. Count votes for each color in the neighborhood
             for idx, color in enumerate(unique_colors):
                 # Remember the index of pure white in our palette
-                if np.array_equal(color, [255, 255, 255]):
+                if color[3] == 0:  # transparent background
                     white_idx = idx
                     
                 # Binary mask: Where exactly is this color located?
@@ -1771,7 +1699,7 @@ class ImageColorer(QtCore.QObject):
             # 3. APPLY RULE: Never change a non-white pixel to pure white
             if white_idx != -1:
                 # Find all pixels that are NOT white in the original image
-                non_white_mask = ~np.all(quantized_image == [255, 255, 255], axis=-1)
+                non_white_mask = quantized_image[..., 3] > 0
                 
                 # For all non-white pixels, we set the votes for white to -1.
                 # This ensures white can never win the vote here. The argmax function
@@ -2455,8 +2383,8 @@ class ImageColorer(QtCore.QObject):
         mask_cropped = active_mask[row_min:row_max+1, col_min:col_max+1]
         image_cropped = self.data_handler.image_matrix[row_min:row_max+1, col_min:col_max+1]
         
-        # Fill the output image with pixels where mask==1, white elsewhere
-        output_image = np.ones_like(image_cropped) * 255
+        # keep pixels where mask==1, transparent elsewhere
+        output_image = np.zeros_like(image_cropped)
         output_image[mask_cropped == 1] = image_cropped[mask_cropped == 1]
         
         # Get save file path from user
@@ -2469,7 +2397,10 @@ class ImageColorer(QtCore.QObject):
         
         if file_path:
             try:
-                image = Image.fromarray(output_image.astype(np.uint8))
+                if file_path.lower().endswith(".png"):
+                    image = Image.fromarray(output_image, mode="RGBA")
+                else:
+                    image = Image.fromarray(image_doc.composite(output_image), mode="RGB")
                 # Add DPI information based on current pixel_per_mm
                 dpi = round(self.data_handler.pixel_per_mm * 25.4)
                 # Save with DPI metadata
@@ -2578,17 +2509,17 @@ class ImageColorer(QtCore.QObject):
         image = self.data_handler.image_matrix
         h, w = mask.shape
         
-        # 1. Create the White Cutout 
+        # 1. Create the cutout: the vacated area becomes transparent on imprint
         temp_white_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-        temp_white_rgba[mask == 1] = [255, 255, 255, 255]
+        temp_white_rgba[mask == 1] = self._checker_rgba(h, w)[mask == 1]
         white_img = QImage(temp_white_rgba.data, w, h, QImage.Format.Format_RGBA8888)
         self.white_cutout_item = QtWidgets.QGraphicsPixmapItem(QPixmap.fromImage(white_img.copy()), self.gui.image_item)
         self.white_cutout_item.setZValue(11)
+        self.white_cutout_item.erases = True
 
         # 2. Create the Moving Pixels
         temp_moving_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-        temp_moving_rgba[mask == 1, :3] = image[mask == 1]
-        temp_moving_rgba[mask == 1, 3] = 255
+        temp_moving_rgba[mask == 1] = image[mask == 1]
         moving_img = QImage(temp_moving_rgba.data, w, h, QImage.Format.Format_RGBA8888)
         self.moving_mask_item = QtWidgets.QGraphicsPixmapItem(QPixmap.fromImage(moving_img.copy()), self.gui.image_item)
         self.moving_mask_item.setZValue(12) 

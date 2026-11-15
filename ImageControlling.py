@@ -14,92 +14,13 @@ from PIL import Image
 import numpy as np
 import io
 from collections import defaultdict
+import logging
+from core import image_doc
 from core.image_doc import ImageDocument
+
+log = logging.getLogger(__name__)
 from PathManager import get_gui_file_path
 from ImageUpscaling import ImageUpscaler
-
-
-class SaveImageFormatDialog(QtWidgets.QDialog):
-    """Popup-Dialog zur Vorauswahl des Speichertyps und von Transparenzoptionen."""
-
-    def __init__(self, parent=None, default_format="png", white_as_transparent=False):
-        super().__init__(parent)
-        self.setWindowTitle("Bild speichern - Format")
-        self.setModal(True)
-        self.setMinimumWidth(380)
-
-        # Unterstützte Formate: (Name, Erweiterung, Filter-String, Transparenz-Support)
-        self.formats = [
-            ("PNG (*.png)", "png", "PNG Files (*.png)", True),
-            ("SVG (*.svg)", "svg", "SVG Files (*.svg)", True),
-            ("JPEG (*.jpg *.jpeg)", "jpg", "JPEG Files (*.jpg *.jpeg)", False),
-            ("BMP (*.bmp)", "bmp", "BMP Files (*.bmp)", False),
-        ]
-
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setSpacing(12)
-
-        form_layout = QtWidgets.QFormLayout()
-        form_layout.setSpacing(8)
-
-        self.format_combo = QtWidgets.QComboBox(self)
-        for name, ext, flt, supp in self.formats:
-            self.format_combo.addItem(name, (ext, flt, supp))
-
-        form_layout.addRow("Speichertyp:", self.format_combo)
-        layout.addLayout(form_layout)
-
-        self.transparency_check = QtWidgets.QCheckBox(
-            "Weiß (RGB 255, 255, 255) als transparente Farbe speichern", self
-        )
-        self.transparency_check.setChecked(white_as_transparent)
-        layout.addWidget(self.transparency_check)
-
-        self.info_label = QtWidgets.QLabel(self)
-        self.info_label.setStyleSheet("color: #777; font-size: 11px;")
-        layout.addWidget(self.info_label)
-
-        button_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel,
-            self
-        )
-        ok_btn = button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Ok)
-        ok_btn.setText("Weiter...")
-        cancel_btn = button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Cancel)
-        cancel_btn.setText("Abbrechen")
-
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
-
-        self.format_combo.currentIndexChanged.connect(self.on_format_changed)
-
-        # Vorauswahl treffen
-        for i, (name, ext, flt, supp) in enumerate(self.formats):
-            if ext.lower() == default_format.lower() or name.lower().startswith(default_format.lower()):
-                self.format_combo.setCurrentIndex(i)
-                break
-
-        self.on_format_changed(self.format_combo.currentIndex())
-
-    def on_format_changed(self, index):
-        item_data = self.format_combo.itemData(index)
-        if item_data:
-            ext, flt, supports_transparency = item_data
-            if supports_transparency:
-                self.transparency_check.setEnabled(True)
-                self.info_label.setText("")
-            else:
-                self.transparency_check.setEnabled(False)
-                self.transparency_check.setChecked(False)
-                self.info_label.setText("Das gewählte Format unterstützt keine transparente Farbe.")
-
-    def get_selected_format(self):
-        index = self.format_combo.currentIndex()
-        return self.format_combo.itemData(index)
-
-    def is_white_as_transparent(self):
-        return self.transparency_check.isChecked() and self.transparency_check.isEnabled()
 
 
 class BaseFunctions:
@@ -112,8 +33,7 @@ class BaseFunctions:
         self.image_dimension_frame = gui.image_dimension_frame
         self.image_lister_frame = gui.image_lister_frame
         self.default_dpi = 96  # Assuming 96 DPI by default
-        self.last_save_format = "png"
-        self.last_white_transparent = False
+        self.last_save_filter = "PNG Files (*.png)"
         self.changeing_image = False
         self.updating_dimensions = False
         self.active_image_item = None
@@ -126,6 +46,21 @@ class BaseFunctions:
         self.actionSave_image.triggered.connect(self.save_image)
         self.actionNew_Blank = gui.actionNew_Blank
         self.actionNew_Blank.triggered.connect(self.open_new_blank)
+        # Images without alpha channel: treat pure white as transparent background (default on, Q4)
+        self.action_white_is_background = QtGui.QAction("Load: Pure White as Transparent", gui)
+        self.action_white_is_background.setCheckable(True)
+        self.action_white_is_background.setChecked(True)
+        for menu in gui.menubar.findChildren(QtWidgets.QMenu):
+            if self.actionLoad_image in menu.actions():
+                menu.insertAction(self.actionSave_image, self.action_white_is_background)
+                break
+        # replaces the old white thresholds of hatching/parsing/plotting (mean RGB > threshold -> background)
+        self.action_bright_to_transparent = QtGui.QAction("Make Bright Colors Transparent...", gui)
+        self.action_bright_to_transparent.triggered.connect(lambda: self.make_bright_transparent())
+        for menu in gui.menubar.findChildren(QtWidgets.QMenu):
+            if self.actionLoad_image in menu.actions():
+                menu.insertAction(self.actionSave_image, self.action_bright_to_transparent)
+                break
         # self.actionReset_image = gui.actionReset_Image
         # self.actionReset_image.triggered.connect(self.reset_image)
 
@@ -216,94 +151,94 @@ class BaseFunctions:
         if not file_path or not isinstance(file_path, (str, Path)):
             file_path, _ = QFileDialog.getOpenFileName(
                 self.gui,
-                "Bild laden",
+                "Load Image",
                 "",
                 "Image Files (*.png *.jpg *.jpeg *.bmp *.svg *.webp *.gif *.tiff);;SVG Files (*.svg);;All Files (*)"
             )
-        if file_path:
-            file_path = str(file_path)
+        if not file_path:
+            return
+        file_path = str(file_path)
+        try:
+            image_matrix, pixel_per_mm = self.read_image_file(file_path, self.action_white_is_background.isChecked())
+            self.changeing_image = True
+            img_obj = ImageDocument(image_matrix, image_matrix, pixel_per_mm, pixel_per_mm)
+            self.add_listbox_item(img_obj, os.path.basename(file_path), set_selected=True)
+            self.changeing_image = False
+            self.set_handler_data(new_image=True)
+            self.update_dimension_fields()
+            # Center image on loading
+            self.gui.image_canvas.centerOn(self.gui.image_item)
+        except Exception as e:
+            log.exception("Error loading image")
+            QtWidgets.QMessageBox.critical(self.gui, "Error Loading Image", f"Could not load the image:\n{e}")
+
+    def read_image_file(self, file_path, white_is_background=True):
+        """Read an image file as RGBA with binary alpha (see core/image_doc.py). Returns (image, pixel_per_mm)."""
+        if file_path.lower().endswith(".svg"):
+            renderer = QSvgRenderer(file_path)
+            if not renderer.isValid():
+                raise ValueError(f"Invalid or unreadable SVG file: {file_path}")
+
+            viewbox = renderer.viewBox()
+            size = renderer.defaultSize()
+            width = viewbox.width() if viewbox.width() > 0 else size.width()
+            height = viewbox.height() if viewbox.height() > 0 else size.height()
+            if width <= 0:
+                width = 800
+            if height <= 0:
+                height = 600
+
+            qimg = QImage(width, height, QImage.Format.Format_RGBA8888)
+            qimg.fill(QColor(0, 0, 0, 0))  # unpainted areas stay transparent
+            painter = QPainter(qimg)
+            renderer.render(painter)
+            painter.end()
+
+            ptr = qimg.bits()
+            ptr.setsize(qimg.sizeInBytes())
+            bytes_per_line = qimg.bytesPerLine()
+            arr = np.frombuffer(ptr, np.uint8).reshape((height, bytes_per_line))[:, :width * 4].reshape((height, width, 4))
+            image_matrix = image_doc.from_rgba(arr)
+
+            pixel_per_mm = self.default_dpi / 25.4
             try:
-                if file_path.lower().endswith(".svg"):
-                    renderer = QSvgRenderer(file_path)
-                    if not renderer.isValid():
-                        raise ValueError(f"Ungültige oder nicht lesbare SVG-Datei: {file_path}")
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read(1024)
+                match = re.search(r'width="([0-9.]+)mm"', content)
+                if match:
+                    w_mm = float(match.group(1))
+                    if w_mm > 0:
+                        pixel_per_mm = width / w_mm
+            except Exception:
+                pass
+            return image_matrix, pixel_per_mm
 
-                    viewbox = renderer.viewBox()
-                    size = renderer.defaultSize()
-                    width = viewbox.width() if viewbox.width() > 0 else size.width()
-                    height = viewbox.height() if viewbox.height() > 0 else size.height()
-                    if width <= 0:
-                        width = 800
-                    if height <= 0:
-                        height = 600
+        raw_image = Image.open(file_path)
+        if "A" in raw_image.mode or "transparency" in raw_image.info:
+            image_matrix = image_doc.from_rgba(np.array(raw_image.convert("RGBA")))
+        else:
+            image_matrix = image_doc.from_rgb(np.array(raw_image.convert("RGB")), white_is_background)
 
-                    # Transparente Bereiche als reinweiß (RGB 255, 255, 255) laden
-                    qimg = QImage(width, height, QImage.Format.Format_ARGB32)
-                    qimg.fill(QColor(255, 255, 255, 255))
-                    painter = QPainter(qimg)
-                    renderer.render(painter)
-                    painter.end()
+        dpi_info = raw_image.info.get("dpi", (self.default_dpi, self.default_dpi))
+        dpi = dpi_info[0] if isinstance(dpi_info, (tuple, list)) and dpi_info else dpi_info
+        if not dpi or dpi <= 0:
+            dpi = self.default_dpi
+        return image_matrix, dpi / 25.4
 
-                    qimg_rgba = qimg.convertToFormat(QImage.Format.Format_RGBA8888)
-                    ptr = qimg_rgba.bits()
-                    ptr.setsize(qimg_rgba.sizeInBytes())
-                    bytes_per_line = qimg_rgba.bytesPerLine()
-                    arr = np.frombuffer(ptr, np.uint8).reshape((height, bytes_per_line))[:, :width * 4].reshape((height, width, 4))
-                    image_matrix = arr[..., :3].copy()
-
-                    pixel_per_mm = self.default_dpi / 25.4
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            content = f.read(1024)
-                        match = re.search(r'width="([0-9.]+)mm"', content)
-                        if match:
-                            w_mm = float(match.group(1))
-                            if w_mm > 0:
-                                pixel_per_mm = width / w_mm
-                    except Exception:
-                        pass
-                else:
-                    raw_image = Image.open(file_path)
-                    # Bilder mit transparenten Farbwerten als reinweiß (RGB 255, 255, 255) laden
-                    if "A" in raw_image.mode or "transparency" in raw_image.info:
-                        rgba_image = raw_image.convert("RGBA")
-                        alpha_channel = np.array(rgba_image.getchannel("A"))
-                        white_bg = Image.new("RGBA", rgba_image.size, (255, 255, 255, 255))
-                        composited = Image.alpha_composite(white_bg, rgba_image).convert("RGB")
-                        image_matrix = np.array(composited)
-                        # Vollkommen transparente Pixel (alpha == 0) explizit als [255, 255, 255] setzen
-                        image_matrix[alpha_channel == 0] = [255, 255, 255]
-                    else:
-                        image = raw_image.convert("RGB")
-                        image_matrix = np.array(image)
-
-                    # Ensure image_matrix is (H, W, 3)
-                    if image_matrix.ndim == 2:
-                        image_matrix = np.stack([image_matrix] * 3, axis=-1)
-                    elif image_matrix.shape[-1] != 3:
-                        image_matrix = image_matrix[..., :3]
-
-                    dpi_info = raw_image.info.get("dpi", (self.default_dpi, self.default_dpi)) if hasattr(raw_image, "info") else self.default_dpi
-                    if isinstance(dpi_info, (tuple, list)):
-                        dpi = dpi_info[0] if len(dpi_info) > 0 else self.default_dpi
-                    else:
-                        dpi = dpi_info
-                    if not dpi or dpi <= 0:
-                        dpi = self.default_dpi
-                    pixel_per_mm = dpi / 25.4
-
-                filename = os.path.basename(file_path)
-                self.changeing_image = True
-                img_obj = ImageDocument(image_matrix.copy(), image_matrix.copy(), pixel_per_mm, pixel_per_mm)
-                self.add_listbox_item(img_obj, filename, set_selected=True)
-                self.changeing_image = False
-                self.set_handler_data(new_image=True)
-                self.update_dimension_fields()
-                # Center image on loading
-                self.gui.image_canvas.centerOn(self.gui.image_item)
-            except Exception as e:
-                print(f"Error loading image: {e}")
-                QtWidgets.QMessageBox.critical(self.gui, "Fehler beim Laden", f"Fehler beim Laden des Bildes:\n{e}")
+    def make_bright_transparent(self, threshold=None):
+        """Pixels with mean RGB > threshold become transparent background (asks for the threshold if None)."""
+        if self.data_handler.image_matrix is None:
+            return
+        if threshold is None:
+            threshold, ok = QtWidgets.QInputDialog.getInt(
+                self.gui, "Make Bright Colors Transparent",
+                "Pixels brighter than this value (mean of R, G, B; 0-255)\nbecome transparent background:", 230, 0, 255)
+            if not ok:
+                return
+        with self._record_matrix("Bright Colors to Transparent"):
+            image = self.data_handler.image_matrix.copy()
+            image[image[..., :3].mean(axis=-1) > threshold] = 0
+            self.data_handler.image_matrix = image
 
     def open_new_blank(self):
         """Open the New Blank dialog to create a blank image."""
@@ -323,112 +258,53 @@ class BaseFunctions:
 
     def save_image(self):
         if not self.active_image_item:
-            QtWidgets.QMessageBox.warning(self.gui, "Warnung", "Kein aktives Bild zum Speichern vorhanden.")
+            QtWidgets.QMessageBox.warning(self.gui, "Save Image", "There is no active image to save.")
             return
 
-        # 2. Popup mit Vorausauswahl für den Speichertypen und Transparenz-Checkbox
-        default_fmt = getattr(self, "last_save_format", "png")
-        default_trans = getattr(self, "last_white_transparent", False)
-
-        dialog = SaveImageFormatDialog(self.gui, default_format=default_fmt, white_as_transparent=default_trans)
-        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
-            return
-
-        selected_ext, selected_filter, supports_transparency = dialog.get_selected_format()
-        white_as_transparent = dialog.is_white_as_transparent()
-
-        self.last_save_format = selected_ext
-        self.last_white_transparent = white_as_transparent
-
-        filter_list = [
-            f"{name}" for name, _, _, _ in dialog.formats
-        ]
-        filter_str = ";;".join(filter_list) + ";;All Files (*)"
-
-        raw_name = self.active_image_item.text()
-        base_name = os.path.splitext(raw_name)[0]
-        default_file_name = f"{base_name}.{selected_ext}"
-
-        file_path, _ = QFileDialog.getSaveFileName(
-            self.gui, "Bild speichern", default_file_name, filter_str, initialFilter=selected_filter
+        # PNG/SVG keep the transparent background, JPEG/BMP get a white one
+        filters = ["PNG Files (*.png)", "SVG Files (*.svg)", "JPEG Files (*.jpg *.jpeg)", "BMP Files (*.bmp)"]
+        base_name = os.path.splitext(self.active_image_item.text())[0]
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self.gui, "Save Image", base_name, ";;".join(filters), initialFilter=self.last_save_filter
         )
-
         if not file_path:
             return
-
-        # Sicherstellen, dass Dateiendung vorhanden ist
-        _, ext = os.path.splitext(file_path)
-        if not ext:
-            file_path += f".{selected_ext}"
-            ext = f".{selected_ext}"
-
-        ext_clean = ext.lower().lstrip(".")
-        format_supports_transparency = ext_clean in ("png", "svg")
-        apply_transparency = white_as_transparent and format_supports_transparency
-
+        self.last_save_filter = selected_filter or self.last_save_filter
+        if not os.path.splitext(file_path)[1]:
+            file_path += "." + re.search(r"\*\.(\w+)", self.last_save_filter).group(1)
         try:
-            image_matrix = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole).image_matrix
-            pixel_per_mm = self.get_active_pixel_per_mm()
-            dpi = round(pixel_per_mm * 25.4) if pixel_per_mm else self.default_dpi
+            self.write_image_file(file_path, self.get_active_img_obj().image_matrix, self.get_active_pixel_per_mm())
+        except Exception as e:
+            log.exception("Error saving image")
+            QtWidgets.QMessageBox.critical(self.gui, "Error Saving Image", f"Could not save the image:\n{e}")
 
-            if ext_clean == "svg":
-                height, width = image_matrix.shape[:2]
-                if apply_transparency:
-                    # Weiß (RGB 255, 255, 255) als transparente Farbe speichern
-                    is_white = (image_matrix[:, :, 0] == 255) & \
-                               (image_matrix[:, :, 1] == 255) & \
-                               (image_matrix[:, :, 2] == 255)
-                    alpha = np.where(is_white, 0, 255).astype(np.uint8)
-                    rgba = np.dstack([image_matrix, alpha])
-                    pil_image = Image.fromarray(rgba, mode="RGBA")
-                else:
-                    pil_image = Image.fromarray(image_matrix, mode="RGB")
+    def write_image_file(self, file_path, image_matrix, pixel_per_mm):
+        ext = os.path.splitext(file_path)[1].lower().lstrip(".")
+        dpi = round(pixel_per_mm * 25.4) if pixel_per_mm else self.default_dpi
+        if ext in ("jpg", "jpeg", "bmp"):
+            Image.fromarray(image_doc.composite(image_matrix), mode="RGB").save(
+                file_path, format="JPEG" if ext != "bmp" else "BMP", dpi=(dpi, dpi))
+            return
+        pil_image = Image.fromarray(image_matrix, mode="RGBA")
+        if ext != "svg":
+            pil_image.save(file_path, format="PNG", dpi=(dpi, dpi))
+            return
 
-                buf = io.BytesIO()
-                pil_image.save(buf, format="PNG", dpi=(dpi, dpi))
-                b64_data = base64.b64encode(buf.getvalue()).decode("ascii")
-
-                width_str = f"{width / pixel_per_mm:.4f}mm" if pixel_per_mm and pixel_per_mm > 0 else f"{width}px"
-                height_str = f"{height / pixel_per_mm:.4f}mm" if pixel_per_mm and pixel_per_mm > 0 else f"{height}px"
-
-                svg_content = f'''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+        height, width = image_matrix.shape[:2]
+        buf = io.BytesIO()
+        pil_image.save(buf, format="PNG", dpi=(dpi, dpi))
+        b64_data = base64.b64encode(buf.getvalue()).decode("ascii")
+        width_str = f"{width / pixel_per_mm:.4f}mm" if pixel_per_mm and pixel_per_mm > 0 else f"{width}px"
+        height_str = f"{height / pixel_per_mm:.4f}mm" if pixel_per_mm and pixel_per_mm > 0 else f"{height}px"
+        svg_content = f'''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="{width_str}" height="{height_str}" viewBox="0 0 {width} {height}" version="1.1">
   <image width="{width}" height="{height}" preserveAspectRatio="none" image-rendering="pixelated"
          href="data:image/png;base64,{b64_data}" xlink:href="data:image/png;base64,{b64_data}"/>
 </svg>
 '''
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(svg_content)
-
-            elif ext_clean == "png":
-                if apply_transparency:
-                    # Weiß (RGB 255, 255, 255) als transparente Farbe speichern
-                    is_white = (image_matrix[:, :, 0] == 255) & \
-                               (image_matrix[:, :, 1] == 255) & \
-                               (image_matrix[:, :, 2] == 255)
-                    alpha = np.where(is_white, 0, 255).astype(np.uint8)
-                    rgba = np.dstack([image_matrix, alpha])
-                    image = Image.fromarray(rgba, mode="RGBA")
-                else:
-                    image = Image.fromarray(image_matrix, mode="RGB")
-                image.save(file_path, format="PNG", dpi=(dpi, dpi))
-
-            elif ext_clean in ("jpg", "jpeg"):
-                image = Image.fromarray(image_matrix, mode="RGB")
-                image.save(file_path, format="JPEG", dpi=(dpi, dpi))
-
-            elif ext_clean == "bmp":
-                image = Image.fromarray(image_matrix, mode="RGB")
-                image.save(file_path, format="BMP", dpi=(dpi, dpi))
-
-            else:
-                image = Image.fromarray(image_matrix)
-                image.save(file_path, dpi=(dpi, dpi))
-
-        except Exception as e:
-            print(f"Error saving image: {e}")
-            QtWidgets.QMessageBox.critical(self.gui, "Fehler beim Speichern", f"Fehler beim Speichern des Bildes:\n{e}")        
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(svg_content)
 
     @contextmanager
     def _record_matrix(self, description):
@@ -496,39 +372,27 @@ class BaseFunctions:
             self.update_dimension_fields()
 
     def split_colors(self):
+        """One new image per colour; all other pixels transparent."""
         current_image_matrix = self.get_active_image_matrix()
-        height, width, num_colors = current_image_matrix.shape
-        clusters = defaultdict(lambda: np.ones((height, width, num_colors), dtype=np.uint8) * 255)
-
-        # Find all unique colors (excluding white) and disply a warning if there are too many colors
-        unique_colors = np.unique(current_image_matrix.reshape(-1, 3), axis=0)
-        if len(unique_colors) > 10:
+        packed = np.ascontiguousarray(current_image_matrix).view(np.uint32)[..., 0]
+        colors = np.unique(packed[current_image_matrix[..., 3] > 0])
+        if len(colors) > 10:
             reply = QtWidgets.QMessageBox.question(
                 self.gui, "Too many colors",
-                f"This image has {len(unique_colors)} different colors. "
-                "Do you want to continue cleaning up the image.\nIt might take very long if more than 10 colors are present?",
+                f"This image has {len(colors)} different colors. Do you want to split it into {len(colors)} images?",
                 QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
             )
             if reply == QtWidgets.QMessageBox.StandardButton.No:
                 return
 
-        # Find unique image colors
-        for i in range(height):
-            for j in range(width):
-                color = tuple(current_image_matrix[i, j])
-                if sum(np.array(color, dtype=np.uint64)) == 765:  # Skip the white channel
-                    continue
-                clusters[color][i, j] = np.array([color[0], color[1], color[2]])
-
-        # Add the images to list
         self.changeing_image = True
-        sel_image_item = self.images_ListWidget.selectedItems()[-1]
-        image_name = sel_image_item.text()
-        img_obj = ImageDocument(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
-        self.add_listbox_item(img_obj, image_name + "_unsplit", set_selected=True)
-        for color, cluster in clusters.items():
-            img_obj = ImageDocument(cluster, cluster, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
-            self.add_listbox_item(img_obj, str(color))
+        image_name = self.active_image_item.text()
+        ppm, ppm_original = self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original()
+        self.add_listbox_item(ImageDocument(current_image_matrix, current_image_matrix, ppm, ppm_original), image_name + "_unsplit", set_selected=True)
+        for color in colors:
+            layer = np.where((packed == color)[..., None], current_image_matrix, 0).astype(np.uint8)
+            rgb = tuple(int(v) for v in np.array([color], np.uint32).view(np.uint8)[:3])
+            self.add_listbox_item(ImageDocument(layer, layer, ppm, ppm_original), str(rgb))
         self.changeing_image = False
 
     def add_image(self):
@@ -614,20 +478,21 @@ class BaseFunctions:
         selected_images = self.images_ListWidget.selectedItems()
         if not selected_images:
             return
-        combined_image = np.ones_like(selected_images[0].data(QtCore.Qt.ItemDataRole.UserRole).image_matrix, dtype=np.uint8) * 255
+        combined_image = np.zeros_like(selected_images[0].data(QtCore.Qt.ItemDataRole.UserRole).image_matrix)
 
         for image_item in selected_images:
             patch = image_item.data(QtCore.Qt.ItemDataRole.UserRole).image_matrix
             if patch.shape != combined_image.shape:
                 QtWidgets.QMessageBox.warning(self.gui, "Combine Images", "All selected images must have the same size.")
                 return
-            # darkest colour wins (sum of RGB, int to avoid uint8 overflow); white patch pixels never win
-            darker = patch.sum(axis=-1, dtype=np.int32) < combined_image.sum(axis=-1, dtype=np.int32)
+            # darkest opaque colour wins (sum of RGB, int to avoid uint8 overflow); transparent pixels never win
+            brightness = lambda img: np.where(img[..., 3] > 0, img[..., :3].sum(axis=-1, dtype=np.int32), 1000)
+            darker = brightness(patch) < brightness(combined_image)
             combined_image[darker] = patch[darker]
 
         # Make the combined image monochrome if checked: all coloured pixels get their average colour (B20: was always black)
         if self.monochrome_check.isChecked():
-            color_mask = ~np.all(combined_image == [255, 255, 255], axis=-1)
+            color_mask = combined_image[..., 3] > 0
             if color_mask.any():
                 combined_image[color_mask] = combined_image[color_mask].mean(axis=0).astype(np.uint8)
 
@@ -661,8 +526,8 @@ class BaseFunctions:
         mask_cropped = active_mask[row_min:row_max+1, col_min:col_max+1]
         image_cropped = self.data_handler.image_matrix[row_min:row_max+1, col_min:col_max+1]
         
-        # Fill the output image with pixels where mask==1, white elsewhere
-        output_image = np.ones_like(image_cropped) * 255
+        # keep pixels where mask==1, transparent elsewhere
+        output_image = np.zeros_like(image_cropped)
         output_image[mask_cropped == 1] = image_cropped[mask_cropped == 1]
 
         image_name = self.active_image_item.text()
@@ -678,12 +543,7 @@ class BaseFunctions:
         # Get the bounding box of the image
         h, w = image_matrix.shape[:2]
         
-        # Determine background color (assuming top-left pixel is part of the background)
-        # This might need adjustment if the background is not consistently in the corners
-        background_color = [255,255,255] #background color is always flat white
-        
-        # Find pixels that match the background color
-        background_mask = np.all(image_matrix == background_color, axis=-1)
+        background_mask = image_matrix[..., 3] == 0
         
         # Find the bounding rectangle of the non-background pixels
         rows = np.where(~background_mask)[0]
@@ -1426,8 +1286,8 @@ class NewBlankDialog(QtWidgets.QDialog):
                 )
                 return
             
-            # Create a white image
-            image_matrix = np.ones((pixel_height, pixel_width, 3), dtype=np.uint8) * 255
+            # Create a transparent (empty) image
+            image_matrix = np.zeros((pixel_height, pixel_width, 4), dtype=np.uint8)
             
             # Create ImgObj and add to list
             img_obj = ImageDocument(image_matrix.copy(), image_matrix.copy(), pixels_per_mm, pixels_per_mm)

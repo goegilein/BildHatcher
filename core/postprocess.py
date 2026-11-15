@@ -207,7 +207,7 @@ class PostProcessor:
         return A_new, A_pre, B_new, B_post
 
 
-def apply_speed_and_power(hatch_data_in: HatchData, white_threshold, power_mode, speed_mode,
+def apply_speed_and_power(hatch_data_in: HatchData, power_mode, speed_mode,
                           min_pwr=None, max_pwr=None, min_speed=None, max_speed=None,
                           pwr_struc_num=1, speed_struc_num=1, db_color_palette=None):
     """Return a deep copy of hatch_data with speed and power set on every layer.
@@ -221,11 +221,6 @@ def apply_speed_and_power(hatch_data_in: HatchData, white_threshold, power_mode,
             if not layer.polylines:  # B09: colour without any hatch lines
                 continue
             color = list(layer.color)
-
-            # Check for white threshold. If the color is too bright, remove the data
-            if sum(color)/3>white_threshold:
-                layer.polylines = []
-                continue
 
 
             #power settings

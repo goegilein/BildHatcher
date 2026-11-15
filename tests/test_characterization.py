@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 from PyQt6 import QtCore
 
+from core import image_doc
 from core.image_doc import ImageDocument
 from core import gcode
 
@@ -39,7 +40,8 @@ def make_test_image(width_px=120, height_px=80):
 
 
 def load_image(c, image_matrix, ppm=PIXEL_PER_MM, name="test.png"):
-    """Mimics ImageControlling.BaseFunctions.load_image without the file dialog."""
+    """Mimics ImageControlling.BaseFunctions.load_image without the file dialog (pure white -> transparent)."""
+    image_matrix = image_doc.from_rgb(image_matrix) if image_matrix.shape[2] == 3 else image_matrix
     ctrl = c.image_controller
     ctrl.changeing_image = True
     ctrl.add_listbox_item(ImageDocument(image_matrix.copy(), image_matrix.copy(), ppm, ppm), name, set_selected=True)
@@ -49,7 +51,7 @@ def load_image(c, image_matrix, ppm=PIXEL_PER_MM, name="test.png"):
 
 
 def run_hatching(c, pattern, angle=45.0, dist_mode="ColorRanged", dist_min=300, dist_max=700,
-                 hatch_mode="Flat", cyl_rad=100.0, precision=0.1, white_threshold=254, seed=1234):
+                 hatch_mode="Flat", cyl_rad=100.0, precision=0.1, seed=1234):
     """Runs the hatcher synchronously (no worker thread) with the given GUI settings."""
     gui = c.gui
     gui.hatch_pattern_combobox.setCurrentText(pattern)
@@ -60,7 +62,6 @@ def run_hatching(c, pattern, angle=45.0, dist_mode="ColorRanged", dist_min=300, 
     gui.hatch_mode_combobox.setCurrentText(hatch_mode)
     gui.cyl_rad_spinbox.setValue(cyl_rad)
     gui.hatch_precision_spinbox.setValue(precision)
-    gui.white_threshold_hatching_spinbox.setValue(white_threshold)
 
     hatcher = c.image_hatcher
     hatcher.worker = SimpleNamespace(progress=SimpleNamespace(emit=lambda *_: None))  # stub: no thread
@@ -75,7 +76,7 @@ def run_hatching(c, pattern, angle=45.0, dist_mode="ColorRanged", dist_min=300, 
 
 
 def run_parser(c, post_processing="None", power_format="color-scaled", speed_format="constant (max. Val.)",
-               min_power=10, max_power=80, min_speed=20, max_speed=60, white_threshold=254,
+               min_power=10, max_power=80, min_speed=20, max_speed=60,
                laser_mode="constant", air_assist="off", power_mode="half", offset=(0, 0, 0)):
     """Creates a process block from the active hatch data and renders its G-code body."""
     gui = c.gui
@@ -86,7 +87,6 @@ def run_parser(c, post_processing="None", power_format="color-scaled", speed_for
     gui.max_power_spinbox.setValue(max_power)
     gui.min_speed_spinbox.setValue(min_speed)
     gui.max_speed_spinbox.setValue(max_speed)
-    gui.white_threshold_parsing_spinbox.setValue(white_threshold)
     gui.laser_mode_combobox.setCurrentText(laser_mode)
     gui.air_assist_combobox.setCurrentText(air_assist)
     gui.power_mode_combobox.setCurrentText(power_mode)

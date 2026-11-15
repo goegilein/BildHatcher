@@ -16,7 +16,9 @@ class Parser:
 
         # Initialize GUI elements from the preloaded PyQt6 GUI
         self.post_processing_combobox = gui.post_processing_combobox
-        self.white_threshold_parsing_spinbox = gui.white_threshold_parsing_spinbox
+        # shortcut: Phase 3 replaced the white threshold by transparency; widgets stay in the .ui until P7 cleanup
+        for name in ("white_threshold_parsing_spinbox", "white_threshold_parsing_label"):
+            getattr(gui, name).hide()
         self.laser_mode_combobox = gui.laser_mode_combobox
         self.min_power_spinbox = gui.min_power_spinbox
         self.max_power_spinbox = gui.max_power_spinbox
@@ -45,7 +47,6 @@ class Parser:
         self.air_assist_combobox.addItems(["on", "off"])
         self.power_mode_combobox.addItems(["half", "full"])
 
-        self.white_threshold_parsing_spinbox.setValue(255)
         self.min_power_spinbox.setValue(0)
         self.max_power_spinbox.setValue(100)
         self.min_speed_spinbox.setValue(0)
@@ -180,7 +181,7 @@ class Parser:
             file.write(formated_gcode)
 
     
-    def automatic_jcode(self, db_color_palette, white_threshold=255, offset = [0,0,0]):
+    def automatic_jcode(self, db_color_palette, offset = [0,0,0]):
         post_processing = db_color_palette.post_processing
         laser_mode = db_color_palette.laser_mode
         enclosure_fan = db_color_palette.enclosure_fan
@@ -190,7 +191,7 @@ class Parser:
         self.get_handler_data()
 
         hatch_data = apply_speed_and_power(
-            self.hatch_data, white_threshold, power_mode="db_based", speed_mode="db_based",
+            self.hatch_data, power_mode="db_based", speed_mode="db_based",
             db_color_palette=db_color_palette)
         
         process_block = self.post_processor.process_block(ProcessBlock(
@@ -221,7 +222,7 @@ class Parser:
         self.get_handler_data()
 
         hatch_data = apply_speed_and_power(
-            self.hatch_data, self.white_threshold_parsing_spinbox.value(),
+            self.hatch_data,
             power_mode=self.power_format_combobox.currentText(),
             speed_mode=self.speed_format_combobox.currentText(),
             min_pwr=self.min_power_spinbox.value(), max_pwr=self.max_power_spinbox.value(),

@@ -18,7 +18,7 @@ def test_b02_b03_automatic_hatching_runs_in_thread_and_returns(app_components):
     c = app_components
     load_image(c, make_test_image())
     ok = c.image_hatcher.create_hatching(mode="automatic", db_color_palette=DB_PALETTE, hatch_pattern=None,
-                                         cyl_rad_mm=100, hatch_mode="Flat", stepsize_mm=0.1, white_threshold=254)
+                                         cyl_rad_mm=100, hatch_mode="Flat", stepsize_mm=0.1)
     assert ok is True
     assert c.data_handler.hatch_data.type == "Image: database profile"
     assert c.data_handler.hatch_data.hatch_clusters[0].data
@@ -30,7 +30,7 @@ def test_b02_failed_automatic_hatching_does_not_hang(app_components, monkeypatch
     monkeypatch.setattr(QtWidgets.QMessageBox, "warning", lambda *args: warnings.append(args))
     load_image(c, make_test_image(width_px=600))  # 60 mm wide on a 5 mm radius cylinder: > 360 degrees
     ok = c.image_hatcher.create_hatching(mode="automatic", db_color_palette=DB_PALETTE, hatch_pattern=None,
-                                         cyl_rad_mm=5, hatch_mode="CylEquidistX", stepsize_mm=0.1, white_threshold=254)
+                                         cyl_rad_mm=5, hatch_mode="CylEquidistX", stepsize_mm=0.1)
     assert ok is False
     assert warnings and "too wide" in warnings[0][2]
 
@@ -138,8 +138,8 @@ def test_b20_combine_monochrome_uses_average_colour(app_components):
     c.gui.monochrome_check.setChecked(True)
     c.image_controller.combine_images()
     combined = c.image_controller.get_active_image_matrix()
-    assert combined[0, 0].tolist() == [100, 0, 50] == combined[1, 1].tolist()
-    assert (combined[2:, 2:] == 255).all()
+    assert combined[0, 0].tolist() == [100, 0, 50, 255] == combined[1, 1].tolist()
+    assert (combined[2:, 2:] == 0).all()  # background stays transparent
 
 
 def test_plotting_builds_one_line_item_per_visible_layer(app_components):
@@ -147,10 +147,9 @@ def test_plotting_builds_one_line_item_per_visible_layer(app_components):
     from test_characterization import run_hatching
     c = app_components
     load_image(c, make_test_image())
-    result = run_hatching(c, pattern="FixedMeander", angle=45.0, white_threshold=254)
-    c.gui.white_threshold_plotting_spinbox.setValue(254)  # hide white
+    result = run_hatching(c, pattern="FixedMeander", angle=45.0)
     c.hatch_line_plotter.plot_hatch_lines()
-    layers = [l for l in result.hatch_clusters[0].data if l.polylines and sum(l.color) / 3 <= 254]
+    layers = [l for l in result.hatch_clusters[0].data if l.polylines]
     items = c.hatch_line_plotter.plot_line_items
     assert len(items) == len(layers)
     expected_rows = sum(l.point_count + len(l.polylines) - 1 for l in layers)  # + NaN separators

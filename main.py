@@ -60,7 +60,9 @@ def create_main_window():
     gui.image_canvas.setRenderHint(QPainter.RenderHint.Antialiasing, False)
     gui.image_canvas.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
 
-    # cut all children (overlay drawings) of the image item at its edges.
+    # cut all children (overlay drawings) of the image item at its edges. The shape must be the full rectangle,
+    # otherwise transparent pixels would clip away overlays and the checkerboard drawn on them.
+    gui.image_item.setShapeMode(QtWidgets.QGraphicsPixmapItem.ShapeMode.BoundingRectShape)
     gui.image_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape, True)
     return gui
 

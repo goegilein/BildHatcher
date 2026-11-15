@@ -7,6 +7,7 @@ import tempfile
 import shutil
 import cv2
 import numpy as np
+from core import image_doc
 
 class ImageUpscaler:
     """
@@ -126,13 +127,7 @@ class ImageUpscaler:
                 status_callback("Error: No image loaded.")
             return None
 
-        image_matrix = np.asarray(self.image_matrix)
-        if image_matrix.ndim == 2:
-            image_matrix = np.stack([image_matrix] * 3, axis=-1)
-        elif image_matrix.shape[-1] == 4:
-            image_matrix = image_matrix[..., :3]
-        elif image_matrix.shape[-1] != 3:
-            raise ValueError(f"Unsupported image shape for palette-preserving upscale: {image_matrix.shape}")
+        image_matrix = image_doc.normalize(self.image_matrix)
 
         if scale <= 0:
             raise ValueError("Scale must be a positive integer.")
@@ -189,7 +184,7 @@ class ImageUpscaler:
         try:
             # Convert RGB image matrix to BGR for OpenCV write
             image_matrix = self.image_matrix
-            bgr_image = cv2.cvtColor(image_matrix, cv2.COLOR_RGB2BGR)
+            bgr_image = cv2.cvtColor(image_doc.rgb_filled(image_matrix), cv2.COLOR_RGB2BGR)  # engine needs RGB
             cv2.imwrite(temp_in, bgr_image)
 
             if status_callback:
@@ -240,7 +235,7 @@ class ImageUpscaler:
             if status_callback:
                 status_callback("Upscaling completed successfully!")
 
-            return upscaled_rgb
+            return self._with_scaled_alpha(upscaled_rgb, scale)
 
         except Exception as e:
             if status_callback:
@@ -272,10 +267,15 @@ class ImageUpscaler:
         if self.image_matrix is None:
             return None
 
-        image_matrix = self.image_matrix
+        image_matrix = image_doc.rgb_filled(self.image_matrix)  # transparent -> white, so edges do not darken
         new_w, new_h = self.calculate_dimensions(scale)
 
         # Apply OpenCV high-quality Lanczos4 interpolation
         upscaled_rgb = cv2.resize(image_matrix, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
 
-        return upscaled_rgb
+        return self._with_scaled_alpha(upscaled_rgb, scale)
+
+    def _with_scaled_alpha(self, upscaled_rgb, scale):
+        """Attach the source alpha, scaled with nearest neighbour (stays binary)."""
+        alpha = cv2.resize(image_doc.normalize(self.image_matrix)[..., 3], upscaled_rgb.shape[1::-1], interpolation=cv2.INTER_NEAREST)
+        return image_doc.with_rgb(np.dstack([upscaled_rgb, alpha]), upscaled_rgb)

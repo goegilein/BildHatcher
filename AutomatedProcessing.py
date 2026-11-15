@@ -24,7 +24,9 @@ class AutomatedProcessor:
         self.automatic_gcode_file_button.clicked.connect(self.automatic_gcode_file)
         self.automatic_post_processing_comboBox = gui.automatic_post_processing_comboBox
         self.automatic_post_processing_comboBox.addItems(["None", "Maximize Lines", "Constant Drive", "Over Drive"])
-        self.automatic_white_threshold_spinBox = gui.automatic_white_threshold_spinBox
+        # shortcut: Phase 3 replaced the white threshold by transparency; widgets stay in the .ui until P7 cleanup
+        for name in ("automatic_white_threshold_spinBox", "label_9"):
+            getattr(gui, name).hide()
         self.automatic_hatch_mode_comboBox = gui.automatic_hatch_mode_comboBox
         self.automatic_hatch_mode_comboBox.addItems(["Flat", "CylEquidistX", "CylEquidistRad"])
         self.automatic_cyl_rad_spinBox = gui.automatic_cyl_rad_spinBox
@@ -60,13 +62,11 @@ class AutomatedProcessor:
             hatch_pattern = None,
             cyl_rad_mm = self.automatic_cyl_rad_spinBox.value(),
             hatch_mode = self.automatic_hatch_mode_comboBox.currentText(),
-            stepsize_mm=  0.1,
-            white_threshold = self.automatic_white_threshold_spinBox.value())
+            stepsize_mm=  0.1)
         if not hatched:  # failed or cancelled: do not export stale hatch data
             return
 
         self.parser.automatic_jcode(
             db_color_palette = self.db_color_palette,
-            white_threshold = self.automatic_white_threshold_spinBox.value(),
             offset = [0,0,0]
         )

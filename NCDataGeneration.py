@@ -55,7 +55,9 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.hatch_progress_label = gui.hatch_progress_label
         self.create_contours_button = gui.create_contours_button
         self.contour_source_combobox = gui.contour_source_combobox
-        self.white_threshold_hatching_spinbox = gui.white_threshold_hatching_spinbox
+        # shortcut: Phase 3 replaced the white threshold by transparency; widgets stay in the .ui until P7 cleanup
+        for name in ("white_threshold_hatching_spinbox", "label_4"):
+            getattr(gui, name).hide()
 
         # Initialize combobox values
         self.hatch_pattern_combobox.addItems(["FixedMeander", "RandomMeander", "CrossedMeander", "Circular", "Spiral", "Radial"])
@@ -177,6 +179,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
 
         #new implementation for speed
         reshaped = image_matrix.reshape(-1, 3)
+        reshaped = reshaped[reshaped[:, 0] >= 0]  # transparent pixels (-1) are background
         
         # Use a set to get unique colors (very fast)
         unique_colors_set = set(map(tuple, reshaped))
@@ -199,7 +202,6 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
             cyl_rad_mm=self.cyl_rad_spinbox.value(),
             hatch_mode=self.hatch_mode_combobox.currentText(),
             stepsize_mm=self.hatch_precision_spinbox.value(),
-            white_threshold=self.white_threshold_hatching_spinbox.value(),
         )
         settings.update(overrides)
         return settings
@@ -238,7 +240,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
 
     def create_hatching_worker(self, mode="manual", db_color_palette=None, hatch_pattern=None, hatch_angle=None,
                                hatch_dist_mode="Fixed", hatch_dist_min=None, hatch_dist_max=None, cyl_rad_mm=None,
-                               hatch_mode=None, stepsize_mm=None, white_threshold=None):
+                               hatch_mode=None, stepsize_mm=None):
         """Runs in the worker thread: must not touch any widget."""
         try:
             self.get_handler_data()
@@ -271,7 +273,6 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
                     cyl_rad_mm=cyl_rad_mm,
                     hatch_mode=hatch_mode,
                     stepsize_mm=stepsize_mm,
-                    white_threshold=white_threshold,
                     db_color_palette=db_color_palette,
                     cluster_progress = cluster_progress
                 )
@@ -332,7 +333,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.worker.wait()
         self.hatch_progress_label.setText("Hatch State: Cancelled")
 
-    def hatch_cluster(self, cluster_matrix, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", hatch_dist_min=300, hatch_dist_max=700, cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, white_threshold=255, db_color_palette=None, cluster_progress=0):
+    def hatch_cluster(self, cluster_matrix, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", hatch_dist_min=300, hatch_dist_max=700, cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, db_color_palette=None, cluster_progress=0):
         hatched_cluster = []
         color_cluster_counter = 0
         cyl_rad = cyl_rad_mm * self.pixel_per_mm
@@ -349,12 +350,6 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
             
             # Ensure the sum of RGB values is within a safe range
             color = np.array(color, dtype=np.int64)
-
-            if sum(color)/3 > white_threshold:
-                # Skip colors that are too bright (white), and update the progress bar
-                color_cluster_counter += 1
-                self._report_progress(np.ceil(color_cluster_counter / len(color_list) * cluster_progress))
-                continue
 
             #if mode is automatic, get hatch settings from best fit color of database color palette   
             if mode == "automatic":
@@ -1097,7 +1092,10 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.data_handler.hatch_data = self.hatch_data
 
     def get_handler_data(self):
-        self.image_matrix = np.flipud(self.data_handler.image_matrix) #account for the fact that image coordinates are flipped in y direction compared to canvas coordinates
+        rgba = np.flipud(self.data_handler.image_matrix) #account for the fact that image coordinates are flipped in y direction compared to canvas coordinates
+        # int16 RGB with -1 for transparent pixels: matches no colour, so the background is never hatched
+        self.image_matrix = rgba[..., :3].astype(np.int16)
+        self.image_matrix[rgba[..., 3] == 0] = -1
         self.pixel_per_mm = self.data_handler.pixel_per_mm
         # B28: rows are flipped as r -> H-1-r (flipud above), the center must use the same mapping (was H-r: 1 px y offset)
         self.center_for_hatch = [self.data_handler.center_for_hatch[0], self.data_handler.image_matrix.shape[0] - 1 - self.data_handler.center_for_hatch[1]]
