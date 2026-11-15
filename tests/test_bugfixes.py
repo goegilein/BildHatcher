@@ -53,8 +53,10 @@ def test_b01_dxf_import_with_arc(app_components, tmp_path, monkeypatch):
     assert len(clusters) == 1
     polylines = clusters[0].data[0].polylines
     assert len(polylines) == 3
-    arc = next(p for p in polylines if len(p) not in (2, 101))
-    assert len(arc) == 7  # 20 degree sweep -> ceil(20/360*100)=6 segments -> 7 points
+    import numpy as np
+    arc = min((p for p in polylines if len(p) > 2), key=len)  # the 20 degree arc (the circle has more points)
+    radii = np.hypot(arc[:, 0] - 5, arc[:, 1] - 5)
+    assert np.allclose(radii, 3, atol=0.011) and arc[0, 0] > 7.9 and arc[-1, 0] > 7.9  # short arc across 0 degrees
 
 
 def _straight_polyline(n):

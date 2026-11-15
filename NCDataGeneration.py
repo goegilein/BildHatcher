@@ -10,8 +10,27 @@ from HelperClasses import HatchData, HatchCluster
 from core import hatching
 from core.toolpath import Layer, polyline, X, Y, MOVE, MOVE_TRAVEL, MOVE_BURN
 import ezdxf
+from ezdxf import path as dxf_path
 
 log = logging.getLogger(__name__)
+
+
+DXF_TOLERANCE = 0.01  # mm, max. deviation of the flattened curves
+
+
+def dxf_polylines(modelspace, tolerance=DXF_TOLERANCE):
+    """2-D vertex arrays of all path-like entities of a DXF modelspace (closed shapes end at their start point)."""
+    polylines = []
+    for entity in modelspace:
+        try:
+            p = dxf_path.make_path(entity)
+        except (TypeError, ValueError):
+            continue  # entity type without a path representation
+        for sub in p.sub_paths():
+            vertices = np.array([(v.x, v.y) for v in sub.flattening(tolerance)])
+            if len(vertices) >= 2:
+                polylines.append(vertices)
+    return polylines
 
 
 def _to_layer(color, line_collection):
@@ -427,119 +446,19 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.set_handler_data()
     
     def contour_from_dxf(self):
-        """
-        Reads a DXF file and gathers lines, polylines, circles, arcs, etc.
-        Approximates arcs & circles into polylines.
-        Then shifts everything so the top-left corner of the bounding box is (0,0).
-        Stores the result in self.hatch_data as one Layer of polylines.
-        """
-        file_path, _ = QFileDialog.getOpenFileName()
+        """Import the outlines of a DXF file as one layer of polylines, shifted so the lower left corner is (0, 0).
+        P6.8: every entity ezdxf can turn into a path (lines, (LW)polylines incl. bulges, circles, arcs, ellipses,
+        splines, ...) is flattened with DXF_TOLERANCE; other entities (text, blocks, ...) are skipped."""
+        file_path, _ = QFileDialog.getOpenFileName(self.gui, "Import DXF", "", "DXF Files (*.dxf);;All Files (*)")
         if not file_path:
             return
-
-        doc = ezdxf.readfile(file_path)
-        msp = doc.modelspace()
-
-        polylines_raw = []
-        all_points = []
-
-        #need functions to convert circles and arcs
-        def approximate_circle(center, radius, segments=36):
-            """Return a list of (x, y) points approximating the entire circle."""
-            cx, cy = center
-            points = []
-            for i in range(segments):
-                angle = 2.0 * np.pi * i / segments
-                x = cx + radius * np.cos(angle)
-                y = cy + radius * np.sin(angle)
-                points.append((x, y))
-            # Close the circle
-            points.append(points[0])
-            return points
-
-        def approximate_arc(center, radius, start_angle, end_angle, segments=36):
-            """Return a list of (x, y) points approximating an arc from start_angle to end_angle."""
-            cx, cy = center
-            points = []
-            sweep = end_angle - start_angle
-            for i in range(segments + 1):
-                frac = i / segments
-                angle = np.radians(start_angle + sweep * frac)
-                x = cx + radius * np.cos(angle)
-                y = cy + radius * np.sin(angle)
-                points.append((x, y))
-            return points
-
-        # Collect LINE entities (each is 2 points)
-        for entity in msp.query("LINE"):
-            start = entity.dxf.start
-            end = entity.dxf.end
-            line_poly = [(start.x, start.y), (end.x, end.y)]
-            polylines_raw.append(line_poly)
-            all_points.extend(line_poly)
-
-        # Collect LWPOLYLINE entities
-        for entity in msp.query("LWPOLYLINE"):
-            coords = [(x, y) for x, y, *rest in entity.lwpoints]
-            polylines_raw.append(coords)
-            all_points.extend(coords)
-        
-        # Collect regular POLYLINE entities (2D)
-        for entity in msp.query("POLYLINE"):
-            # Some polyline entities can have vertices
-            coords = []
-            for vertex in entity.vertices:
-                coords.append((vertex.dxf.location.x, vertex.dxf.location.y))
-            if coords:
-                polylines_raw.append(coords)
-                all_points.extend(coords)
-
-        # Collect CIRCLE entities, approximate them
-        for entity in msp.query("CIRCLE"):
-            center = (entity.dxf.center.x, entity.dxf.center.y)
-            radius = entity.dxf.radius
-            circle_approx = approximate_circle(center, radius, segments=100)
-            polylines_raw.append(circle_approx)
-            all_points.extend(circle_approx)
-
-        # Collect ARC entities, approximate them
-        for entity in msp.query("ARC"):
-            center = (entity.dxf.center.x, entity.dxf.center.y)
-            radius = entity.dxf.radius
-            start_angle = entity.dxf.start_angle
-            end_angle = entity.dxf.end_angle
-            if end_angle <= start_angle:  # DXF arcs run counter-clockwise and may cross 0 degrees
-                end_angle += 360
-            segments = max(2, int(np.ceil((end_angle - start_angle) / 360 * 100)))  # B01: angles are degrees, range() needs int
-            arc_approx = approximate_arc(center, radius, start_angle, end_angle, segments=segments)
-            polylines_raw.append(arc_approx)
-            all_points.extend(arc_approx)
-
-        if not all_points:
-            print("Error: No geometry found in the DXF.")
+        polylines = dxf_polylines(ezdxf.readfile(file_path).modelspace())
+        if not polylines:
+            QtWidgets.QMessageBox.warning(self.gui, "Import DXF", "No supported geometry found in the DXF file.")
             return
-        
-        # Compute bounding box & shift so top-left => (0,0)
-        min_x = min(pt[0] for pt in all_points)
-        min_y = min(pt[1] for pt in all_points)
-        
-        # Shift polylines
-        polylines_shifted = []
-        for poly in polylines_raw:
-            shifted_poly = []
-            for i, (px, py) in enumerate(poly):
-                # Shift to make top-left corner at (0,0)
-                sx = px - min_x
-                sy = py - min_y
-                shifted_poly.append((sx, sy))
-            polylines_shifted.append(shifted_poly)
-
-        # Convert to hatch_data format: list of polylines, each a list of Points
-        # move_type: 0 for the first point, 1 for subsequent points
-        line_collection = []
-        for poly in polylines_shifted:
-            line_collection.append([(px, py, 0, MOVE_TRAVEL if i == 0 else MOVE_BURN) for i, (px, py) in enumerate(poly)])
-
+        offset = np.min(np.concatenate(polylines), axis=0)
+        line_collection = [[(px, py, 0, MOVE_TRAVEL if i == 0 else MOVE_BURN) for i, (px, py) in enumerate(poly - offset)]
+                           for poly in polylines]
         cluster_data = [_to_layer((0, 0, 0), line_collection)]
         self.hatch_data = HatchData([HatchCluster(cluster_data, None, ref_position=[0,0,0,0], cluster_center_for_hatch=None, cylinder_radius=0)], "DXF_Imported")
         self.set_handler_data()

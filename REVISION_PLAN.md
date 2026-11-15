@@ -216,7 +216,7 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 - [ ] P6.5 Colour overlays cropped to bounding box (not full-size RGBA per fill); pixmap overlays imprinted in numpy, vector items via QPainter into RGBA layer.
 - [ ] P6.6 Vectorize split colours, combine images, clean-up colours/clusters (remove unused `clean_up_clusters` if still unused).
 - [ ] P6.7 Contours: new mode "region outlines" via `findContours` on per-colour masks (`CHAIN_APPROX_NONE` + `approxPolyDP`); keep Canny mode.
-- [ ] P6.8 DXF import via `ezdxf.path` + `flattening(tolerance)` (supports splines, ellipses, bulges).
+- [x] P6.8 DXF import via `ezdxf.path.make_path` + `flattening(0.01 mm)`: lines, (LW)polylines incl. bulges (were drawn straight), circles, arcs, ellipses, splines; unsupported entities (text, block references) are skipped with a warning if nothing is left.
 - [x] P6.9 Undo keeps the newest actions within 512 MB of image snapshots (and max. 50). Changed-region storage: not done.
 - [x] P6.10 Upscaler runs in a `QThread` (status messages via queued signal), no side effects (2c). *Open:* verify the 4x-then-resize path with the real engine (not covered by tests).
 - [x] P6.11 Checked: grid and center cross live in the scene, so they follow pan/zoom; the cross is redrawn on rescale. Fixed: the grid only covered one viewport size around the origin (missing when zoomed out) – now image + one view size, redrawn on zoom, max. 500 lines per direction.
@@ -295,3 +295,4 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 | 2026-11-15 | B17 (rest), P6.11 | Mask outlines follow pixel-size changes; grid covers the visible area. 55 tests. |
 | 2026-11-15 | P6.9, P6.10, B22 | Undo memory budget; upscaling in a worker thread. 57 tests. |
 | 2026-11-15 | P6.1, B33 | Correct adjustment base, debounced sliders. 59 tests. |
+| 2026-11-15 | P6.8 | DXF via ezdxf paths. 59 tests. |
