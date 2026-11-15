@@ -608,11 +608,19 @@ class BaseFunctions:
                 progress_dialog.setValue(50)
             elif "completed" in msg:
                 progress_dialog.setValue(100)
-            QtWidgets.QApplication.processEvents()
 
         try:
-            upscaler = ImageUpscaler(img_obj.image_matrix.copy())
-            upscaled_rgb = upscaler.upscale(scale=2, model="realesrgan-x4plus", use_gpu=True, status_callback=status_callback, preserve_palette=preserve_palette)
+            # P6.10: download + engine run in a worker thread; the dialog stays responsive
+            worker = _UpscaleWorker(ImageUpscaler(img_obj.image_matrix.copy()), preserve_palette)
+            worker.status.connect(status_callback, QtCore.Qt.ConnectionType.QueuedConnection)
+            loop = QtCore.QEventLoop()
+            worker.finished.connect(loop.quit)
+            worker.start()
+            loop.exec()
+            worker.wait()
+            if worker.error is not None:
+                raise worker.error
+            upscaled_rgb = worker.result
 
             if upscaled_rgb is None:
                 QtWidgets.QMessageBox.critical(self.gui, "Upscale Image", "Upscaling failed.")
@@ -693,6 +701,23 @@ class BaseFunctions:
         #ensure to reset the image bounds
         self.gui.image_scene.setSceneRect(self.gui.image_item.boundingRect())
     
+class _UpscaleWorker(QtCore.QThread):
+    """Runs ImageUpscaler.upscale (2x) off the GUI thread; status messages are emitted as a signal."""
+    status = QtCore.pyqtSignal(str)
+
+    def __init__(self, upscaler, preserve_palette):
+        super().__init__()
+        self.upscaler, self.preserve_palette = upscaler, preserve_palette
+        self.result, self.error = None, None
+
+    def run(self):
+        try:
+            self.result = self.upscaler.upscale(scale=2, model="realesrgan-x4plus", use_gpu=True,
+                                                status_callback=self.status.emit, preserve_palette=self.preserve_palette)
+        except Exception as e:
+            self.error = e
+
+
 class ImageMover(QtCore.QObject):
     def __init__(self, data_handler, event_handler, gui):
         super().__init__()

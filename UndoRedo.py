@@ -24,6 +24,11 @@ def restore_image(image_controller, data_handler, image_item, matrix, pixel_per_
     return True
 
 
+def _action_bytes(action):
+    """Memory held by an undo action (its numpy image snapshots)."""
+    return sum(v.nbytes for v in vars(action).values() if isinstance(v, np.ndarray))
+
+
 class Action:
     """Base class for all undoable and redoable actions."""
 
@@ -276,12 +281,13 @@ class UndoRedoManager(QtCore.QObject):
 
     stack_changed = QtCore.pyqtSignal()
 
-    def __init__(self, gui=None, data_handler=None, max_stack_size=50):
+    def __init__(self, gui=None, data_handler=None, max_stack_size=50, max_stack_bytes=512 * 1024**2):
         super().__init__()
         self.gui = gui
         self.data_handler = data_handler
         self.image_controller = None
         self.max_stack_size = max_stack_size
+        self.max_stack_bytes = max_stack_bytes  # P6.9: image snapshots dominate; keep the newest within this budget
 
         self.undo_stack = []
         self.redo_stack = []
@@ -301,7 +307,8 @@ class UndoRedoManager(QtCore.QObject):
             return
 
         self.undo_stack.append(action)
-        if len(self.undo_stack) > self.max_stack_size:
+        while len(self.undo_stack) > 1 and (len(self.undo_stack) > self.max_stack_size
+                                             or sum(map(_action_bytes, self.undo_stack)) > self.max_stack_bytes):
             self.undo_stack.pop(0)
 
         self.redo_stack.clear()

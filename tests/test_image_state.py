@@ -68,3 +68,32 @@ def test_undo_rotation(app_components):
     c.data_handler.undo_manager.undo()
     assert np.array_equal(c.data_handler.image_matrix, image_doc.from_rgb(make_test_image()))
     assert _docs(c)[0] is c.data_handler.active_document
+
+
+def test_p69_undo_stack_is_limited_by_memory(app_components):
+    from UndoRedo import ImageMatrixAction
+    manager = app_components.data_handler.undo_manager
+    manager.max_stack_bytes = 10 * 2 * 1_000_000  # room for 10 actions of 2 x 1 MB
+    big = np.zeros((1000, 250, 4), np.uint8)  # 1 MB
+    for i in range(15):
+        manager.push_action(ImageMatrixAction(app_components.data_handler, app_components.gui, None, big, big, 1, 1,
+                                              description=str(i)))
+    assert [a.description for a in manager.undo_stack] == [str(i) for i in range(5, 15)]
+
+
+def test_p610_upscale_runs_in_worker_thread(app_components, monkeypatch):
+    import threading
+    import ImageUpscaling
+    threads = []
+    original = ImageUpscaling.ImageUpscaler.upscale
+
+    def spy(self, *args, **kwargs):
+        threads.append(threading.current_thread() is threading.main_thread())
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(ImageUpscaling.ImageUpscaler, "upscale", spy)
+    monkeypatch.setattr(QtWidgets.QMessageBox, "information", lambda *a, **k: None)
+    load_image(app_components, make_test_image())
+    app_components.image_controller.upscale_active_image(preserve_palette=True)
+    assert threads == [False]
+    assert _docs(app_components)[1].image_matrix.shape == (160, 240, 4)

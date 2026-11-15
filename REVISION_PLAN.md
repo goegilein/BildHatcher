@@ -128,7 +128,7 @@ tests/                   # pytest; core only, plus characterization tests
 | B19 | done | [Settings.py](Settings.py) | Comboboxes persisted by index (breaks when items change); hatching/plotting thresholds and several other parameters not saved. |
 | B20 | done | [ImageControlling.py:636](ImageControlling.py#L636) | `combine_images`: `avg_color` always `[0,0,0]` → monochrome is always black; Python per-pixel loop. |
 | B21 | done | Plotting.initializeGL | Raw GL calls without a current GL context → `GLError 1282` (crashes headless start; worked in the app only by accident). Calls were redundant – removed. |
-| B22 | partial | ImageUpscaling | Runs `realesrgan-x4plus` with `-s 2` (verify model supports it); blocking subprocess on UI thread; upscaler mutates `data_handler.image_matrix` as side effect. Vendored engine lacks the `models/` folder, so `is_engine_available()` is always False and the ~33 MB download runs anyway; in a frozen build it would download into the PyInstaller temp dir. |
+| B22 | done | ImageUpscaling | Runs `realesrgan-x4plus` with `-s 2` (verify model supports it); blocking subprocess on UI thread; upscaler mutates `data_handler.image_matrix` as side effect. Vendored engine lacks the `models/` folder, so `is_engine_available()` is always False and the ~33 MB download runs anyway; in a frozen build it would download into the PyInstaller temp dir. |
 | B23 | done | [NCDataGeneration.py:174](NCDataGeneration.py#L174) | `get_sorted_unique_colors` sums `uint8` tuples → overflow (RuntimeWarning in tests); colour processing order is effectively arbitrary instead of bright→dark. Fixing it changes golden outputs (order only). |
 | B24 | done | [PathManager.py](PathManager.py) | Uses `GUI_files` while the folder is `GUI_Files` – only works on case-insensitive file systems (Windows). |
 | B25 | done | [EventHandling.py](EventHandling.py) | Event filter keeps firing during teardown → `RuntimeError: wrapped C/C++ object … has been deleted` on exit. |
@@ -216,8 +216,8 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 - [ ] P6.6 Vectorize split colours, combine images, clean-up colours/clusters (remove unused `clean_up_clusters` if still unused).
 - [ ] P6.7 Contours: new mode "region outlines" via `findContours` on per-colour masks (`CHAIN_APPROX_NONE` + `approxPolyDP`); keep Canny mode.
 - [ ] P6.8 DXF import via `ezdxf.path` + `flattening(tolerance)` (supports splines, ellipses, bulges).
-- [ ] P6.9 Undo: memory-based limit (MB) instead of 50 full images; optional changed-region storage.
-- [ ] P6.10 Upscaler in worker thread; no side effects on state (see B22). Verify the 4x-then-resize path with the real engine (not covered by tests).
+- [x] P6.9 Undo keeps the newest actions within 512 MB of image snapshots (and max. 50). Changed-region storage: not done.
+- [x] P6.10 Upscaler runs in a `QThread` (status messages via queued signal), no side effects (2c). *Open:* verify the 4x-then-resize path with the real engine (not covered by tests).
 - [x] P6.11 Checked: grid and center cross live in the scene, so they follow pan/zoom; the cross is redrawn on rescale. Fixed: the grid only covered one viewport size around the origin (missing when zoomed out) – now image + one view size, redrawn on zoom, max. 500 lines per direction.
 
 ### Phase 7 – Polish  `[ ]`
@@ -292,3 +292,4 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 | 2026-11-15 | 5b | Machine profiles; `tests/test_machine.py` (old header/footer reproduced, second profile changes commands/options). 50 tests. |
 | 2026-11-15 | P6.2, P6.3, B32 | Vectorized flood fill (`tests/test_fill.py`), weighted k-means. 54 tests. |
 | 2026-11-15 | B17 (rest), P6.11 | Mask outlines follow pixel-size changes; grid covers the visible area. 55 tests. |
+| 2026-11-15 | P6.9, P6.10, B22 | Undo memory budget; upscaling in a worker thread. 57 tests. |
