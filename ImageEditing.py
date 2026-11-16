@@ -3,13 +3,12 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtCore import QRectF
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import cv2
-from sklearn.cluster import KMeans
 import numpy as np
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
 from HelperClasses import DBColorPalette
 import random
 from UndoRedo import ColorOverlayAction, ImprintColorOverlaysAction, ImageMatrixAction
-from core import fill, image_doc
+from core import fill, image_doc, palette
 import logging
 
 log = logging.getLogger(__name__)
@@ -241,22 +240,8 @@ class ImageAdjuster:
                 image_matrix = np.array(image)
                 # Flatten the image into a list of pixels
                 pixels = image_matrix.reshape((-1, 3))
-                # P6.2: cluster the distinct colours weighted by their pixel count (same result as clustering
-                # every pixel, far fewer points); very colourful photos use a random sample of the colours
-                keys = (pixels[:, 0].astype(np.int32) << 16) | (pixels[:, 1].astype(np.int32) << 8) | pixels[:, 2]
-                unique_keys, inverse, counts = np.unique(keys, return_inverse=True, return_counts=True)
-                colors = np.stack([unique_keys >> 16, (unique_keys >> 8) & 255, unique_keys & 255], axis=1).astype(np.float64)
-                num_colors = min(num_colors, len(colors))  # KMeans needs >= n distinct colours
-                kmeans = KMeans(n_clusters=num_colors, random_state=42, n_init='auto')
-                fit_idx = np.arange(len(colors))
-                if len(colors) > 100_000:
-                    fit_idx = np.random.default_rng(42).choice(len(colors), 100_000, replace=False)
-                kmeans.fit(colors[fit_idx], sample_weight=counts[fit_idx])
-                new_colors = np.round(kmeans.cluster_centers_).clip(0, 255).astype("uint8")
-                labels = kmeans.predict(colors)[inverse.reshape(-1)]
-
-                # Recreate the image using the new colors
-                simplified_image = new_colors[labels].reshape(image_matrix.shape)
+                # P6.2/P8.2: k-means on the distinct colours (weighted by count) in the perceptual CIELAB space
+                simplified_image = palette.kmeans_quantize(pixels, num_colors).reshape(image_matrix.shape)
                 image = Image.fromarray(simplified_image)
 
             elif quantize_method == "GRAYSCALE":
@@ -1548,50 +1533,41 @@ class ImageColorer(QtCore.QObject):
         except Exception as e:
             log.exception("Error finding image outlines")
     def clean_up_image_colors(self):
-        """
-        Removes thin artifact lines of intermediate colors using a majority vote,
-        but strictly prevents opaque pixels from being changed to the transparent background.
-        
-        :param quantized_image: The already color-reduced image (RGB, numpy array).
-        :param kernel_size: Odd integer (3, 5, 7) determining the filter size.
-        :return: Cleaned image as a numpy array.
-        """
+        """P8.3: reduce the image to a few clear colour areas without anti-aliasing traces (see core/palette.py)."""
+        if self.data_handler.image_matrix is None:
+            return
+        params = getattr(self, "_cleanup_params", {"n_colors": 8, "min_region": 6, "edge_threshold": 12.0})
+        dialog = QtWidgets.QDialog(self.gui)
+        dialog.setWindowTitle("Clean Up Colors")
+        form = QtWidgets.QFormLayout(dialog)
+        n_colors = QtWidgets.QSpinBox(minimum=1, maximum=64, value=params["n_colors"])
+        n_colors.setToolTip("Number of colours of the result")
+        min_region = QtWidgets.QSpinBox(minimum=1, maximum=10000, value=params["min_region"], suffix=" px")
+        min_region.setToolTip("Colour areas smaller than this are merged into their neighbour")
+        edge = QtWidgets.QDoubleSpinBox(minimum=1, maximum=100, value=params["edge_threshold"], decimals=1)
+        edge.setToolTip("Colour difference (delta E) between neighbouring pixels that counts as an edge; "
+                        "smaller = more pixels are treated as edge blends")
+        form.addRow("Colors", n_colors)
+        form.addRow("Min. region size", min_region)
+        form.addRow("Edge sensitivity", edge)
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        self._cleanup_params = {"n_colors": n_colors.value(), "min_region": min_region.value(), "edge_threshold": edge.value()}
+        self.apply_color_cleanup(**self._cleanup_params)
+
+    def apply_color_cleanup(self, n_colors=8, min_region=6, edge_threshold=12.0):
         ctx = self.undo_manager.record_image_matrix("Clean Up Colors") if self.undo_manager else nullcontext()
         with ctx:
-            quantized_image = self.data_handler.image_matrix.copy()
-            if quantized_image is None:
-                return
-            
-            kernel_size = 3  # B13: was the colour-count spinbox. shortcut: fixed size, add a UI control if needed (P6.6)
-           
-            # 1. Extract all unique colors present in the image
-            pixels = quantized_image.reshape(-1, 4)
-            unique_colors = np.unique(pixels, axis=0)
-            
-            h, w, _ = quantized_image.shape
-            num_colors = len(unique_colors)
-            
-            kernel = np.ones((kernel_size, kernel_size), dtype=np.float32)
-            opaque = quantized_image[..., 3] > 0
-
-            # 2.-4. Majority vote: count each colour in the neighbourhood and keep the best one so far
-            # (P6.6: running maximum instead of an H x W x colours array; the first maximum wins like argmax)
-            best_score = np.full((h, w), -np.inf, dtype=np.float32)
-            best_color_indices = np.zeros((h, w), dtype=np.intp)
-            for idx, color in enumerate(unique_colors):
-                mask = np.all(quantized_image == color, axis=-1).astype(np.float32)
-                score = cv2.filter2D(mask, -1, kernel)
-                if color[3] == 0:  # rule: an opaque pixel never becomes transparent background
-                    score[opaque] = -1
-                better = score > best_score
-                best_score[better] = score[better]
-                best_color_indices[better] = idx
-            
-            # 5. Reconstruct the image with the winning colors
-            result_image = unique_colors[best_color_indices]
-
-            # Update the data handler with the cleaned image
-            self.data_handler.image_matrix = result_image.astype(np.uint8)
+            QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
+            try:
+                self.data_handler.image_matrix = palette.pixel_art_cleanup(
+                    self.data_handler.image_matrix, n_colors, min_region, edge_threshold)
+            finally:
+                QtWidgets.QApplication.restoreOverrideCursor()
     
 
     #Image Masking Functions

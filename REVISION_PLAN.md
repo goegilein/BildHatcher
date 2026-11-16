@@ -238,8 +238,8 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 Requested after Phase 7 (branch is not merged into `main` before this phase is done).
 
 - [x] **P8.1 One config file.** Settings → *Save Config* writes all keys into one `.json`; Today two files (image / hatching settings) for historical reasons; "Load Config" already accepts both. One "Save Config" with all keys; old `_imageconfig` / `_hatchingconfig` files keep loading.
-- [ ] **P8.2 K-means in a perceptual colour space.** Quantization (DEFAULT) clusters in CIELAB instead of RGB.
-- [ ] **P8.3 Pixel-art clean-up (new "Clean Up Colors").** Reduce an image to a few clear, distinct colour areas without the anti-aliasing traces that quantization + smoothing leave at edges:
+- [x] **P8.2 K-means in a perceptual colour space.** `core/palette.kmeans_quantize`: Quantization (DEFAULT) clusters in CIELAB instead of RGB.
+- [x] **P8.3 Pixel-art clean-up (new "Clean Up Colors").** `core/palette.pixel_art_cleanup`, dialog with colours / min. region / edge sensitivity, undo. Found while testing: wide halos (e.g. from bicubic scaling) count as flat areas → only core pixels the palette represents well (ΔE < 2 × threshold) are trusted; all others take their colour from labelled neighbours, growing outwards. 2400×1800 px: 1.5 s (8 colours) – 4 s (3 colours). Replaces the old majority vote. Reduce an image to a few clear, distinct colour areas without the anti-aliasing traces that quantization + smoothing leave at edges:
   1. palette from the *core* pixels only (pixels whose neighbourhood is uniform, so edge blends cannot become palette colours), k-means in CIELAB;
   2. core pixels → nearest palette colour; edge pixels → nearest colour *among the palette colours of the neighbouring core pixels* (a red/blue blend becomes red or blue, never a third colour that happens to be close);
   3. regions smaller than a minimum size are merged into the neighbouring colour they share the longest border with;
@@ -324,3 +324,4 @@ Requested after Phase 7 (branch is not merged into `main` before this phase is d
 | 2026-11-15 | P7.4, P7.5 | Version 2.0.0, build checked (exe starts), README. All phases done. |
 | 2026-11-16 | Phase 8 | New phase planned (UI rework, pixel-art clean-up, global colour profile, single config, Lab k-means, mask module, architecture slides). |
 | 2026-11-16 | P8.1 | Single config file. |
+| 2026-11-16 | P8.2, P8.3 | CIELAB k-means, pixel-art clean-up (`tests/test_palette.py`: exact palette, no blend colours, no islands, fewer wrong pixels than plain k-means). `LOKY_MAX_CPU_COUNT` set to skip a 2 s core-detection subprocess of joblib. 69 tests. |

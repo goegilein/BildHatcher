@@ -147,30 +147,17 @@ def test_p61_slider_updates_are_debounced(app_components, qapp):
     assert c.data_handler.image_matrix is not before
 
 
-def _old_clean_up(img, kernel_size=3):
-    """Reference: the former H x W x colours implementation."""
-    import cv2
-    colors = np.unique(img.reshape(-1, 4), axis=0)
-    scores = np.zeros(img.shape[:2] + (len(colors),), np.float32)
-    kernel = np.ones((kernel_size, kernel_size), np.float32)
-    transparent = -1
-    for i, color in enumerate(colors):
-        if color[3] == 0:
-            transparent = i
-        scores[..., i] = cv2.filter2D(np.all(img == color, axis=-1).astype(np.float32), -1, kernel)
-    if transparent != -1:
-        scores[img[..., 3] > 0, transparent] = -1
-    return colors[np.argmax(scores, axis=-1)]
-
-
-def test_p66_clean_up_matches_former_algorithm(app_components):
-    rng = np.random.default_rng(2)
-    palette = np.array([[0, 0, 0, 0], [200, 0, 0, 255], [0, 0, 200, 255], [90, 90, 90, 255]], np.uint8)
-    img = palette[np.kron(rng.integers(0, 4, (8, 10)), np.ones((5, 5), int))]
-    img[rng.random(img.shape[:2]) < 0.1] = palette[3]  # noise
-    load_image(app_components, img)
-    app_components.image_colorer.clean_up_image_colors()
-    assert np.array_equal(app_components.data_handler.image_matrix, _old_clean_up(img))
+def test_p83_clean_up_button_applies_pixel_art_cleanup_with_undo(app_components):
+    c = app_components
+    img = image_doc.from_rgb(make_test_image())
+    noisy = img.copy()
+    noisy[30, 30] = (215, 35, 30, 255)  # a near-red speck inside the red rectangle
+    load_image(c, noisy)
+    c.image_colorer.apply_color_cleanup(n_colors=3, min_region=4)
+    assert c.data_handler.get_unique_color_count() == 3
+    assert c.data_handler.image_matrix[30, 30].tolist() == c.data_handler.image_matrix[31, 31].tolist()
+    c.data_handler.undo_manager.undo()
+    assert np.array_equal(c.data_handler.image_matrix, noisy)
 
 
 def test_p65_overlay_covers_only_the_filled_area(app_components):
