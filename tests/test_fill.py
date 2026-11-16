@@ -82,7 +82,7 @@ def test_flood_fill_at_creates_overlay(app_components):
 
 
 def test_p64_mask_shapes_match_former_pixel_loops():
-    from ImageEditing import _fill_mask_shape
+    from Masks import _fill_mask_shape
     rng = np.random.default_rng(9)
     for _ in range(50):
         h, w = 30, 40

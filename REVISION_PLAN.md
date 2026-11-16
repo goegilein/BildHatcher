@@ -245,7 +245,7 @@ Requested after Phase 7 (branch is not merged into `main` before this phase is d
   3. regions smaller than a minimum size are merged into the neighbouring colour they share the longest border with;
   4. transparency is kept (transparent pixels never take part, opaque pixels never become transparent).
   Pure function in `core/`, verified on synthetic anti-aliased images (result has exactly the palette colours, no blend colours, shapes preserved).
-- [ ] **P8.4 Mask code in its own module** (`Masks.py`, `MaskManager`) instead of ~700 lines inside `ImageColorer`.
+- [x] **P8.4 Mask code in its own module**: `Masks.py` (930 lines moved unchanged: drawing, editing, moving, list, save). *Changed:* `MaskTools` is a mixin of `ImageColorer` instead of a separate object – the mask tools share the colorer's one-active-tool toggles, canvas event routing and overlay/imprint system, so a separate object would need many cross-references.
 - [ ] **P8.5 Global colour database profile.** One active laser/material profile for the whole app (chosen once in the toolbar, switchable), used by DB recolour, automatic hatching and the DB colour pickers instead of choosing it in every dialog.
 - [ ] **P8.6 Toolbar ("hotbar").** File actions, image operations (rotate, mirror, crop background, cut to mask, upscale, *Make Bright Colors Transparent*, keep changes, …), view controls (zoom, re-center, grid, image center), active colour-database profile and machine profile.
 - [ ] **P8.7 Settings panel on the right.** *Decided 2026-11-16:* no tabs – one strip with all sections grouped by workflow (separators); several sections can be open (content scrolls, strip stays); the image list becomes a panel section; strip buttons with rotated text. No more partially visible sections / scrolling to reach a section toggle: a vertical strip of section toggle buttons on the right edge (always visible); the shown sections are stacked next to it; with all sections hidden the panel collapses to the button strip. The image list / dimensions block under the canvas moves into the panel.
@@ -325,3 +325,4 @@ Requested after Phase 7 (branch is not merged into `main` before this phase is d
 | 2026-11-16 | Phase 8 | New phase planned (UI rework, pixel-art clean-up, global colour profile, single config, Lab k-means, mask module, architecture slides). |
 | 2026-11-16 | P8.1 | Single config file. |
 | 2026-11-16 | P8.2, P8.3 | CIELAB k-means, pixel-art clean-up (`tests/test_palette.py`: exact palette, no blend colours, no islands, fewer wrong pixels than plain k-means). `LOKY_MAX_CPU_COUNT` set to skip a 2 s core-detection subprocess of joblib. 69 tests. |
+| 2026-11-16 | P8.4 | Mask code in `Masks.py`; dead variables removed. 69 tests. |
