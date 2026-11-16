@@ -950,7 +950,7 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
             <property name="alignment">
              <set>Qt::AlignCenter</set>
             </property>
-            <layout class="QVBoxLayout" name="verticalLayout_3" stretch="">
+            <layout class="QVBoxLayout" name="verticalLayout_3">
              <property name="leftMargin">
               <number>0</number>
              </property>
@@ -1164,7 +1164,7 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
        <string notr="true"/>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <property name="styleClass" stdset="0">
        <string/>
@@ -1202,8 +1202,8 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>468</width>
-             <height>1081</height>
+             <width>360</width>
+             <height>1099</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout">
@@ -2315,8 +2315,8 @@ from
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>468</width>
-             <height>1081</height>
+             <width>360</width>
+             <height>1099</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_19">
@@ -2786,10 +2786,10 @@ from
           <widget class="QWidget" name="hatch_controls_scrollContents">
            <property name="geometry">
             <rect>
-             <x>0</x>
+             <x>-1</x>
              <y>0</y>
-             <width>523</width>
-             <height>1064</height>
+             <width>361</width>
+             <height>1086</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -3464,9 +3464,6 @@ from
                   <property name="bottomMargin">
                    <number>0</number>
                   </property>
-                  <item row="5" column="2">
-                   <widget class="QComboBox" name="power_format_combobox"/>
-                  </item>
                   <item row="6" column="2">
                    <widget class="QLabel" name="speed_format_label">
                     <property name="text">
@@ -3486,6 +3483,9 @@ from
                      <set>Qt::AlignCenter</set>
                     </property>
                    </widget>
+                  </item>
+                  <item row="5" column="2">
+                   <widget class="QComboBox" name="power_format_combobox"/>
                   </item>
                   <item row="6" column="1">
                    <widget class="QLabel" name="max_speed_label">
@@ -3569,28 +3569,8 @@ from
                     </property>
                    </widget>
                   </item>
-                  <item row="11" column="4">
-                   <widget class="QPushButton" name="remove_process_block_button">
-                    <property name="text">
-                     <string>Remove Process Block</string>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="7" column="2">
                    <widget class="QComboBox" name="speed_format_combobox"/>
-                  </item>
-                  <item row="12" column="1" rowspan="2" colspan="2">
-                   <widget class="QPushButton" name="export_button">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="text">
-                     <string>Export!</string>
-                    </property>
-                   </widget>
                   </item>
                   <item row="9" column="2">
                    <widget class="QDoubleSpinBox" name="offset_z_spinbox">
@@ -3611,13 +3591,6 @@ from
                     </property>
                    </widget>
                   </item>
-                  <item row="8" column="2">
-                   <widget class="QLabel" name="offset_z_label">
-                    <property name="text">
-                     <string>Offset Z</string>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="0" column="3">
                    <widget class="QLabel" name="active_hatch_label">
                     <property name="text">
@@ -3631,7 +3604,14 @@ from
                   <item row="11" column="3">
                    <widget class="QPushButton" name="add_process_block_button">
                     <property name="text">
-                     <string>Add Process Block</string>
+                     <string>add</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="8" column="2">
+                   <widget class="QLabel" name="offset_z_label">
+                    <property name="text">
+                     <string>Offset Z</string>
                     </property>
                    </widget>
                   </item>
@@ -3700,13 +3680,6 @@ from
                     </property>
                    </widget>
                   </item>
-                  <item row="8" column="0">
-                   <widget class="QLabel" name="offset_x_label">
-                    <property name="text">
-                     <string>Offset X</string>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="12" column="0">
                    <widget class="QLabel" name="export_format_label">
                     <property name="text">
@@ -3730,10 +3703,17 @@ from
                     </property>
                    </widget>
                   </item>
-                  <item row="4" column="0">
-                   <widget class="QLabel" name="min_power_label">
+                  <item row="8" column="0">
+                   <widget class="QLabel" name="offset_x_label">
                     <property name="text">
-                     <string>Min Power (%)</string>
+                     <string>Offset X</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="10" column="0">
+                   <widget class="QLabel" name="iterations_label">
+                    <property name="text">
+                     <string>Iterations</string>
                     </property>
                     <property name="alignment">
                      <set>Qt::AlignCenter</set>
@@ -3743,10 +3723,10 @@ from
                   <item row="13" column="0">
                    <widget class="QComboBox" name="export_format_combobox"/>
                   </item>
-                  <item row="10" column="0">
-                   <widget class="QLabel" name="iterations_label">
+                  <item row="4" column="0">
+                   <widget class="QLabel" name="min_power_label">
                     <property name="text">
-                     <string>Iterations</string>
+                     <string>Min Power (%)</string>
                     </property>
                     <property name="alignment">
                      <set>Qt::AlignCenter</set>
@@ -3763,6 +3743,26 @@ from
                     </property>
                     <property name="maximum">
                      <number>1000</number>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="3" column="1">
+                   <widget class="QComboBox" name="power_mode_combobox"/>
+                  </item>
+                  <item row="2" column="1">
+                   <widget class="QLabel" name="label_27">
+                    <property name="text">
+                     <string>Laser Power Mode</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="11" column="4">
+                   <widget class="QPushButton" name="remove_process_block_button">
+                    <property name="text">
+                     <string>remove</string>
                     </property>
                    </widget>
                   </item>
@@ -3794,16 +3794,16 @@ from
                     </property>
                    </widget>
                   </item>
-                  <item row="3" column="1">
-                   <widget class="QComboBox" name="power_mode_combobox"/>
-                  </item>
-                  <item row="2" column="1">
-                   <widget class="QLabel" name="label_27">
-                    <property name="text">
-                     <string>Laser Power Mode</string>
+                  <item row="12" column="1" rowspan="2" colspan="2">
+                   <widget class="QPushButton" name="export_button">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
                     </property>
-                    <property name="alignment">
-                     <set>Qt::AlignCenter</set>
+                    <property name="text">
+                     <string>Export!</string>
                     </property>
                    </widget>
                   </item>
@@ -3865,8 +3865,8 @@ from
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>468</width>
-             <height>1081</height>
+             <width>360</width>
+             <height>1099</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_17">
@@ -4199,7 +4199,7 @@ from
      <x>0</x>
      <y>0</y>
      <width>2057</width>
-     <height>21</height>
+     <height>18</height>
     </rect>
    </property>
    <widget class="QMenu" name="basefunc_menu">
@@ -4214,8 +4214,7 @@ from
     <property name="title">
      <string>Settings</string>
     </property>
-    <addaction name="actionSave_ImageConfig"/>
-    <addaction name="actionSave_HatchingConfig"/>
+    <addaction name="actionSave_Config"/>
     <addaction name="actionLoad_Config"/>
     <addaction name="actionOpenColorDatabase"/>
    </widget>
@@ -4256,14 +4255,9 @@ from
     <string>Reset Image</string>
    </property>
   </action>
-  <action name="actionSave_ImageConfig">
+  <action name="actionSave_Config">
    <property name="text">
-    <string>Save Image Settings</string>
-   </property>
-  </action>
-  <action name="actionSave_HatchingConfig">
-   <property name="text">
-    <string>Save Hatch Settings</string>
+    <string>Save Config</string>
    </property>
   </action>
   <action name="actionLoad_Config">

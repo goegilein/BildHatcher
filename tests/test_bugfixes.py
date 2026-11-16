@@ -199,3 +199,16 @@ def test_p73_unhandled_exceptions_are_shown_not_fatal(qapp, monkeypatch):
     except ValueError as e:
         main.show_unhandled_exception(type(e), e, e.__traceback__)
     assert shown and "ValueError: boom" in shown[0][2]
+
+
+def test_p81_single_config_file_roundtrip(app_components, tmp_path, monkeypatch):
+    import json
+    import Settings
+    gui, settings = app_components.gui, app_components.settings
+    gui.color_count_spinbox.setValue(12)
+    gui.hatch_pattern_combobox.setCurrentText("Spiral")
+    path = tmp_path / "all.json"
+    monkeypatch.setattr(Settings.QFileDialog, "getSaveFileName", lambda *a, **k: (str(tmp_path / "all"), ""))
+    settings.save_config()
+    data = json.loads(path.read_text())
+    assert data["color_count"] == 12 and data["hatch_pattern"] == "Spiral" and set(data) == set(Settings.ALL_SETTINGS)

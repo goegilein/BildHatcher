@@ -57,10 +57,8 @@ class Settings:
         self.menubar = gui.menubar
         self.actionLoad_Config = gui.actionLoad_Config
         self.actionLoad_Config.triggered.connect(self.load_config)
-        self.actionSave_ImageConfig = gui.actionSave_ImageConfig
-        self.actionSave_ImageConfig.triggered.connect(self.save_image_config)
-        self.actionSave_HatchingConfig = gui.actionSave_HatchingConfig
-        self.actionSave_HatchingConfig.triggered.connect(self.save_hatching_config)
+        self.actionSave_Config = gui.actionSave_Config
+        self.actionSave_Config.triggered.connect(self.save_config)
         self.actionOpenColorDatabase = gui.actionOpenColorDatabase
         self.actionOpenColorDatabase.triggered.connect(self.open_color_database)
         self.action_open_profiles = QtGui.QAction("Open Machine Profiles Folder", gui)
@@ -106,22 +104,15 @@ class Settings:
             settings[key] = widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else widget.value()
         return settings
 
-    def save_image_config(self):
-        self._save_config(self.collect_settings(IMAGE_SETTINGS), "Save Image Settings", '_imageconfig.json')
-
-    def save_hatching_config(self):
-        self._save_config(self.collect_settings(HATCHING_SETTINGS), "Save Hatching Settings", '_hatchingconfig.json')
-
-    def _save_config(self, settings, title, suffix):
+    def save_config(self):
+        """P8.1: one file with all settings (old _imageconfig / _hatchingconfig files still load)."""
         options = QFileDialog.Option.DontUseNativeDialog
-        file_path, _ = QFileDialog.getSaveFileName(self.gui, title, "", "JSON Files (*.json)", options=options)
+        file_path, _ = QFileDialog.getSaveFileName(self.gui, "Save Config", "", "JSON Files (*.json)", options=options)
         if file_path:
-            if not file_path.lower().endswith(suffix):
-                if file_path.lower().endswith('.json'):
-                    file_path = file_path[:-5]
-                file_path += suffix
+            if not file_path.lower().endswith('.json'):
+                file_path += '.json'
             with open(file_path, 'w') as f:
-                json.dump(settings, f, indent=4)
+                json.dump(self.collect_settings(ALL_SETTINGS), f, indent=4)
 
     def open_color_database(self):
         self.editor_window = QtWidgets.QMainWindow()

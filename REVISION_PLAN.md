@@ -237,7 +237,7 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 
 Requested after Phase 7 (branch is not merged into `main` before this phase is done).
 
-- [ ] **P8.1 One config file.** Today two files (image / hatching settings) for historical reasons; "Load Config" already accepts both. One "Save Config" with all keys; old `_imageconfig` / `_hatchingconfig` files keep loading.
+- [x] **P8.1 One config file.** Settings → *Save Config* writes all keys into one `.json`; Today two files (image / hatching settings) for historical reasons; "Load Config" already accepts both. One "Save Config" with all keys; old `_imageconfig` / `_hatchingconfig` files keep loading.
 - [ ] **P8.2 K-means in a perceptual colour space.** Quantization (DEFAULT) clusters in CIELAB instead of RGB.
 - [ ] **P8.3 Pixel-art clean-up (new "Clean Up Colors").** Reduce an image to a few clear, distinct colour areas without the anti-aliasing traces that quantization + smoothing leave at edges:
   1. palette from the *core* pixels only (pixels whose neighbourhood is uniform, so edge blends cannot become palette colours), k-means in CIELAB;
@@ -248,7 +248,7 @@ Requested after Phase 7 (branch is not merged into `main` before this phase is d
 - [ ] **P8.4 Mask code in its own module** (`Masks.py`, `MaskManager`) instead of ~700 lines inside `ImageColorer`.
 - [ ] **P8.5 Global colour database profile.** One active laser/material profile for the whole app (chosen once in the toolbar, switchable), used by DB recolour, automatic hatching and the DB colour pickers instead of choosing it in every dialog.
 - [ ] **P8.6 Toolbar ("hotbar").** File actions, image operations (rotate, mirror, crop background, cut to mask, upscale, *Make Bright Colors Transparent*, keep changes, …), view controls (zoom, re-center, grid, image center), active colour-database profile and machine profile.
-- [ ] **P8.7 Settings panel on the right.** No more partially visible sections / scrolling to reach a section toggle: a vertical strip of section toggle buttons on the right edge (always visible); the shown sections are stacked next to it; with all sections hidden the panel collapses to the button strip. The image list / dimensions block under the canvas moves into the panel.
+- [ ] **P8.7 Settings panel on the right.** *Decided 2026-11-16:* no tabs – one strip with all sections grouped by workflow (separators); several sections can be open (content scrolls, strip stays); the image list becomes a panel section; strip buttons with rotated text. No more partially visible sections / scrolling to reach a section toggle: a vertical strip of section toggle buttons on the right edge (always visible); the shown sections are stacked next to it; with all sections hidden the panel collapses to the button strip. The image list / dimensions block under the canvas moves into the panel.
 - [ ] **P8.8 Update `Data-Architecture.pptx`** to the 2.0 architecture (modules, data model, data flow).
 - [ ] P8.9 Open points from Phase 2–7 that stay open unless requested: machine-profile editor, DB laser ↔ machine-profile link, changed-region undo.
 
@@ -323,3 +323,4 @@ Requested after Phase 7 (branch is not merged into `main` before this phase is d
 | 2026-11-15 | P7 | Hidden threshold widgets removed from the `.ui`. |
 | 2026-11-15 | P7.4, P7.5 | Version 2.0.0, build checked (exe starts), README. All phases done. |
 | 2026-11-16 | Phase 8 | New phase planned (UI rework, pixel-art clean-up, global colour profile, single config, Lab k-means, mask module, architecture slides). |
+| 2026-11-16 | P8.1 | Single config file. |
