@@ -465,9 +465,6 @@ class ImageColorer(MaskTools, QtCore.QObject):
 
         self._init_masks(gui)  # P8.4: mask state and buttons (Masks.py)
 
-        # Ensure all image editing is disabled when switching to another tab
-        control_tabWidget = gui.control_tabWidget
-        control_tabWidget.currentChanged.connect(lambda: self.set_single_toggle_state(''))  # Passing empty string to only reset states
 
         #Event callbacks for handling gui interactions
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)

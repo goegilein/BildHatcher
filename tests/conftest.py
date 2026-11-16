@@ -34,6 +34,8 @@ def app_components(qapp):
 
     gui = main.create_main_window()
     components = main.create_components(gui)
+    import MainLayout
+    components.panel_buttons = MainLayout.build(gui, components)
     components.gui = gui
     yield components
     gui.deleteLater()

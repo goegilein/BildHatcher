@@ -16,6 +16,7 @@ import TestStructures
 import DataHandling
 import Settings
 import ColorProfile
+import MainLayout
 import AutomatedProcessing
 import EventHandling
 import TextandGeometries
@@ -145,7 +146,8 @@ def main():
     gui.closeEvent = close_confirm
     gui.show()
 
-    components = create_components(gui)  # noqa: F841  # keep references alive for the app lifetime
+    components = create_components(gui)  # keep references alive for the app lifetime
+    MainLayout.build(gui, components)  # P8.6/P8.7: toolbar and settings panel
     sys.exit(app.exec())
 
 
