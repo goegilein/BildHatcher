@@ -1,6 +1,4 @@
 from PyQt6 import QtWidgets
-from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
-from HelperClasses import DBColorPalette
 
 class AutomatedProcessor:
     def __init__(self, data_handler, hatcher, parser, gui):
@@ -9,8 +7,6 @@ class AutomatedProcessor:
         self.parser = parser
         self.gui = gui
 
-        self.db_color_palette = None
-
         #load the GUI
         #DB Settings
         self.selected_laser_label = gui.selected_laser_label
@@ -18,6 +14,9 @@ class AutomatedProcessor:
         self.selected_material_type_label = gui.selected_material_type_label
         self.load_material_profile_button = gui.load_material_profile_button
         self.load_material_profile_button.clicked.connect(self.load_material_profile)
+        self.profiles = data_handler.color_profiles
+        self.profiles.callbacks.append(self.show_profile)
+        self.show_profile(data_handler.color_profile)
 
         #Hatching and Parsing Settings
         self.automatic_gcode_file_button = gui.automatic_gcode_file_button
@@ -30,32 +29,22 @@ class AutomatedProcessor:
 
 
     def load_material_profile(self):
+        self.profiles.choose()  # P8.5: sets the application-wide profile
 
-        def on_profile_received(data):
-            if data is not None:
-                ids = data['identifiers']
-                self.db_color_palette = DBColorPalette(data['parameters'], data['settings'])
-                self.selected_laser_label.setText(f"<b> {ids['laser']['name']} </b>")
-                self.selected_material_label.setText(f"<b> {ids['material']['name']} </b>")
-                self.selected_material_type_label.setText(f"<b> {ids['material_type']['name']} </b>")
-
-
-        dialog = QtWidgets.QDialog()
-        dialog.setWindowTitle("Select Profile")
-        layout = QtWidgets.QVBoxLayout(dialog)
-        navigator=DatabaseNavigatorWidget(NavigatorMode.SELECT_PROFILE,parent=dialog)
-        navigator.selection_button_box.rejected.connect(dialog.reject)
-        navigator.profileSelected.connect(on_profile_received)
-        layout.addWidget(navigator)
-        dialog.exec()
+    def show_profile(self, palette):
+        ids = getattr(palette, "identifiers", None)
+        for label, key in ((self.selected_laser_label, "laser"), (self.selected_material_label, "material"),
+                           (self.selected_material_type_label, "material_type")):
+            label.setText(f"<b> {ids[key]['name']} </b>" if ids else "-")
     
     def automatic_gcode_file(self):
-        if self.db_color_palette is None:
+        palette = self.profiles.require()
+        if palette is None:
             QtWidgets.QMessageBox.warning(self.gui, "No Profile Selected", "Please select a material profile first.")
             return
         hatched = self.hatcher.create_hatching(
             mode="automatic",
-            db_color_palette = self.db_color_palette,
+            db_color_palette = palette,
             hatch_pattern = None,
             cyl_rad_mm = self.automatic_cyl_rad_spinBox.value(),
             hatch_mode = self.automatic_hatch_mode_comboBox.currentText(),
@@ -64,6 +53,6 @@ class AutomatedProcessor:
             return
 
         self.parser.automatic_jcode(
-            db_color_palette = self.db_color_palette,
+            db_color_palette = palette,
             offset = [0,0,0]
         )

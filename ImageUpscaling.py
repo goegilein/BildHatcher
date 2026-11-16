@@ -8,6 +8,7 @@ import shutil
 import cv2
 import numpy as np
 from core import image_doc
+from PathManager import USER_DIR
 
 class ImageUpscaler:
     """
@@ -27,7 +28,7 @@ class ImageUpscaler:
         self.image_matrix = image_matrix
         if library_path is None:
             # Downloaded on demand into a writable user folder (same place as the database)
-            self.library_path = os.path.join(os.path.expanduser("~"), "Documents", "BildHatcher", "libraries", "realesrgan")
+            self.library_path = str(USER_DIR / "libraries" / "realesrgan")
         else:
             self.library_path = os.path.abspath(library_path)
 

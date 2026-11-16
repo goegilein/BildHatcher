@@ -18,18 +18,16 @@ Fields:
 """
 import json
 import logging
-import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PathManager import get_base_dir
+from PathManager import USER_DIR as APP_USER_DIR, get_base_dir
 
 log = logging.getLogger(__name__)
 
 BUNDLED_DIR = get_base_dir() / "machine_profiles"
-# BILDHATCHER_PROFILE_DIR overrides the user folder (used by the tests)
-USER_DIR = Path(os.environ.get("BILDHATCHER_PROFILE_DIR", Path.home() / "Documents" / "BildHatcher" / "machine_profiles"))
+USER_DIR = APP_USER_DIR / "machine_profiles"
 
 
 @dataclass

@@ -9,6 +9,7 @@ from HelperClasses import DBColorPalette
 import random
 from UndoRedo import ColorOverlayAction, ImprintColorOverlaysAction, ImageMatrixAction
 from core import fill, image_doc, palette
+import ColorProfile
 from Masks import MaskTools
 import logging
 
@@ -449,12 +450,14 @@ class ImageColorer(MaskTools, QtCore.QObject):
         self.contour_space_spinbox.setValue(1)
         self.contour_space_spinbox.valueChanged.connect(self.find_image_contours)
 
-        # Add button and labels for database recoloring
+        # Add button and labels for database recoloring (labels show the active colour profile, P8.5)
         self.recolor_from_database_button = gui.recolor_from_database_button
         self.recolor_from_database_button.clicked.connect(self.recolor_color_from_db)
         self.recolor_laser_label = gui.recolor_laser_label
         self.recolor_material_label = gui.recolor_material_label
         self.recolor_type_label = gui.recolor_type_label
+        self.data_handler.color_profiles.callbacks.append(self.show_color_profile)
+        self.show_color_profile(self.data_handler.color_profile)
 
         # Add button to clean up image colors
         self.clean_up_image_colors_button = gui.clean_up_image_colors_button
@@ -696,6 +699,10 @@ class ImageColorer(MaskTools, QtCore.QObject):
         return None
 
     def select_color_from_db(self):
+        """A colour of the active colour profile (P8.5); without one, browse the whole database."""
+        palette = self.data_handler.color_profile
+        if palette is not None:
+            return ColorProfile.pick_color_dialog(self.gui, palette)
         selected_color = {'value': None}
 
         def on_color_received(color_data):
@@ -891,20 +898,11 @@ class ImageColorer(MaskTools, QtCore.QObject):
         dialog.exec()
 
     def prompt_limit_color_from_db(self):
-        def on_color_received(color_data):
-            color_string = color_data['color_rgb']
-            self.set_limit_color([int(c) for c in color_string.split(',')] + [255])
-            if self.limit_color_source_dropdown is not None:
-                self.limit_color_source_dropdown.setCurrentIndex(0)
-
-        dialog = QtWidgets.QDialog(self.gui)
-        dialog.setWindowTitle("Select Limit Color")
-        layout = QtWidgets.QVBoxLayout(dialog)
-        navigator = DatabaseNavigatorWidget(mode=NavigatorMode.SELECT_COLOR, parent=dialog)
-        navigator.selection_button_box.rejected.connect(dialog.reject)
-        navigator.colorSelected.connect(on_color_received)
-        layout.addWidget(navigator)
-        dialog.exec()
+        color = self.select_color_from_db()
+        if color is not None:
+            self.set_limit_color(color + [255])
+        if self.limit_color_source_dropdown is not None:
+            self.limit_color_source_dropdown.setCurrentIndex(0)
 
     def choose_limit_color(self, event):
         image_matrix = self.data_handler.image_matrix
@@ -1084,31 +1082,21 @@ class ImageColorer(MaskTools, QtCore.QObject):
                 )
                 self.undo_manager.push_action(action)
 
+    def show_color_profile(self, palette):
+        ids = getattr(palette, "identifiers", None)
+        for label, key in ((self.recolor_laser_label, "laser"), (self.recolor_material_label, "material"),
+                           (self.recolor_type_label, "material_type")):
+            label.setText(f"<b> {ids[key]['name']} </b>" if ids else "-")
+
     def recolor_color_from_db(self):
-        selected = {}
-
-        def on_profile_received(data):
-            if data is not None:
-                selected['palette'] = True
-                ids = data['identifiers']
-                self.db_color_palette = DBColorPalette(data['parameters'], data['settings'])
-                self.recolor_laser_label.setText(f"<b> {ids['laser']['name']} </b>")
-                self.recolor_material_label.setText(f"<b> {ids['material']['name']} </b>")
-                self.recolor_type_label.setText(f"<b> {ids['material_type']['name']} </b>")
-
-
-        dialog = QtWidgets.QDialog()
-        dialog.setWindowTitle("Select Profile")
-        layout = QtWidgets.QVBoxLayout(dialog)
-        navigator=DatabaseNavigatorWidget(NavigatorMode.SELECT_PROFILE,parent=dialog)
-        navigator.selection_button_box.rejected.connect(dialog.reject)
-        navigator.profileSelected.connect(on_profile_received)
-        layout.addWidget(navigator)
-        dialog.exec()
-        if not selected:  # B14: dialog cancelled -> do not reuse (or miss) a previous profile
+        """Recolour the image with the colours of the active colour profile (P8.5; asked for if none is set)."""
+        if self.data_handler.image_matrix is None:
+            return
+        palette = self.data_handler.color_profiles.require()
+        if palette is None:  # B14: no profile chosen
             return
 
-        color_list = self.db_color_palette.get_color_list()
+        color_list = palette.get_color_list()
         if not color_list:
             log.error("No colors available in the database.")
             return

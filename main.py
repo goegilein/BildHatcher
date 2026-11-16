@@ -15,10 +15,11 @@ import Parsing
 import TestStructures
 import DataHandling
 import Settings
+import ColorProfile
 import AutomatedProcessing
 import EventHandling
 import TextandGeometries
-from PathManager import get_gui_file_path, get_base_dir
+from PathManager import get_gui_file_path, get_base_dir, USER_DIR
 import CustomUiElements  # noqa: F401  # this import is necessary to register custom ui elements for compilation
 
 log = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ log = logging.getLogger(__name__)
 MAIN_GUI_PATH = get_gui_file_path("BildHatcher.ui")
 
 
-LOG_FILE = Path.home() / "Documents" / "BildHatcher" / "bildhatcher.log"
+LOG_FILE = USER_DIR / "bildhatcher.log"
 
 
 def setup_logging(level=logging.INFO):
@@ -96,6 +97,8 @@ def create_components(gui):
     """Wire up all controllers on an already created main window. Returns them as a namespace."""
     c = SimpleNamespace()
     c.data_handler = DataHandling.DataHandler(gui)
+    c.color_profiles = ColorProfile.ColorProfileController(c.data_handler, gui)  # P8.5: one active DB profile
+    c.data_handler.color_profiles = c.color_profiles
     c.event_handler = EventHandling.EventHandler(gui)
     c.image_controller = ImageControlling.BaseFunctions(c.data_handler, gui)
     c.image_sizer = ImageControlling.ImageMover(c.data_handler, c.event_handler, gui)

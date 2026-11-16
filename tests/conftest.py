@@ -11,7 +11,7 @@ from pathlib import Path
 import tempfile
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("BILDHATCHER_PROFILE_DIR", tempfile.mkdtemp(prefix="bildhatcher_profiles_"))  # keep tests out of ~/Documents
+os.environ.setdefault("BILDHATCHER_USER_DIR", tempfile.mkdtemp(prefix="bildhatcher_user_"))  # keep tests out of ~/Documents
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:

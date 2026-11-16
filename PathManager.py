@@ -3,6 +3,7 @@ Path manager for resolving file paths in both development and executable environ
 This handles both running from source and running from a PyInstaller executable.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -46,6 +47,8 @@ def get_settings_path(filename="Default_Settings.json"):
 
 # Convenient module-level getters
 BASE_DIR = get_base_dir()
+# everything the app writes (database, profiles, log, preferences, downloads); BILDHATCHER_USER_DIR overrides it (tests)
+USER_DIR = Path(os.environ.get("BILDHATCHER_USER_DIR", Path.home() / "Documents" / "BildHatcher"))
 GUI_DIR = BASE_DIR / "GUI_Files"
 SETTINGS_DIR = BASE_DIR / "settings"
 DRIVERS_DIR = BASE_DIR / "Drivers"

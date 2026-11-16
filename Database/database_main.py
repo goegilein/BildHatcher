@@ -1,3 +1,4 @@
+from PathManager import USER_DIR
 import sys
 import os
 import sqlite3
@@ -66,8 +67,8 @@ class DatabaseManager:
             self._run_migrations()
     
     def get_writable_db_path(self, db_filename="laser_database.db"):
-        # Use user's Documents/BildHatcher for writable database
-        writable_dir = os.path.join(os.path.expanduser("~"), "Documents", "BildHatcher")
+        # writable database in the user folder (PathManager.USER_DIR)
+        writable_dir = str(USER_DIR)
         os.makedirs(writable_dir, exist_ok=True)
         writable_db = os.path.join(writable_dir, db_filename)
         # If not present, copy from bundled location
