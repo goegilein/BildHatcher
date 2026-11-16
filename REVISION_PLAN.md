@@ -21,7 +21,7 @@ This file is the single source of truth for status – update it in the same com
 | 5 – Output | done | machine profiles, RDP, fast drive modes |
 | 6 – Editing tools | done | fill/quantize/clean-up fast, B17/B33 fixed |
 | 7 – Polish | done | version 2.0.0 |
-| 8 – UI rework & image tools | **in progress** | see Phase 8 (branch not merged until done) |
+| 8 – UI rework & image tools | done (P8.9 optional) | branch not merged yet – user decides |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
 
@@ -148,7 +148,7 @@ tests/                   # pytest; core only, plus characterization tests
 ### Phase 0 – Safety net & hygiene  `[~]` (only P0.3 pptx left)
 - [x] P0.1 Untrack `__pycache__/` and `Database/__pycache__/` (`git rm --cached`), extend `.gitignore`.
 - [x] P0.2 Remove `GUI_Files/BildHatcher_backup.ui`, `GUI_Files/BildHatcher_KI-changes.ui`, obsolete tkinter `profiler.py` (history keeps them).
-- [~] P0.3 Vendored Real-ESRGAN removed, engine downloads into `~/Documents/BildHatcher/libraries/realesrgan` (done). Open: `Data-Architecture.pptx` (replace by section 3 of this file?).
+- [x] P0.3 Vendored Real-ESRGAN removed, engine downloads into `~/Documents/BildHatcher/libraries/realesrgan`. `Data-Architecture.pptx` kept and updated (P8.8).
 - [x] P0.4 Pin `requirements.txt` versions; add `requirements-dev.txt` (pytest).
 - [x] P0.5 Introduce `logging` (one config in `main.py`); new code uses `log` instead of `print`. (Replacing existing `print`s happens per module as it is touched / P7.3.)
 - [x] P0.6 **Characterization tests:** headless run (`QT_QPA_PLATFORM=offscreen`) of current hatcher + post-processor + parser on 3–4 reference images (flat meander, circular, cylindrical, contours) → store G-code as golden files in `tests/golden/`. Used to verify Phase 2 ports. Seed `random` for RandomMeander/Circular.
@@ -233,7 +233,7 @@ Measured first (Circular, 2400×1800 px, 780k points): speed/power + copy 0.02 s
 
 ---
 
-### Phase 8 – UI rework & image tools  `[~]`
+### Phase 8 – UI rework & image tools  `[x]`
 
 Requested after Phase 7 (branch is not merged into `main` before this phase is done).
 
@@ -249,7 +249,7 @@ Requested after Phase 7 (branch is not merged into `main` before this phase is d
 - [x] **P8.5 Global colour database profile.** `ColorProfile.py`: `ColorProfileController` holds `data_handler.color_profile`, remembers it in `USER_DIR/preferences.json` and restores it from the database on startup; recolour, automatic hatching and the DB colour pickers use it (the pickers show the profile's colours directly; without a profile the old database navigator). All user-folder paths now come from `PathManager.USER_DIR` (`BILDHATCHER_USER_DIR` overrides it, tests use a temp folder). One active laser/material profile for the whole app (chosen once in the toolbar, switchable), used by DB recolour, automatic hatching and the DB colour pickers instead of choosing it in every dialog.
 - [x] **P8.6 Toolbar ("hotbar").** `MainLayout.build_toolbar`: Load/Save/New | *Image* drop-down (rotate, mirror ×2, crop background, cut to mask, upscale ×2, Make Bright Colors Transparent, white-as-transparent on load) | zoom (%), Reset Zoom, Re-center, Grid + distance (mm) | Color Profile | Machine. File actions, image operations (rotate, mirror, crop background, cut to mask, upscale, *Make Bright Colors Transparent*, keep changes, …), view controls (zoom, re-center, grid, image center), active colour-database profile and machine profile.
 - [x] **P8.7 Settings panel on the right.** `MainLayout.build_panel`: vertical strip with rotated short labels (tooltips = full names), groups Image | Text | Hatching | Automate; opened sections stacked in a scroll area, all closed → only the strip; section header closes the section; new sections *Images* (list + list operations) and *Size & Center*; the block under the canvas is gone. Section contents still come from the `.ui`. Closing *Color*/*Masks* switches off their canvas tools (was: tab switch). *Decided 2026-11-16:* no tabs – one strip with all sections grouped by workflow (separators); several sections can be open (content scrolls, strip stays); the image list becomes a panel section; strip buttons with rotated text. No more partially visible sections / scrolling to reach a section toggle: a vertical strip of section toggle buttons on the right edge (always visible); the shown sections are stacked next to it; with all sections hidden the panel collapses to the button strip. The image list / dimensions block under the canvas moves into the panel.
-- [ ] **P8.8 Update `Data-Architecture.pptx`** to the 2.0 architecture (modules, data model, data flow).
+- [x] **P8.8 Update `Data-Architecture.pptx`**: 5 slides – modules (UI / state / core / files), image model & editing, toolpath data model, pipeline with its configuration sources, and the 1.x diagram for comparison. Native PowerPoint shapes (editable), app colours, colour-coded layers.
 - [ ] P8.9 Open points from Phase 2–7 that stay open unless requested: machine-profile editor, DB laser ↔ machine-profile link, changed-region undo.
 
 ## 6. Open questions
@@ -328,3 +328,4 @@ Requested after Phase 7 (branch is not merged into `main` before this phase is d
 | 2026-11-16 | P8.4 | Mask code in `Masks.py`; dead variables removed. 69 tests. |
 | 2026-11-16 | P8.5 | Global colour profile, central user folder. `tests/test_color_profile.py`, 71 tests. |
 | 2026-11-16 | P8.6, P8.7 | Toolbar and settings panel (`MainLayout.py`, `tests/test_layout.py`); checked via real-platform screenshots. Open: panel width = minimum width of the widest section (three-column Designer layouts). 73 tests. |
+| 2026-11-16 | P8.8 | Architecture slides rebuilt (checked via PowerPoint rendering). Phase 8 done except optional P8.9. |
