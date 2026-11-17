@@ -74,3 +74,68 @@ def test_indicator_follows_tool_and_colour(app_components):
     c.tools.trigger("flood_fill_button", from_key=False)
     assert "Active tool: none" in indicator.toolTip()
     assert "(D)" in c.gui.toggle_draw_button.toolTip()
+
+
+def _mouse(kind, button, buttons, pos):
+    from PyQt6 import QtCore, QtGui
+    point = QtCore.QPointF(*pos)
+    return QtGui.QMouseEvent(kind, point, point, button, buttons, QtCore.Qt.KeyboardModifier.NoModifier)
+
+
+def test_tool_wheel_hold_hover_release_selects(app_components):
+    from PyQt6 import QtCore
+    import time
+    c = app_components
+    wheel, viewport = c.tool_wheel, c.gui.image_canvas.viewport()
+    Type, B = QtCore.QEvent.Type, QtCore.Qt.MouseButton
+    c.gui.resize(1400, 900)
+    c.gui.show()
+    c.image_colorer.set_single_toggle_state('')
+    centre = (viewport.width() / 2, viewport.height() / 2)
+    assert wheel.on_canvas_event(_mouse(Type.MouseButtonPress, B.RightButton, B.RightButton, centre)) is True
+    assert wheel.isVisible()
+    # the "Fill" sector (index 1, upper right): move there with the button held, release
+    import math
+    a = math.radians(1 * 360 / len(Tools.TOOLS) - 90)
+    target = (centre[0] + 60 * math.cos(a), centre[1] + 60 * math.sin(a))
+    wheel.on_canvas_event(_mouse(Type.MouseMove, B.NoButton, B.RightButton, target))
+    assert wheel.highlight == 1
+    time.sleep(0.01)
+    wheel.on_canvas_event(_mouse(Type.MouseButtonRelease, B.RightButton, B.NoButton, target))
+    assert not wheel.isVisible() and c.image_colorer.active_tool == "Fill"
+
+    # release in the centre after a while: cancel
+    wheel.CLICK_MS = 0
+    wheel.on_canvas_event(_mouse(Type.MouseButtonPress, B.RightButton, B.RightButton, centre))
+    wheel.on_canvas_event(_mouse(Type.MouseButtonRelease, B.RightButton, B.NoButton, centre))
+    assert not wheel.isVisible() and c.image_colorer.active_tool == "Fill"
+    c.gui.hide()
+
+
+def test_tool_wheel_short_click_stays_open_and_left_click_is_not_drawn(app_components):
+    from PyQt6 import QtCore
+    import math
+    c = app_components
+    wheel, viewport = c.tool_wheel, c.gui.image_canvas.viewport()
+    Type, B = QtCore.QEvent.Type, QtCore.Qt.MouseButton
+    c.gui.resize(1400, 900)
+    c.gui.show()
+    c.image_colorer.set_single_toggle_state('')
+    wheel.CLICK_MS = 10_000
+    centre = (viewport.width() / 2, viewport.height() / 2)
+    wheel.on_canvas_event(_mouse(Type.MouseButtonPress, B.RightButton, B.RightButton, centre))
+    wheel.on_canvas_event(_mouse(Type.MouseButtonRelease, B.RightButton, B.NoButton, centre))
+    assert wheel.isVisible() and wheel.sticky  # short click: stays open
+    a = math.radians(0 - 90)  # "Draw" sector at the top
+    target = (centre[0] + 60 * math.cos(a), centre[1] + 60 * math.sin(a))
+    press = _mouse(Type.MouseButtonPress, B.LeftButton, B.LeftButton, target)
+    # through the event handler: the filter consumes it, the colour tools never see the click
+    seen = []
+    c.event_handler.canvas_event_callbacks.insert(0, lambda e: seen.append(e.type()))
+    try:
+        assert c.event_handler.eventFilter(viewport, press) is True
+    finally:
+        c.event_handler.canvas_event_callbacks.pop(0)
+    assert Type.MouseButtonPress not in seen  # (selecting Draw changes the cursor, that event may pass)
+    assert not wheel.isVisible() and c.image_colorer.active_tool == "Draw"
+    c.gui.hide()
