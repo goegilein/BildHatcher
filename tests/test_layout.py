@@ -64,15 +64,13 @@ def test_hiding_masks_section_resets_mask_tools(app_components):
     c.gui.hide()
 
 
-def test_toolbar_has_image_menu_profiles_and_view_controls(app_components):
+def test_toolbar_has_profiles_and_view_controls(app_components):
     gui = app_components.gui
     bar = gui.toolBar
     texts = [a.text() for a in bar.actions()]
     assert {"Load Image", "Save Image", "Reset Zoom", "Re-center", "Grid"} <= set(texts)
     assert any(t.startswith("Color Profile") for t in texts)
-    image_button = next(w for w in bar.findChildren(QtWidgets.QToolButton) if w.toolTip() == "Image operations")
-    menu_texts = [a.text() for a in image_button.menu().actions()]
-    assert "Make Bright Colors Transparent..." in menu_texts and "Rotate 90°" in menu_texts
+    assert not any(w.toolTip() == "Image operations" for w in bar.findChildren(QtWidgets.QToolButton))  # P9.6
     assert gui.machine_profile_combobox.parentWidget() is bar
     assert gui.zoom_spinbox.parentWidget() is bar
 
@@ -85,3 +83,22 @@ def test_p92_toolbar_pictograms_and_menus(app_components):
     settings_menu = [a.text() for a in gui.settings_menu.actions()]
     assert "Load: Pure White as Transparent" in settings_menu and "Load: Pure White as Transparent" not in file_menu
     assert "Make Bright Colors Transparent..." not in file_menu
+
+
+def test_p96_images_section_pictograms(app_components):
+    gui = app_components.gui
+    names = [entry[0] for entry in MainLayout.IMAGE_BUTTONS]
+    for name in names:
+        button = getattr(gui, name)
+        assert button.text() == "" and button.toolTip() and not button.icon().isNull()
+        assert button.window() is gui
+    assert gui.keep_changes_button.toolTip().startswith("Set as original")
+    assert not hasattr(gui, "monochrome_check")
+    assert gui.images_ListWidget.parentWidget() is gui.inside_images_frame
+
+
+def test_p96_bright_transparent_button_opens_the_operation(app_components, monkeypatch):
+    calls = []
+    monkeypatch.setattr(app_components.image_controller, "make_bright_transparent", lambda: calls.append(1))
+    app_components.gui.bright_transparent_button.click()
+    assert calls == [1]

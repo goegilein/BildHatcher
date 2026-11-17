@@ -81,16 +81,37 @@ def _take(widget):
     return widget
 
 
+# P9.6: pictograms of the Images section (filled buttons: white icons); the texts become tooltips
+IMAGE_BUTTONS = (
+    ("add_image_button", "photo-plus", "Add image"),
+    ("remove_image_button", "photo-minus", "Remove image"),
+    ("keep_changes_button", "photo-check", "Set as original: the current image becomes the restore point"),
+    ("split_color_button", "arrows-split-2", "Split into color channels"),
+    ("combine_image_button", "layers-union", "Combine selected images (darkest color wins)"),
+    ("combine_monochrome_button", "contrast", "Combine selected images monochrome (one average color)"),
+    ("rot_image_90_button", "rotate-clockwise", "Rotate 90° clockwise"),
+    ("mirror_image_horizontal_button", "flip-vertical", "Mirror horizontally (left / right)"),
+    ("mirror_image_vertical_button", "flip-horizontal", "Mirror vertically (top / bottom)"),
+    ("crop_background_button", "crop", "Crop transparent background"),
+    ("cut_to_mask_button", "scissors", "Cut to the active mask"),
+    ("upscale_button", "sparkles", "Upscale 2x (AI)"),
+    ("upscale_preserving_button", "arrows-maximize", "Upscale 2x, keep the colors"),
+    ("bright_transparent_button", "sun-off", "Make bright colors transparent..."),
+)
+
+
+def _iconify(gui, table, color=icons.ON_DARK, size=20, box=(34, 30)):
+    for name, icon_name, tooltip in table:
+        button = getattr(gui, name)
+        icons.set_icon(button, icon_name, tooltip=tooltip, color=color, size=size)
+        button.setMinimumSize(0, 0)
+        button.setFixedSize(*box)
+
+
 def _images_section(gui):
-    box = QtWidgets.QWidget()
-    grid = QtWidgets.QGridLayout(box)
-    grid.addWidget(_take(gui.images_ListWidget), 0, 0, 1, 2)
+    _iconify(gui, IMAGE_BUTTONS)
     gui.images_ListWidget.setMaximumHeight(160)
-    for i, name in enumerate(["add_image_button", "remove_image_button", "keep_changes_button",
-                              "split_color_button", "combine_image_button", "monochrome_check"]):
-        grid.addWidget(_take(getattr(gui, name)), 1 + i // 2, i % 2)
-    gui.image_lister_frame.hide()  # what is left there moved to the toolbar
-    return _new_section("Images", box)
+    return _take(gui.images_frame)
 
 
 def _size_section(gui):
@@ -219,26 +240,7 @@ def build_toolbar(gui, c):
         bar.addAction(action)
     bar.addSeparator()
 
-    # image operations as a drop-down "Image" menu
-    ctrl = c.image_controller
-    menu = QtWidgets.QMenu("Image", gui)
-    for text, slot in (("Rotate 90°", ctrl.rot_image_90_clockwise),
-                       ("Mirror Horizontal", ctrl.mirror_image_horizontal),
-                       ("Mirror Vertical", ctrl.mirror_image_vertical),
-                       ("Crop Background", ctrl.crop_background),
-                       ("Cut to Mask", ctrl.cut_to_mask),
-                       ("Upscale 2x (AI)", lambda: ctrl.upscale_active_image()),
-                       ("Upscale 2x (keep colors)", lambda: ctrl.upscale_active_image(preserve_palette=True))):
-        menu.addAction(text).triggered.connect(lambda checked=False, f=slot: f())
-    menu.addSeparator()
-    menu.addAction(ctrl.action_bright_to_transparent)
-    image_button = QtWidgets.QToolButton()
-    image_button.setText("Image")
-    icons.set_icon(image_button, "photo", tooltip="Image operations")
-    image_button.setMenu(menu)
-    image_button.setPopupMode(QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup)
-    bar.addWidget(image_button)
-    bar.addSeparator()
+    # (P9.6: the image operations live in the Images section again)
 
     # view: zoom, reset, re-center, grid
     mover = c.image_sizer

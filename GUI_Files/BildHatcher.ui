@@ -405,150 +405,154 @@ QPushButton[styleClass="MenuButton"]::disabled {
                  <number>0</number>
                 </property>
                 <item>
-                 <widget class="QGroupBox" name="image_lister_frame">
+                 <widget class="QGroupBox" name="images_frame">
                   <property name="title">
-                   <string>Image Operations</string>
+                   <string></string>
                   </property>
                   <property name="styleClass" stdset="0">
-                   <string>verticalSubFrame</string>
+                   <string>outsideFrame</string>
                   </property>
-                  <layout class="QGridLayout" name="gridLayout_9">
-                   <property name="leftMargin">
-                    <number>9</number>
-                   </property>
-                   <property name="topMargin">
-                    <number>9</number>
-                   </property>
-                   <property name="rightMargin">
-                    <number>9</number>
-                   </property>
-                   <property name="bottomMargin">
-                    <number>9</number>
-                   </property>
-                   <property name="horizontalSpacing">
-                    <number>6</number>
-                   </property>
-                   <item row="0" column="1">
-                    <widget class="QPushButton" name="keep_changes_button">
-                     <property name="text">
-                      <string>Keep Changes</string>
+                  <layout class="QVBoxLayout" name="images_frame_layout">
+                   <item>
+                    <widget class="QGroupBox" name="inside_images_frame">
+                     <property name="title">
+                      <string>Images</string>
                      </property>
-                    </widget>
-                   </item>
-                   <item row="0" column="2">
-                    <widget class="QPushButton" name="remove_image_button">
-                     <property name="text">
-                      <string>Remove Image</string>
+                     <property name="styleClass" stdset="0">
+                      <string>insideFrame</string>
                      </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="0">
-                    <widget class="QPushButton" name="split_color_button">
-                     <property name="text">
-                      <string>Split  Col. Ch.</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="0" column="0">
-                    <widget class="QPushButton" name="add_image_button">
-                     <property name="text">
-                      <string>Add Image</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="5" column="0" colspan="3">
-                    <widget class="QListWidget" name="images_ListWidget">
-                     <property name="acceptDrops">
-                      <bool>true</bool>
-                     </property>
-                     <property name="dragEnabled">
-                      <bool>true</bool>
-                     </property>
-                     <property name="dragDropMode">
-                      <enum>QAbstractItemView::InternalMove</enum>
-                     </property>
-                     <property name="selectionMode">
-                      <enum>QAbstractItemView::ExtendedSelection</enum>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="2">
-                    <widget class="QCheckBox" name="monochrome_check">
-                     <property name="enabled">
-                      <bool>true</bool>
-                     </property>
-                     <property name="text">
-                      <string>monochrome</string>
-                     </property>
-                     <property name="checked">
-                      <bool>false</bool>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="2" column="0">
-                    <widget class="QPushButton" name="rot_image_90_button">
-                     <property name="text">
-                      <string>rot90</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="2" column="2">
-                    <widget class="QPushButton" name="mirror_image_vertical_button">
-                     <property name="text">
-                      <string> Mirror Vert.</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="3" column="1">
-                    <widget class="QPushButton" name="crop_background_button">
-                     <property name="text">
-                      <string>Crop_Bckgr</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="3" column="2">
-                    <widget class="QLabel" name="number_of_colors_label">
-                     <property name="text">
-                      <string>#Colors: 0</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="1">
-                    <widget class="QPushButton" name="combine_image_button">
-                     <property name="text">
-                      <string>Combine Col. Ch.</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="2" column="1">
-                    <widget class="QPushButton" name="mirror_image_horizontal_button">
-                     <property name="text">
-                      <string>Mirror Horz.</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="3" column="0">
-                    <widget class="QPushButton" name="cut_to_mask_button">
-                     <property name="enabled">
-                      <bool>true</bool>
-                     </property>
-                     <property name="text">
-                      <string>Cut to Mask</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="4" column="0">
-                    <widget class="QPushButton" name="upscale_button">
-                     <property name="text">
-                      <string>Upscale</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="4" column="1">
-                    <widget class="QPushButton" name="upscale_preserving_button">
-                     <property name="text">
-                      <string>Upscale_preserv</string>
-                     </property>
+                     <layout class="QGridLayout" name="images_grid">
+                      <property name="horizontalSpacing">
+                       <number>4</number>
+                      </property>
+                      <property name="verticalSpacing">
+                       <number>4</number>
+                      </property>
+                      <item row="0" column="0" colspan="6">
+                       <widget class="QListWidget" name="images_ListWidget">
+                        <property name="acceptDrops">
+                         <bool>true</bool>
+                        </property>
+                        <property name="dragEnabled">
+                         <bool>true</bool>
+                        </property>
+                        <property name="dragDropMode">
+                         <enum>QAbstractItemView::InternalMove</enum>
+                        </property>
+                        <property name="selectionMode">
+                         <enum>QAbstractItemView::ExtendedSelection</enum>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="1" column="0">
+                       <widget class="QPushButton" name="add_image_button">
+                        <property name="text">
+                         <string>Add Image</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="1" column="1">
+                       <widget class="QPushButton" name="remove_image_button">
+                        <property name="text">
+                         <string>Remove Image</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="1" column="2">
+                       <widget class="QPushButton" name="keep_changes_button">
+                        <property name="text">
+                         <string>Set as Original</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="1" column="3">
+                       <widget class="QPushButton" name="split_color_button">
+                        <property name="text">
+                         <string>Split  Col. Ch.</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="1" column="4">
+                       <widget class="QPushButton" name="combine_image_button">
+                        <property name="text">
+                         <string>Combine Col. Ch.</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="1" column="5">
+                       <widget class="QPushButton" name="combine_monochrome_button">
+                        <property name="text">
+                         <string>Combine Monochrome</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="2" column="0">
+                       <widget class="QPushButton" name="rot_image_90_button">
+                        <property name="text">
+                         <string>rot90</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="2" column="1">
+                       <widget class="QPushButton" name="mirror_image_horizontal_button">
+                        <property name="text">
+                         <string>Mirror Horz.</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="2" column="2">
+                       <widget class="QPushButton" name="mirror_image_vertical_button">
+                        <property name="text">
+                         <string> Mirror Vert.</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="2" column="3">
+                       <widget class="QPushButton" name="crop_background_button">
+                        <property name="text">
+                         <string>Crop_Bckgr</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="2" column="4">
+                       <widget class="QPushButton" name="cut_to_mask_button">
+                        <property name="enabled">
+                         <bool>true</bool>
+                        </property>
+                        <property name="text">
+                         <string>Cut to Mask</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="3" column="0">
+                       <widget class="QPushButton" name="upscale_button">
+                        <property name="text">
+                         <string>Upscale</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="3" column="1">
+                       <widget class="QPushButton" name="upscale_preserving_button">
+                        <property name="text">
+                         <string>Upscale_preserv</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="3" column="2">
+                       <widget class="QPushButton" name="bright_transparent_button">
+                        <property name="text">
+                         <string>Bright to Transparent...</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item row="3" column="3" colspan="3">
+                       <widget class="QLabel" name="number_of_colors_label">
+                        <property name="text">
+                         <string>#Colors: 0</string>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
                     </widget>
                    </item>
                   </layout>

@@ -31,7 +31,7 @@ class BaseFunctions:
         if self.undo_manager is not None:
             self.undo_manager.set_image_controller(self)
         self.image_dimension_frame = gui.image_dimension_frame
-        self.image_lister_frame = gui.image_lister_frame
+        self.images_frame = gui.images_frame
         self.default_dpi = 96  # Assuming 96 DPI by default
         self.last_save_filter = "PNG Files (*.png)"
         self.changeing_image = False
@@ -97,7 +97,7 @@ class BaseFunctions:
         self.add_image_button = gui.add_image_button
         self.add_image_button.clicked.connect(self.add_image)
 
-        # Keep changes button
+        # "Set as Original" (was: Keep Changes): the current image becomes the restore point
         self.keep_changes_button = gui.keep_changes_button
         self.keep_changes_button.clicked.connect(self.keep_changes)
 
@@ -111,7 +111,10 @@ class BaseFunctions:
 
         # Combine image button
         self.combine_image_button = gui.combine_image_button
-        self.combine_image_button.clicked.connect(self.combine_images)
+        self.combine_image_button.clicked.connect(lambda: self.combine_images())
+        self.combine_monochrome_button = gui.combine_monochrome_button  # P9.6: was the monochrome checkbox
+        self.combine_monochrome_button.clicked.connect(lambda: self.combine_images(monochrome=True))
+        gui.bright_transparent_button.clicked.connect(lambda: self.make_bright_transparent())  # P9.6
 
         #Flip image button
         self.rot_image_90_button = gui.rot_image_90_button
@@ -131,9 +134,6 @@ class BaseFunctions:
         # Crop background button
         self.crop_background_button = gui.crop_background_button
         self.crop_background_button.clicked.connect(self.crop_background)
-
-        # Monochrome check box
-        self.monochrome_check = gui.monochrome_check
 
         # Add list to manage gCode_blocks
         self.images_ListWidget = gui.images_ListWidget
@@ -394,7 +394,7 @@ class BaseFunctions:
         self.add_listbox_item(img_obj, image_name + "_edited", set_selected=True)
 
     def keep_changes(self):
-        with self._record_matrix("Keep Changes"):
+        with self._record_matrix("Set as Original"):
             img_obj = ImageDocument(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
             self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
             self.set_handler_data(new_image = True)
@@ -467,7 +467,7 @@ class BaseFunctions:
         self.update_dimension_fields()
         self.changeing_image = False       
 
-    def combine_images(self):
+    def combine_images(self, monochrome=False):
         selected_images = self.images_ListWidget.selectedItems()
         if not selected_images:
             return
@@ -483,8 +483,8 @@ class BaseFunctions:
             darker = brightness(patch) < brightness(combined_image)
             combined_image[darker] = patch[darker]
 
-        # Make the combined image monochrome if checked: all coloured pixels get their average colour (B20: was always black)
-        if self.monochrome_check.isChecked():
+        # monochrome: all coloured pixels get their average colour (B20: was always black)
+        if monochrome:
             color_mask = combined_image[..., 3] > 0
             if color_mask.any():
                 combined_image[color_mask] = combined_image[color_mask].mean(axis=0).astype(np.uint8)

@@ -137,8 +137,7 @@ def test_b20_combine_monochrome_uses_average_colour(app_components):
     load_image(c, a, name="a")
     load_image(c, b, name="b")
     c.gui.images_ListWidget.selectAll()
-    c.gui.monochrome_check.setChecked(True)
-    c.image_controller.combine_images()
+    c.gui.combine_monochrome_button.click()
     combined = c.image_controller.get_active_image_matrix()
     assert combined[0, 0].tolist() == [100, 0, 50, 255] == combined[1, 1].tolist()
     assert (combined[2:, 2:] == 0).all()  # background stays transparent
