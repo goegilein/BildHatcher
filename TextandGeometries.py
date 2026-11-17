@@ -3,6 +3,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtGui import QPainterPath, QPen, QBrush, QColor, QFont, QFontDatabase
 from PyQt6.QtWidgets import QGraphicsItem
 from UndoRedo import TGAddOverlayAction, TGDeleteOverlayAction, TGTransformOverlayAction, TGImprintOverlaysAction
+import icons
 
 
 def select_color() -> QtGui.QColor:
@@ -1561,6 +1562,13 @@ class TextGeometryOverlayManager:
             if w is not None:
                 w.blockSignals(block)
 
+    @staticmethod
+    def _recolor_button_icon(button, hex_color):
+        """P9.8: the pictogram of a colour button follows its (contrast) text colour."""
+        icon_name = button.property("iconName")
+        if icon_name:
+            button.setIcon(icons.icon(icon_name, hex_color))
+
     def _style_color_button(self, button, color: QtGui.QColor):
         """Update a color button's background to the chosen color, with a high-contrast complementary text color."""
         if button is None:
@@ -1581,6 +1589,7 @@ class TextGeometryOverlayManager:
                 "  background-color: #e4e4e4;"
                 "}"
             )
+            self._recolor_button_icon(button, "333333")
             return
 
         r, g, b = color.red(), color.green(), color.blue()
@@ -1595,6 +1604,9 @@ class TextGeometryOverlayManager:
             text_color = "rgb(255, 255, 255)" if luminance <= 0.5 else "rgb(0, 0, 0)"
         else:
             text_color = f"rgb({cr}, {cg}, {cb})"
+
+        rgb_text = [int(v) for v in text_color[4:-1].split(",")]
+        self._recolor_button_icon(button, "".join(f"{v:02X}" for v in rgb_text))
 
         # Subtle dark border
         border_r = max(0, r - 30)

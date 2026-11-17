@@ -126,3 +126,33 @@ def test_p97_color_section_compact_and_stable(app_components):
     gui.draw_contour_button.click()
     assert not gui.draw_contour_button.isChecked()
     gui.hide()
+
+
+def test_p98_text_section_properties_on_top_and_style_toggles(app_components):
+    gui, panel = app_components.gui, app_components.panel_buttons
+    gui.show()
+    panel.select_group("Text")
+    assert gui.groupBox_11.y() < gui.groupBox_12.y()  # properties above the overlay list
+    for name in ("text_bold_checkbox", "text_italic_checkbox", "text_underline_checkbox", "text_strike_checkbox"):
+        button = getattr(gui, name)
+        assert isinstance(button, QtWidgets.QPushButton) and button.isCheckable() and not button.icon().isNull()
+    seen = []
+    gui.text_bold_checkbox.setEnabled(True)  # normally enabled by selecting a text overlay
+    gui.text_bold_checkbox.toggled.connect(seen.append)
+    gui.text_bold_checkbox.click()
+    assert seen == [True]
+    gui.text_bold_checkbox.click()
+    assert not gui.label_25.pixmap().isNull()
+    gui.hide()
+
+
+def test_p98_color_buttons_keep_a_visible_icon(app_components):
+    from PyQt6 import QtGui
+    c = app_components
+    button = c.gui.fill_color_button
+    assert button.property("iconName") == "paint"
+    c.overlay_manager.set_fill_color(QtGui.QColor(255, 255, 255))  # white button -> dark icon
+    dark = button.icon().pixmap(20, 20).toImage()
+    c.overlay_manager.set_fill_color(QtGui.QColor(0, 0, 0))  # black button -> light icon
+    light = button.icon().pixmap(20, 20).toImage()
+    assert dark != light

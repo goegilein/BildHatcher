@@ -21,7 +21,7 @@ GROUPS = {
         ("Color", "Color image: paint, fill, contours, clean up", "@color"),
         ("Masks", "Mask drawing", "draw_mask_groupbox"),
     ]),
-    "Text": ("typography", [("Text", "Text and geometries", "tg_frame")]),
+    "Text": ("typography", [("Text", "Text and geometries", "@text")]),
     "Hatching": ("texture", [
         ("Hatch", "Image hatching and contours / outlines", "hatch_frame"),
         ("Tests", "Test structures", "testStruc_frame"),
@@ -125,6 +125,7 @@ def _iconify(gui, table, color=icons.ON_DARK, size=20, box=(34, 30), keep_text=F
         tip = button.toolTip() if name == "recolor_from_database_button" and button.toolTip() else tooltip
         icons.set_icon(button, icon_name, tooltip=tip, color=color, size=size, keep_text=keep_text,
                        checked_color=icons.APP)
+        button.setProperty("iconName", icon_name)  # e.g. colour buttons recolour their icon
         button.setMinimumSize(0, 0)
         button.setFixedSize(*box)
 
@@ -138,6 +139,49 @@ def _color_section(gui):
     options.setStyleSheet("#fill_options_widget { background: transparent; }")
     gui.fill_options_grid_layout.setContentsMargins(0, 0, 0, 0)
     return _take(gui.image_color_frame)
+
+
+# P9.8: Text section – icon buttons, B / I / U / S toggles and pictogram labels
+TEXT_BUTTONS = (
+    ("add_text_button", "text-plus", "Add a text field (click into the image)"),
+    ("add_geometry_button", "square-plus", "Add a geometry (drag in the image)"),
+    ("text_bold_checkbox", "bold", "Bold"),
+    ("text_italic_checkbox", "italic", "Italic"),
+    ("text_underline_checkbox", "underline", "Underline"),
+    ("text_strike_checkbox", "strikethrough", "Strike out"),
+    ("fill_color_button", "paint", "Fill / text color"),
+    ("outline_color_button", "border-outer", "Outline color"),
+    ("delete_tg_overlay_button", "trash", "Delete the selected overlays"),
+    ("delete_all_tg_overlays_button", "trash-x", "Delete all overlays"),
+    ("imprint_selected_tg_overlays_button", "stack-push", "Imprint the selected overlays into the image"),
+)
+TEXT_LABELS = (
+    ("label_25", "typography", "Font family"),
+    ("label_26", "text-size", "Font size"),
+    ("label_30", "line-height", "Outline width"),
+    ("label_28", "arrow-autofit-width", "Width (mm)"),
+    ("label_29", "arrow-autofit-height", "Height (mm)"),
+)
+
+
+def _icon_labels(gui, table, size=20):
+    for name, icon_name, tooltip in table:
+        label = getattr(gui, name)
+        label.setPixmap(icons.icon(icon_name).pixmap(size, size))
+        label.setToolTip(tooltip)
+        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+
+
+def _text_section(gui):
+    _iconify(gui, TEXT_BUTTONS)
+    _icon_labels(gui, TEXT_LABELS)
+    combo = gui.geometry_type_combobox
+    for i, icon_name in enumerate(("line", "square", "triangle", "oval")):  # Line, Rectangle, Triangle, Ellipse
+        if i < combo.count():
+            combo.setItemIcon(i, icons.icon(icon_name))
+    combo.setToolTip("Geometry type")
+    gui.tg_overlay_list_widget.setMaximumHeight(140)
+    return _take(gui.tg_frame)
 
 
 def _images_section(gui):
@@ -156,7 +200,7 @@ class SettingsPanel:
     def __init__(self, gui, on_hidden=None):
         self.gui = gui
         self.on_hidden = on_hidden
-        builders = {"@images": _images_section, "@size": _size_section, "@color": _color_section}
+        builders = {"@images": _images_section, "@size": _size_section, "@color": _color_section, "@text": _text_section}
         state = Preferences.get("panel") or DEFAULT_STATE
         self.open = {group: list(state.get("open", {}).get(group, DEFAULT_STATE["open"][group])) for group in GROUPS}
         self.group = None
@@ -201,6 +245,7 @@ class SettingsPanel:
                 section.setVisible(False)
                 self.content_layout.addWidget(section, 0, QtCore.Qt.AlignmentFlag.AlignLeft)  # natural width (P9.4)
                 sub_button = VerticalButton(label)
+                sub_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
                 sub_button.setCheckable(True)
                 sub_button.setToolTip(tooltip)
                 sub_button.setChecked(label in self.open[group])
@@ -212,10 +257,17 @@ class SettingsPanel:
         sub_layout.addStretch(1)
         group_layout.addStretch(1)
 
+        fixed, maximum, preferred = (QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Maximum,
+                                     QtWidgets.QSizePolicy.Policy.Preferred)
+        for strip in (self.sub_strip, group_strip):  # the strips never take the free space (P9.4)
+            strip.setSizePolicy(fixed, preferred)
+        self.widget.setSizePolicy(maximum, preferred)  # the canvas gets the rest
         panel_layout.addWidget(self.scroll)
         panel_layout.addWidget(self.sub_strip)
         panel_layout.addWidget(group_strip)
-        gui.centralwidget.layout().replaceWidget(gui.control_tabWidget, self.widget)
+        central = gui.centralwidget.layout()
+        central.replaceWidget(gui.control_tabWidget, self.widget)
+        central.setStretch(0, 1)  # the free width goes to the canvas, not to the panel (P9.4)
         gui.control_tabWidget.hide()
         gui.Image_controls_frame.hide()  # its contents now live in the panel
         gui.settings_panel = self.widget
@@ -308,4 +360,8 @@ def build(gui, c):
     build_toolbar(gui, c)
     # hiding the mask section switches off the mask tools (colour tools stay active: they have hotkeys, P9.10)
     reset_tools = lambda name: c.image_colorer.set_single_toggle_state('') if name == "Masks" else None
-    return build_panel(gui, on_hidden=reset_tools)
+    panel = build_panel(gui, on_hidden=reset_tools)
+    tg = c.overlay_manager  # colour buttons: icons in the contrast colour of the current colour (P9.8)
+    tg._style_color_button(gui.fill_color_button, tg.current_fill_color)
+    tg._style_color_button(gui.outline_color_button, tg.current_outline_color)
+    return panel

@@ -2287,152 +2287,56 @@ from
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
                  </property>
-                 <layout class="QGridLayout" name="gridLayout_11" columnstretch="1,1">
-                  <property name="leftMargin">
-                   <number>0</number>
+                 <layout class="QGridLayout" name="tg_section_layout">
+                  <property name="horizontalSpacing">
+                   <number>4</number>
                   </property>
-                  <property name="topMargin">
-                   <number>0</number>
-                  </property>
-                  <property name="rightMargin">
-                   <number>0</number>
-                  </property>
-                  <property name="bottomMargin">
-                   <number>0</number>
+                  <property name="verticalSpacing">
+                   <number>4</number>
                   </property>
                   <item row="0" column="0">
-                   <widget class="QGroupBox" name="groupBox_9">
-                    <property name="styleSheet">
-                     <string notr="true">QGroupBox{
-      color:  rgb(80, 0, 19);  /* Text color */
-      font-weight: normal;  /* Bold text */
-      font-style: italic;
-      border: 1px solid rgb(122, 0, 28);
-      margin-top: 7px;
-      padding-top:5px
-      }
-      QGroupBox::title {
-          /* Tells Qt to position the title in the margin area we created above */
-          subcontrol-origin: margin;
-      	subcontrol-position: top center; 
-      	padding: 0px 5px;
-      }</string>
-                    </property>
+                   <widget class="QGroupBox" name="tg_add_frame">
                     <property name="title">
-                     <string>Text Fields</string>
+                     <string>Add</string>
                     </property>
-                    <layout class="QVBoxLayout" name="verticalLayout_5">
-                     <item>
+                    <property name="styleClass" stdset="0">
+                     <string>verticalSubFrame</string>
+                    </property>
+                    <layout class="QGridLayout" name="tg_add_grid">
+                     <property name="horizontalSpacing">
+                      <number>4</number>
+                     </property>
+                     <property name="verticalSpacing">
+                      <number>4</number>
+                     </property>
+                     <item row="0" column="0">
                       <widget class="QPushButton" name="add_text_button">
                        <property name="text">
                         <string>add text</string>
                        </property>
                       </widget>
                      </item>
-                     <item>
-                      <widget class="QLabel" name="label_31">
-                       <property name="text">
-                        <string>Text Input</string>
+                     <item row="0" column="1">
+                      <widget class="QLineEdit" name="text_input_lineedit">
+                       <property name="placeholderText">
+                        <string>Text</string>
                        </property>
                       </widget>
                      </item>
-                     <item>
-                      <widget class="QLineEdit" name="text_input_lineedit"/>
-                     </item>
-                    </layout>
-                   </widget>
-                  </item>
-                  <item row="0" column="1">
-                   <widget class="QGroupBox" name="groupBox_10">
-                    <property name="styleSheet">
-                     <string notr="true">QGroupBox{
-      color:  rgb(80, 0, 19);  /* Text color */
-      font-weight: normal;  /* Bold text */
-      font-style: italic;
-      border: 1px solid rgb(122, 0, 28);
-      margin-top: 7px;
-      padding-top:5px
-      }
-      QGroupBox::title {
-          /* Tells Qt to position the title in the margin area we created above */
-          subcontrol-origin: margin;
-      	subcontrol-position: top center; 
-      	padding: 0px 5px;
-      }</string>
-                    </property>
-                    <property name="title">
-                     <string>Simple Geometries</string>
-                    </property>
-                    <layout class="QVBoxLayout" name="verticalLayout_6">
-                     <item>
+                     <item row="1" column="0">
                       <widget class="QPushButton" name="add_geometry_button">
                        <property name="text">
                         <string>add geoemtry</string>
                        </property>
                       </widget>
                      </item>
-                     <item>
-                      <widget class="QLabel" name="label_24">
-                       <property name="sizePolicy">
-                        <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-                         <horstretch>0</horstretch>
-                         <verstretch>0</verstretch>
-                        </sizepolicy>
-                       </property>
-                       <property name="text">
-                        <string>Geometry Type</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item>
+                     <item row="1" column="1">
                       <widget class="QComboBox" name="geometry_type_combobox"/>
                      </item>
                     </layout>
                    </widget>
                   </item>
                   <item row="1" column="0">
-                   <widget class="QGroupBox" name="groupBox_12">
-                    <property name="styleSheet">
-                     <string notr="true">QGroupBox{
-      color:  rgb(80, 0, 19);  /* Text color */
-      font-weight: normal;  /* Bold text */
-      font-style: italic;
-      border: 1px solid rgb(122, 0, 28);
-      margin-top: 7px;
-      padding-top:5px
-      }
-      QGroupBox::title {
-          /* Tells Qt to position the title in the margin area we created above */
-          subcontrol-origin: margin;
-      	subcontrol-position: top center; 
-      	padding: 0px 5px;
-      }</string>
-                    </property>
-                    <property name="title">
-                     <string>Active Overlays</string>
-                    </property>
-                    <layout class="QVBoxLayout" name="verticalLayout_7">
-                     <item>
-                      <widget class="QListWidget" name="tg_overlay_list_widget"/>
-                     </item>
-                     <item>
-                      <widget class="QPushButton" name="delete_tg_overlay_button">
-                       <property name="text">
-                        <string>delete selected overlay</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item>
-                      <widget class="QPushButton" name="delete_all_tg_overlays_button">
-                       <property name="text">
-                        <string>delete all overlays</string>
-                       </property>
-                      </widget>
-                     </item>
-                    </layout>
-                   </widget>
-                  </item>
-                  <item row="1" column="1">
                    <widget class="QGroupBox" name="groupBox_11">
                     <property name="styleSheet">
                      <string notr="true">QGroupBox{
@@ -2451,77 +2355,36 @@ from
       }</string>
                     </property>
                     <property name="title">
-                     <string>Properties (of selected)</string>
+                     <string>Properties</string>
                     </property>
-                    <layout class="QGridLayout" name="gridLayout_28">
-                     <item row="10" column="0">
+                    <property name="styleClass" stdset="0">
+                     <string>verticalSubFrame</string>
+                    </property>
+                    <layout class="QGridLayout" name="tg_properties_grid">
+                     <property name="horizontalSpacing">
+                      <number>4</number>
+                     </property>
+                     <property name="verticalSpacing">
+                      <number>4</number>
+                     </property>
+                     <item row="0" column="0">
+                      <widget class="QLabel" name="label_25">
+                       <property name="text">
+                        <string>Font Family</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1" colspan="5">
                       <widget class="QComboBox" name="font_family_combobox"/>
                      </item>
-                     <item row="15" column="0">
-                      <widget class="QCheckBox" name="text_underline_checkbox">
-                       <property name="text">
-                        <string>Unterline</string>
-                       </property>
-                       <property name="checked">
-                        <bool>false</bool>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="16" column="0">
-                      <widget class="QCheckBox" name="text_strike_checkbox">
-                       <property name="text">
-                        <string>Cross-out</string>
-                       </property>
-                       <property name="checked">
-                        <bool>false</bool>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="11" column="0">
+                     <item row="1" column="0">
                       <widget class="QLabel" name="label_26">
                        <property name="text">
                         <string>Font Size</string>
                        </property>
                       </widget>
                      </item>
-                     <item row="3" column="0">
-                      <widget class="QDoubleSpinBox" name="outline_width_spinbox">
-                       <property name="buttonSymbols">
-                        <enum>QAbstractSpinBox::NoButtons</enum>
-                       </property>
-                       <property name="maximum">
-                        <double>1000.000000000000000</double>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="0">
-                      <widget class="QLabel" name="label_30">
-                       <property name="text">
-                        <string>Outline width</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="13" column="0">
-                      <widget class="QCheckBox" name="text_bold_checkbox">
-                       <property name="enabled">
-                        <bool>true</bool>
-                       </property>
-                       <property name="text">
-                        <string>Bold</string>
-                       </property>
-                       <property name="checked">
-                        <bool>false</bool>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="14" column="0">
-                      <widget class="QCheckBox" name="text_italic_checkbox">
-                       <property name="text">
-                        <string>Italic</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="12" column="0">
+                     <item row="1" column="1">
                       <widget class="QSpinBox" name="font_size_spinbox">
                        <property name="buttonSymbols">
                         <enum>QAbstractSpinBox::NoButtons</enum>
@@ -2534,7 +2397,97 @@ from
                        </property>
                       </widget>
                      </item>
-                     <item row="6" column="0">
+                     <item row="1" column="2">
+                      <widget class="QPushButton" name="text_bold_checkbox">
+                       <property name="enabled">
+                        <bool>true</bool>
+                       </property>
+                       <property name="text">
+                        <string>Bold</string>
+                       </property>
+                       <property name="checked">
+                        <bool>false</bool>
+                       </property>
+                       <property name="checkable">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="3">
+                      <widget class="QPushButton" name="text_italic_checkbox">
+                       <property name="text">
+                        <string>Italic</string>
+                       </property>
+                       <property name="checkable">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="4">
+                      <widget class="QPushButton" name="text_underline_checkbox">
+                       <property name="text">
+                        <string>Unterline</string>
+                       </property>
+                       <property name="checked">
+                        <bool>false</bool>
+                       </property>
+                       <property name="checkable">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="5">
+                      <widget class="QPushButton" name="text_strike_checkbox">
+                       <property name="text">
+                        <string>Cross-out</string>
+                       </property>
+                       <property name="checked">
+                        <bool>false</bool>
+                       </property>
+                       <property name="checkable">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="0">
+                      <widget class="QPushButton" name="fill_color_button">
+                       <property name="text">
+                        <string>Fill/Text Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="1">
+                      <widget class="QPushButton" name="outline_color_button">
+                       <property name="text">
+                        <string>Outline Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="2">
+                      <widget class="QLabel" name="label_30">
+                       <property name="text">
+                        <string>Outline width</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="3" colspan="3">
+                      <widget class="QDoubleSpinBox" name="outline_width_spinbox">
+                       <property name="buttonSymbols">
+                        <enum>QAbstractSpinBox::NoButtons</enum>
+                       </property>
+                       <property name="maximum">
+                        <double>1000.000000000000000</double>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="3" column="0">
+                      <widget class="QLabel" name="label_28">
+                       <property name="text">
+                        <string>Geometry width</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="3" column="1">
                       <widget class="QDoubleSpinBox" name="width_mm_spinbox">
                        <property name="buttonSymbols">
                         <enum>QAbstractSpinBox::NoButtons</enum>
@@ -2544,21 +2497,14 @@ from
                        </property>
                       </widget>
                      </item>
-                     <item row="7" column="0">
+                     <item row="3" column="2">
                       <widget class="QLabel" name="label_29">
                        <property name="text">
                         <string>Geometry height</string>
                        </property>
                       </widget>
                      </item>
-                     <item row="0" column="0">
-                      <widget class="QPushButton" name="fill_color_button">
-                       <property name="text">
-                        <string>Fill/Text Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="8" column="0">
+                     <item row="3" column="3" colspan="3">
                       <widget class="QDoubleSpinBox" name="height_mm_spinbox">
                        <property name="buttonSymbols">
                         <enum>QAbstractSpinBox::NoButtons</enum>
@@ -2568,37 +2514,64 @@ from
                        </property>
                       </widget>
                      </item>
-                     <item row="5" column="0">
-                      <widget class="QLabel" name="label_28">
-                       <property name="text">
-                        <string>Geometry width</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="0">
-                      <widget class="QPushButton" name="outline_color_button">
-                       <property name="text">
-                        <string>Outline Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="9" column="0">
-                      <widget class="QLabel" name="label_25">
-                       <property name="text">
-                        <string>Font Family</string>
-                       </property>
-                      </widget>
-                     </item>
                     </layout>
                    </widget>
                   </item>
-                  <item row="2" column="0" colspan="2">
-                   <widget class="QPushButton" name="imprint_selected_tg_overlays_button">
-                    <property name="enabled">
-                     <bool>false</bool>
-                    </property>
+                  <item row="2" column="0">
+                   <widget class="QGroupBox" name="groupBox_12">
                     <property name="styleSheet">
-                     <string notr="true">QPushButton {
+                     <string notr="true">QGroupBox{
+      color:  rgb(80, 0, 19);  /* Text color */
+      font-weight: normal;  /* Bold text */
+      font-style: italic;
+      border: 1px solid rgb(122, 0, 28);
+      margin-top: 7px;
+      padding-top:5px
+      }
+      QGroupBox::title {
+          /* Tells Qt to position the title in the margin area we created above */
+          subcontrol-origin: margin;
+      	subcontrol-position: top center; 
+      	padding: 0px 5px;
+      }</string>
+                    </property>
+                    <property name="title">
+                     <string>Overlays</string>
+                    </property>
+                    <property name="styleClass" stdset="0">
+                     <string>verticalSubFrame</string>
+                    </property>
+                    <layout class="QGridLayout" name="tg_overlays_grid">
+                     <property name="horizontalSpacing">
+                      <number>4</number>
+                     </property>
+                     <property name="verticalSpacing">
+                      <number>4</number>
+                     </property>
+                     <item row="0" column="0" colspan="4">
+                      <widget class="QListWidget" name="tg_overlay_list_widget"/>
+                     </item>
+                     <item row="1" column="0">
+                      <widget class="QPushButton" name="delete_tg_overlay_button">
+                       <property name="text">
+                        <string>delete selected overlay</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="1">
+                      <widget class="QPushButton" name="delete_all_tg_overlays_button">
+                       <property name="text">
+                        <string>delete all overlays</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="2">
+                      <widget class="QPushButton" name="imprint_selected_tg_overlays_button">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
+                       <property name="styleSheet">
+                        <string notr="true">QPushButton {
       	background-color: rgb(220,120,20);  /* Background color */
       	border: 2px solid rgb(0, 0, 0);
           color: rgb(255, 255, 255);  /* Text color */
@@ -2634,10 +2607,13 @@ from
       	border: 1px solid rgb(0, 0,0);
       	font-weight: normal;
       }</string>
-                    </property>
-                    <property name="text">
-                     <string>Imprint selected Overlays</string>
-                    </property>
+                       </property>
+                       <property name="text">
+                        <string>Imprint selected Overlays</string>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
                    </widget>
                   </item>
                  </layout>
