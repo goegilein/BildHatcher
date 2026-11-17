@@ -50,17 +50,11 @@ class BaseFunctions:
         self.action_white_is_background = QtGui.QAction("Load: Pure White as Transparent", gui)
         self.action_white_is_background.setCheckable(True)
         self.action_white_is_background.setChecked(True)
-        for menu in gui.menubar.findChildren(QtWidgets.QMenu):
-            if self.actionLoad_image in menu.actions():
-                menu.insertAction(self.actionSave_image, self.action_white_is_background)
-                break
-        # replaces the old white thresholds of hatching/parsing/plotting (mean RGB > threshold -> background)
+        gui.settings_menu.addAction(self.action_white_is_background)  # P9.2: a setting, only in the Settings menu
+        # replaces the old white thresholds of hatching/parsing/plotting (mean RGB > threshold -> background);
+        # P9.2: reached through the image operations, not the File menu
         self.action_bright_to_transparent = QtGui.QAction("Make Bright Colors Transparent...", gui)
         self.action_bright_to_transparent.triggered.connect(lambda: self.make_bright_transparent())
-        for menu in gui.menubar.findChildren(QtWidgets.QMenu):
-            if self.actionLoad_image in menu.actions():
-                menu.insertAction(self.actionSave_image, self.action_bright_to_transparent)
-                break
         # self.actionReset_image = gui.actionReset_Image
         # self.actionReset_image.triggered.connect(self.reset_image)
 

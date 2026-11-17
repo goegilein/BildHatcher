@@ -7,6 +7,8 @@ Widgets keep their object names, so the controllers find them as before.
 """
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+import icons
+
 # (strip label, tooltip / full name, section groupbox name or builder key); None = group separator
 SECTIONS = [
     ("Images", "Images: list, add / remove / keep changes, split / combine", "@images"),
@@ -173,8 +175,11 @@ def build_panel(gui, on_close=None):
 def build_toolbar(gui, c):
     """File / image / view actions, colour profile and machine in the toolbar."""
     bar = gui.toolBar
-    bar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextOnly)
-    for action in (gui.actionLoad_Image, gui.actionSave_Image, gui.actionNew_Blank):
+    bar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly)  # P9.2: pictograms, texts as tooltips
+    bar.setIconSize(QtCore.QSize(22, 22))
+    for action, name in ((gui.actionLoad_Image, "folder-open"), (gui.actionSave_Image, "device-floppy"),
+                         (gui.actionNew_Blank, "file-plus")):
+        icons.set_icon(action, name)
         bar.addAction(action)
     bar.addSeparator()
 
@@ -191,9 +196,9 @@ def build_toolbar(gui, c):
         menu.addAction(text).triggered.connect(lambda checked=False, f=slot: f())
     menu.addSeparator()
     menu.addAction(ctrl.action_bright_to_transparent)
-    menu.addAction(ctrl.action_white_is_background)
     image_button = QtWidgets.QToolButton()
     image_button.setText("Image")
+    icons.set_icon(image_button, "photo", tooltip="Image operations")
     image_button.setMenu(menu)
     image_button.setPopupMode(QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup)
     bar.addWidget(image_button)
@@ -202,12 +207,12 @@ def build_toolbar(gui, c):
     # view: zoom, reset, re-center, grid
     mover = c.image_sizer
     gui.zoom_slider.hide()  # the zoom field alone is enough in the toolbar (wheel / pinch zoom still work)
-    bar.addWidget(QtWidgets.QLabel(" Zoom "))
     gui.zoom_spinbox.setSuffix(" %")
+    gui.zoom_spinbox.setToolTip("Zoom")
     bar.addWidget(_take(gui.zoom_spinbox))
-    bar.addAction("Reset Zoom").triggered.connect(lambda: mover.reset_zoom())
-    bar.addAction("Re-center").triggered.connect(lambda: mover.recenter_image())
-    grid_action = bar.addAction("Grid")
+    bar.addAction(icons.icon("zoom-reset"), "Reset Zoom").triggered.connect(lambda: mover.reset_zoom())
+    bar.addAction(icons.icon("focus-centered"), "Re-center").triggered.connect(lambda: mover.recenter_image())
+    grid_action = bar.addAction(icons.icon("grid-4x4"), "Grid")
     grid_action.setCheckable(True)
     grid_action.toggled.connect(lambda checked: mover.toggle_grid() if checked != mover.grid_on else None)
     gui.grid_distance_spinbox.setSuffix(" mm")
@@ -217,8 +222,13 @@ def build_toolbar(gui, c):
     bar.addSeparator()
 
     # application-wide profiles
+    c.color_profiles.action.setIcon(icons.icon("database"))
     bar.addAction(c.color_profiles.action)
-    bar.addWidget(QtWidgets.QLabel(" Machine "))
+    bar.widgetForAction(c.color_profiles.action).setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+    machine_label = QtWidgets.QLabel()
+    machine_label.setPixmap(icons.icon("device-desktop-cog").pixmap(22, 22))
+    machine_label.setToolTip("Machine profile")
+    bar.addWidget(machine_label)
     gui.machine_profile_label.hide()
     bar.addWidget(_take(gui.machine_profile_combobox))
 

@@ -22,7 +22,7 @@ This file is the single source of truth for status – update it in the same com
 | 6 – Editing tools | done | fill/quantize/clean-up fast, B17/B33 fixed |
 | 7 – Polish | done | version 2.0.0 |
 | 8 – UI rework & image tools | done (P8.9 optional) | branch not merged yet – user decides |
-| 9 – Compact UI, hotkeys, tool wheel | **planning** | decisions Q9.x open |
+| 9 – Compact UI, hotkeys, tool wheel | in progress | P9.1, P9.2 (mostly) done |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
 
@@ -257,12 +257,12 @@ Requested after Phase 7 (branch is not merged into `main` before this phase is d
 
 Requested after Phase 8. Order = dependencies (icons first, then panel structure, then the sections, then hotkeys and the wheel).
 
-- [ ] **P9.1 Icon set + helper.** One consistent pictogram set (see Q9.1), `icons.py`: `icon(name)` coloured in the app colours, cached; tooltips carry the former button texts (+ hotkey).
-- [ ] **P9.2 Toolbar & menus.** Load / Save / New as the common pictograms; *Image ▾* drop-down removed (its operations move back into the Images section, P9.4); *Load: Pure White as Transparent* only in the Settings menu; *Make Bright Colors Transparent* removed from the File menu (Images section). Zoom / grid / colour profile / machine stay in the toolbar. New: indicator of the active colour tool (needed once tools are switched by hotkeys while the panel is closed, P9.8).
+- [x] **P9.1 Icon set + helper.** 77 Tabler icons (3.24.0, MIT, licence in `GUI_Files/icons`), `icons.icon(name, color)` / `icons.set_icon(widget, name)`. One consistent pictogram set (see Q9.1), `icons.py`: `icon(name)` coloured in the app colours, cached; tooltips carry the former button texts (+ hotkey).
+- [~] **P9.2 Toolbar & menus.** Done: pictograms (Load/Save/New, reset zoom, re-center, grid, colour profile, machine), white-as-transparent only in Settings, bright→transparent out of the File menu. The *Image ▾* drop-down stays until P9.6 gives its operations icon buttons in the Images section; the tool indicator comes with P9.10. Load / Save / New as the common pictograms; *Image ▾* drop-down removed (its operations move back into the Images section, P9.4); *Load: Pure White as Transparent* only in the Settings menu; *Make Bright Colors Transparent* removed from the File menu (Images section). Zoom / grid / colour profile / machine stay in the toolbar. New: indicator of the active colour tool (needed once tools are switched by hotkeys while the panel is closed, P9.8).
 - [ ] **P9.3 Panel navigation, two levels (1.4).** Top level: one button per group (Image, Text, Hatching, Automation) – single select, clicking the active one closes the panel. Below: the toggle buttons of the active group's subsections (multi select). Per group the selection of subsections is remembered (also across restarts, `preferences.json`); only the active group's sections are shown. Layout of the two levels: Q9.2.
 - [ ] **P9.4 No fixed width / no stretching (1.3).** Sections keep their natural (compact) size and are left/top aligned; the panel is as wide as the widest *visible* section (no fixed width, nothing stretched). The old section headers with the show/hide function are removed (2.); a small title stays where useful.
 - [ ] **P9.5 Section merges.** *Contours/Outlines* into *Hatch* (2.4); *Laser* + *J-Code* → *Automation* (2.5). Groups afterwards: Image (Images, Size & Center, Adjust, Color, Masks) · Text · Hatching (Hatch, Tests, Export) · Automation.
-- [ ] **P9.6 Images section (2.1).** Icon-button grid: add, remove, split, combine, **combine monochrome (own button, checkbox removed)**, rotate, mirror H/V, crop background, cut to mask, upscale (AI / keep colours), make bright colours transparent. *Keep Changes*: proposal → remove (Q9.5).
+- [ ] **P9.6 Images section (2.1).** Icon-button grid: add, remove, split, combine, **combine monochrome (own button, checkbox removed)**, rotate, mirror H/V, crop background, cut to mask, upscale (AI / keep colours), make bright colours transparent. *Keep Changes* → *Set as Original* (Q9.5).
 - [ ] **P9.7 Color section (2.2), designed for a narrow vertical panel.** Row of equal-size tool buttons (draw, fill, replace, pick from image) – below them **one fixed-height options area** (stacked pages: pen width / fill mode + its options / …) so switching modes never resizes the UI; colour row (active colour, 3×3 palette + transparent, more colours, DB colour); actions (undo step, imprint, restore); *Recolor from Database* = one button (profile shown in the toolbar only); contouring and clean-up compact.
 - [ ] **P9.8 Text section (2.3).** Vertical: properties on top in a compact grid (font, size, B / I / U / S as toggle buttons with the usual symbols, fill / outline colour, outline width, width / height with icon labels), overlay list at the bottom.
 - [ ] **P9.9 Remaining sections iconified** (Adjust, Masks, Size & Center, Hatch, Tests, Export, Automation): icons where they are unambiguous, compact grid layouts.
@@ -275,8 +275,8 @@ Requested after Phase 8. Order = dependencies (icons first, then panel structure
 - Q9.2 Layout of the two navigation levels. **Decided:** two strips side by side – outer strip = groups, inner strip = subsections of the active group.
 - Q9.3 Where the compact section layouts live. **Decided:** in `BildHatcher.ui` (Designer stays the source of truth for the arrangement); icons/tooltips assigned in code from one table; the navigation strips themselves stay in code (custom vertical buttons).
 - Q9.4 Hotkey keys. **Decided:** mnemonic – D Draw, F Fill, R Replace, P Pick from image, C More colors, T Transparent.
-- Q9.5 *Keep Changes* – it sets the current image as new restore point for *Restore Original Colors* (and resets the hatch centre); with undo this is mostly redundant → remove?
-- Q9.6 Wheel trigger: Windows reports the pen's barrel button as a right mouse button – use that (also lets mouse users hold the right button)? Needs a test on the real device.
+- Q9.5 *Keep Changes* – sets the current image as new restore point for *Restore Original Colors*. **Decided:** keep, renamed to *Set as Original*.
+- Q9.6 Wheel trigger. **Decided:** right mouse button held over the image (the pen's barrel button arrives as right button on Windows; the right button is unused so far) – also outside touch mode.
 
 ## 6. Open questions
 
@@ -357,3 +357,4 @@ Requested after Phase 8. Order = dependencies (icons first, then panel structure
 | 2026-11-16 | P8.8 | Architecture slides rebuilt (checked via PowerPoint rendering). Phase 8 done except optional P8.9. |
 | 2026-11-17 | Phase 9 | Draft plan (compact UI with pictograms, two-level panel, section reworks, hotkeys, tool wheel); open questions Q9.1–Q9.6. |
 | 2026-11-17 | Phase 9 | Decided: Tabler SVG icons, two navigation strips, section layouts in the .ui, mnemonic hotkeys (D/F/R/P/C/T). Open: Q9.5, Q9.6. |
+| 2026-11-17 | Q9.5, Q9.6, P9.1, P9.2 | Keep Changes → *Set as Original*; wheel on right button over the image. Icons and toolbar pictograms, menu clean-up. 74 tests. |
