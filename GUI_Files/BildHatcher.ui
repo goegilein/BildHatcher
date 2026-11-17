@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -216,33 +216,55 @@ background-color: rgb(255,255,255);  /* Background color */
 /*STYLE CLASSES*/
 
 /*OutsideFrame*/
-QGroupBox[styleClass=&quot;outsideFrame&quot;]{
+QGroupBox[styleClass="outsideFrame"]{
 border: 2px solid rgb(122, 0, 28);
 background-color: rgb(240,240,240);  /* Background color */
 margin: 0px;
 }
-QGroupBox[styleClass=&quot;outsideFrame&quot;] QGroupBox{
+QGroupBox[styleClass="outsideFrame"] QGroupBox{
 background-color: rgb(240,240,240);  /* Background color */
 }
-QGroupBox[styleClass=&quot;outsideFrame&quot;] QLabel{
+QGroupBox[styleClass="outsideFrame"] QLabel{
 background-color: rgb(240,240,240);  /* Background color */
 }
-QGroupBox[styleClass=&quot;outsideFrame&quot;] QSlider{
+QGroupBox[styleClass="outsideFrame"] QSlider{
 background-color: rgb(240,240,240);  /* Background color */
 }
-QGroupBox[styleClass=&quot;outsideFrame&quot;] QCheckBox{
+QGroupBox[styleClass="outsideFrame"] QCheckBox{
 background-color: rgb(240,240,240);  /* Background color */
 }
 
 /*InsideFrame*/
-QGroupBox[styleClass=&quot;insideFrame&quot;]{
+QGroupBox[styleClass="insideFrame"]{
 border: 0px solid rgb(0, 0, 0);
 padding: 10px;
 margin: 0px;
+margin-top: 16px;
+}
+QGroupBox[styleClass="insideFrame"]::title {
+    /* the section title (P9.3: replaces the old show/hide header button) */
+    subcontrol-origin: margin;
+	subcontrol-position: top left;
+	padding: 0px 4px;
+}
+
+/*Panel group strip (P9.3)*/
+QToolButton[styleClass="PanelGroup"] {
+	border: 1px solid transparent;
+	border-radius: 4px;
+	padding: 4px;
+}
+QToolButton[styleClass="PanelGroup"]:hover {
+	border-color: rgb(122, 0, 28);
+}
+QToolButton[styleClass="PanelGroup"]:checked {
+	background-color: rgb(255, 255, 255);
+	border: 1px solid rgb(122, 0, 28);
+	border-right: 3px solid rgb(122, 0, 28);
 }
 
 /*verticalSubFrame*/
-QGroupBox[styleClass=&quot;verticalSubFrame&quot;]{
+QGroupBox[styleClass="verticalSubFrame"]{
 color:  rgb(80, 0, 19);  /* Text color */
 font-weight: normal;  /* Bold text */
 font-style: italic;
@@ -253,7 +275,7 @@ border-bottom: none;
 margin-top: 8px;
 padding-top:5px
 }
-QGroupBox[styleClass=&quot;verticalSubFrame&quot;]::title {
+QGroupBox[styleClass="verticalSubFrame"]::title {
     /* Tells Qt to position the title in the margin area we created above */
     subcontrol-origin: margin;
 	subcontrol-position: top center; 
@@ -262,7 +284,7 @@ QGroupBox[styleClass=&quot;verticalSubFrame&quot;]::title {
 
 
 /*MenuButton*/
-QPushButton[styleClass=&quot;MenuButton&quot;] {
+QPushButton[styleClass="MenuButton"] {
 	background-color: rgb(122,0,28);  /* Background color */
 	border: 1px solid rgb(0, 0, 0);
     color: rgb(255, 255, 255);  /* Text color */
@@ -271,22 +293,22 @@ QPushButton[styleClass=&quot;MenuButton&quot;] {
 	padding: 2px;
 }
 
-QPushButton[styleClass=&quot;MenuButton&quot;]::hover {
+QPushButton[styleClass="MenuButton"]::hover {
     background-color: rgb(142, 0, 38);  /* Background color when hovered */
 	color: rgb(245, 245, 245);
     border-color:rgb(40, 40, 40);  /* Border color when hovered */
 }
 
-QPushButton[styleClass=&quot;MenuButton&quot;]::pressed {
+QPushButton[styleClass="MenuButton"]::pressed {
    color:  rgb(80, 0, 19);  /* Background color when pressed */
 	border-color: rgb(0, 0, 0);
 }
-QPushButton[styleClass=&quot;MenuButton&quot;]::clicked {
+QPushButton[styleClass="MenuButton"]::clicked {
    background-color: rgb(80,0,19);  /* Background color when pressed */
 	border-color:  rgb(0,0, 0);
 }
 
-QPushButton[styleClass=&quot;MenuButton&quot;]::checked {
+QPushButton[styleClass="MenuButton"]::checked {
     background-color: rgb(255,255,255);
 	color:  rgb(80, 0, 19);
 	border: 1px solid rgb(122, 0, 28);
@@ -296,7 +318,7 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::checked {
 	font-weight: bold;  /* Bold text */
 }
 
-QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
+QPushButton[styleClass="MenuButton"]::disabled {
     background-color: rgb(180,180, 180);
 	border: 0px solid rgb(0, 0,0);
 }</string>
@@ -1235,31 +1257,12 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                 <number>0</number>
                </property>
                <item>
-                <widget class="QPushButton" name="pushButton">
-                 <property name="styleSheet">
-                  <string notr="true"/>
-                 </property>
-                 <property name="text">
-                  <string>Image Adjustments</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="styleClass" stdset="0">
-                  <string>MenuButton</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
                 <widget class="QGroupBox" name="insde_image_adjustment_frame">
                  <property name="styleSheet">
                   <string notr="true"/>
                  </property>
                  <property name="title">
-                  <string/>
+                  <string>Image Adjustments</string>
                  </property>
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
@@ -1509,31 +1512,12 @@ QPushButton[styleClass=&quot;MenuButton&quot;]::disabled {
                 <number>0</number>
                </property>
                <item>
-                <widget class="QPushButton" name="pushButton_2">
-                 <property name="styleSheet">
-                  <string notr="true"/>
-                 </property>
-                 <property name="text">
-                  <string>Color Image</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="styleClass" stdset="0">
-                  <string>MenuButton</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
                 <widget class="QGroupBox" name="inside_image_color_frame">
                  <property name="styleSheet">
                   <string notr="true"/>
                  </property>
                  <property name="title">
-                  <string/>
+                  <string>Color Image</string>
                  </property>
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
@@ -2101,31 +2085,12 @@ from
                 <number>0</number>
                </property>
                <item>
-                <widget class="QPushButton" name="pushButton_3">
-                 <property name="styleSheet">
-                  <string notr="true"/>
-                 </property>
-                 <property name="text">
-                  <string>Mask Drawing</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="styleClass" stdset="0">
-                  <string>MenuButton</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
                 <widget class="QGroupBox" name="inside_draw_mask_groupbox">
                  <property name="styleSheet">
                   <string notr="true"/>
                  </property>
                  <property name="title">
-                  <string/>
+                  <string>Mask Drawing</string>
                  </property>
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
@@ -2348,31 +2313,12 @@ from
                 <number>0</number>
                </property>
                <item>
-                <widget class="QPushButton" name="pushButton_10">
-                 <property name="styleSheet">
-                  <string notr="true"/>
-                 </property>
-                 <property name="text">
-                  <string>Text and Geometries</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="styleClass" stdset="0">
-                  <string>MenuButton</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
                 <widget class="QGroupBox" name="inside_tg_frame">
                  <property name="styleSheet">
                   <string notr="true"/>
                  </property>
                  <property name="title">
-                  <string/>
+                  <string>Text and Geometries</string>
                  </property>
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
@@ -2821,31 +2767,12 @@ from
                 <number>0</number>
                </property>
                <item>
-                <widget class="QPushButton" name="pushButton_4">
-                 <property name="styleSheet">
-                  <string notr="true"/>
-                 </property>
-                 <property name="text">
-                  <string>Test Structures</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="styleClass" stdset="0">
-                  <string>MenuButton</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
                 <widget class="QGroupBox" name="inside_testStruc_frame">
                  <property name="styleSheet">
                   <string notr="true"/>
                  </property>
                  <property name="title">
-                  <string/>
+                  <string>Test Structures</string>
                  </property>
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
@@ -3013,31 +2940,12 @@ from
                 <number>0</number>
                </property>
                <item>
-                <widget class="QPushButton" name="pushButton_5">
-                 <property name="styleSheet">
-                  <string notr="true"/>
-                 </property>
-                 <property name="text">
-                  <string>Image Hatching</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="styleClass" stdset="0">
-                  <string>MenuButton</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
                 <widget class="QGroupBox" name="inside_hatch_frame">
                  <property name="styleSheet">
                   <string notr="true"/>
                  </property>
                  <property name="title">
-                  <string/>
+                  <string>Image Hatching</string>
                  </property>
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
@@ -3292,62 +3200,13 @@ from
                  </layout>
                 </widget>
                </item>
-              </layout>
-             </widget>
-            </item>
-            <item>
-             <widget class="QGroupBox" name="contour_frame">
-              <property name="styleSheet">
-               <string notr="true"/>
-              </property>
-              <property name="title">
-               <string/>
-              </property>
-              <property name="styleClass" stdset="0">
-               <string>outsideFrame</string>
-              </property>
-              <layout class="QVBoxLayout" name="verticalLayout_13">
-               <property name="spacing">
-                <number>0</number>
-               </property>
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item>
-                <widget class="QPushButton" name="pushButton_6">
-                 <property name="styleSheet">
-                  <string notr="true"/>
-                 </property>
-                 <property name="text">
-                  <string>Contours/Outlines</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="styleClass" stdset="0">
-                  <string>MenuButton</string>
-                 </property>
-                </widget>
-               </item>
                <item>
                 <widget class="QGroupBox" name="inside_contour_frame">
                  <property name="styleSheet">
                   <string notr="true"/>
                  </property>
                  <property name="title">
-                  <string/>
+                  <string>Contours / Outlines</string>
                  </property>
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
@@ -3422,31 +3281,12 @@ from
                 <number>0</number>
                </property>
                <item>
-                <widget class="QPushButton" name="pushButton_7">
-                 <property name="styleSheet">
-                  <string notr="true"/>
-                 </property>
-                 <property name="text">
-                  <string>Build nc Data</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="styleClass" stdset="0">
-                  <string>MenuButton</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
                 <widget class="QGroupBox" name="inside_export_frame">
                  <property name="styleSheet">
                   <string notr="true"/>
                  </property>
                  <property name="title">
-                  <string/>
+                  <string>Build nc Data</string>
                  </property>
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
@@ -3898,31 +3738,12 @@ from
                 <number>0</number>
                </property>
                <item>
-                <widget class="QPushButton" name="pushButton_8">
-                 <property name="styleSheet">
-                  <string notr="true"/>
-                 </property>
-                 <property name="text">
-                  <string>Laser Settings</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="styleClass" stdset="0">
-                  <string>MenuButton</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
                 <widget class="QGroupBox" name="inside_laser_settings_frame">
                  <property name="styleSheet">
                   <string notr="true"/>
                  </property>
                  <property name="title">
-                  <string/>
+                  <string>Laser Settings</string>
                  </property>
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
@@ -4032,62 +3853,13 @@ from
                  </layout>
                 </widget>
                </item>
-              </layout>
-             </widget>
-            </item>
-            <item>
-             <widget class="QGroupBox" name="jcode_settings_frame">
-              <property name="styleSheet">
-               <string notr="true"/>
-              </property>
-              <property name="title">
-               <string/>
-              </property>
-              <property name="styleClass" stdset="0">
-               <string>outsideFrame</string>
-              </property>
-              <layout class="QVBoxLayout" name="verticalLayout_16">
-               <property name="spacing">
-                <number>0</number>
-               </property>
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item>
-                <widget class="QPushButton" name="pushButton_9">
-                 <property name="styleSheet">
-                  <string notr="true"/>
-                 </property>
-                 <property name="text">
-                  <string>J-Code Settings</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="styleClass" stdset="0">
-                  <string>MenuButton</string>
-                 </property>
-                </widget>
-               </item>
                <item>
                 <widget class="QGroupBox" name="inside_jcode_settings_frame">
                  <property name="styleSheet">
                   <string notr="true"/>
                  </property>
                  <property name="title">
-                  <string/>
+                  <string>J-Code</string>
                  </property>
                  <property name="styleClass" stdset="0">
                   <string>insideFrame</string>
@@ -4303,166 +4075,6 @@ from
     <hint type="destinationlabel">
      <x>113</x>
      <y>956</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_8</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>inside_laser_settings_frame</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>926</x>
-     <y>102</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>914</x>
-     <y>108</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_7</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>inside_export_frame</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>926</x>
-     <y>577</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>914</x>
-     <y>583</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>insde_image_adjustment_frame</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>1152</x>
-     <y>85</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>1336</x>
-     <y>123</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_4</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>inside_testStruc_frame</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>926</x>
-     <y>102</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>914</x>
-     <y>108</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_6</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>inside_contour_frame</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>926</x>
-     <y>503</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>914</x>
-     <y>509</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_5</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>inside_hatch_frame</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>926</x>
-     <y>270</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>914</x>
-     <y>276</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_10</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>inside_tg_frame</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>926</x>
-     <y>102</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>914</x>
-     <y>108</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_9</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>inside_jcode_settings_frame</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>926</x>
-     <y>237</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>914</x>
-     <y>243</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_2</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>inside_image_color_frame</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>1366</x>
-     <y>288</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>1366</x>
-     <y>566</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_3</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>inside_draw_mask_groupbox</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>1366</x>
-     <y>850</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>1366</x>
-     <y>1029</y>
     </hint>
    </hints>
   </connection>

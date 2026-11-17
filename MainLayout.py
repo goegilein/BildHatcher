@@ -1,33 +1,36 @@
-"""P8.6 / P8.7: main window layout – toolbar ("hotbar") and the right-hand settings panel.
+"""P8.6 / P8.7 / P9.3-P9.5: main window layout – toolbar ("hotbar") and the right-hand settings panel.
 
-The section contents still come from GUI_Files/BildHatcher.ui (editable in Qt Designer); this module only
-arranges them: every section becomes a toggle button in a vertical strip at the right edge, the opened sections
-are stacked next to it (scrollable), and with all sections closed the panel shrinks to the strip.
+The section contents come from GUI_Files/BildHatcher.ui (editable in Qt Designer); this module only arranges them.
+Panel navigation has two levels: an outer strip with one (icon) button per group – single select, clicking the
+active group closes the panel – and an inner strip with the subsections of the active group (multi select).
+The open subsections of every group are remembered (also across restarts, Preferences "panel").
+Sections keep their natural size (nothing is stretched); the panel is as wide as the widest visible section.
 Widgets keep their object names, so the controllers find them as before.
 """
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 import icons
+import Preferences
 
-# (strip label, tooltip / full name, section groupbox name or builder key); None = group separator
-SECTIONS = [
-    ("Images", "Images: list, add / remove / keep changes, split / combine", "@images"),
-    ("Size", "Image size and hatch center", "@size"),
-    ("Adjust", "Image adjustments: brightness, contrast, colors", "image_adjustment_frame"),
-    ("Color", "Color image: paint, fill, contours, clean up", "image_color_frame"),
-    ("Masks", "Mask drawing", "draw_mask_groupbox"),
-    None,
-    ("Text", "Text and geometries", "tg_frame"),
-    None,
-    ("Hatch", "Image hatching", "hatch_frame"),
-    ("Contours", "Contours / outlines", "contour_frame"),
-    ("Tests", "Test structures", "testStruc_frame"),
-    ("Export", "Build NC data: process blocks and export", "export_frame"),
-    None,
-    ("Laser", "Laser settings (color profile)", "laser_settings_frame"),
-    ("J-Code", "Automatic J-code generation", "jcode_settings_frame"),
-]
-OPEN_AT_START = ("Images", "Hatch")
+# group: (icon, [(strip label, tooltip / full name, section groupbox name or builder key)])
+GROUPS = {
+    "Image": ("photo", [
+        ("Images", "Images: list, add / remove, split / combine", "@images"),
+        ("Size", "Image size and hatch center", "@size"),
+        ("Adjust", "Image adjustments: brightness, contrast, colors", "image_adjustment_frame"),
+        ("Color", "Color image: paint, fill, contours, clean up", "image_color_frame"),
+        ("Masks", "Mask drawing", "draw_mask_groupbox"),
+    ]),
+    "Text": ("typography", [("Text", "Text and geometries", "tg_frame")]),
+    "Hatching": ("texture", [
+        ("Hatch", "Image hatching and contours / outlines", "hatch_frame"),
+        ("Tests", "Test structures", "testStruc_frame"),
+        ("Export", "Build NC data: process blocks and export", "export_frame"),
+    ]),
+    "Automation": ("robot", [("Automation", "Laser settings and automatic J-code generation", "laser_settings_frame")]),
+}
+DEFAULT_STATE = {"group": "Image", "open": {"Image": ["Images"], "Text": ["Text"], "Hatching": ["Hatch"],
+                                            "Automation": ["Automation"]}}
 
 
 class VerticalButton(QtWidgets.QPushButton):
@@ -59,11 +62,10 @@ def _styled(widget, style_class):
 
 
 def _new_section(title, *contents):
-    """A section in the look of the Designer sections (outsideFrame / MenuButton header / insideFrame)."""
+    """A section in the look of the Designer sections (outsideFrame with a titled insideFrame)."""
     section = _styled(QtWidgets.QGroupBox(), "outsideFrame")
     layout = QtWidgets.QVBoxLayout(section)
-    layout.addWidget(_styled(QtWidgets.QPushButton(title), "MenuButton"))
-    inside = _styled(QtWidgets.QGroupBox(), "insideFrame")
+    inside = _styled(QtWidgets.QGroupBox(title), "insideFrame")
     inside_layout = QtWidgets.QVBoxLayout(inside)
     for widget in contents:
         inside_layout.addWidget(widget)
@@ -80,7 +82,7 @@ def _take(widget):
 
 
 def _images_section(gui):
-    box = _styled(QtWidgets.QGroupBox("Images"), "verticalSubFrame")
+    box = QtWidgets.QWidget()
     grid = QtWidgets.QGridLayout(box)
     grid.addWidget(_take(gui.images_ListWidget), 0, 0, 1, 2)
     gui.images_ListWidget.setMaximumHeight(160)
@@ -95,81 +97,115 @@ def _size_section(gui):
     return _new_section("Size & Center", _take(gui.image_dimension_frame), _take(gui.groupBox_2))
 
 
-def _header_of(section):
-    return next(b for b in section.findChildren(QtWidgets.QPushButton) if b.property("styleClass") == "MenuButton")
+class SettingsPanel:
+    """Two-level navigation (groups / subsections) over the stacked sections."""
+
+    def __init__(self, gui, on_hidden=None):
+        self.gui = gui
+        self.on_hidden = on_hidden
+        builders = {"@images": _images_section, "@size": _size_section}
+        state = Preferences.get("panel") or DEFAULT_STATE
+        self.open = {group: list(state.get("open", {}).get(group, DEFAULT_STATE["open"][group])) for group in GROUPS}
+        self.group = None
+
+        self.widget = QtWidgets.QWidget(objectName="settings_panel")
+        panel_layout = QtWidgets.QHBoxLayout(self.widget)
+        panel_layout.setContentsMargins(0, 0, 0, 0)
+        panel_layout.setSpacing(2)
+
+        content = QtWidgets.QWidget(objectName="settings_panel_content")
+        self.content_layout = QtWidgets.QVBoxLayout(content)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll = QtWidgets.QScrollArea(objectName="settings_panel_scroll")
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setWidget(content)
+
+        self.sub_strip = QtWidgets.QWidget(objectName="settings_panel_sections")
+        sub_layout = QtWidgets.QVBoxLayout(self.sub_strip)
+        sub_layout.setContentsMargins(0, 0, 0, 0)
+        sub_layout.setSpacing(2)
+        group_strip = QtWidgets.QWidget(objectName="settings_panel_groups")
+        group_layout = QtWidgets.QVBoxLayout(group_strip)
+        group_layout.setContentsMargins(0, 0, 0, 0)
+        group_layout.setSpacing(2)
+
+        self.group_buttons, self.section_buttons, self.sections, self.group_of = {}, {}, {}, {}
+        for group, (icon_name, entries) in GROUPS.items():
+            button = _styled(QtWidgets.QToolButton(objectName=f"group_button_{group}"), "PanelGroup")
+            button.setCheckable(True)
+            button.setIcon(icons.icon(icon_name))
+            button.setIconSize(QtCore.QSize(24, 24))
+            button.setToolTip(group)
+            button.clicked.connect(lambda checked, g=group: self.select_group(g if checked else None))
+            group_layout.addWidget(button)
+            self.group_buttons[group] = button
+            for label, tooltip, source in entries:
+                section = builders[source](gui) if source in builders else _take(getattr(gui, source))
+                for inside in section.findChildren(QtWidgets.QGroupBox):
+                    if inside.property("styleClass") == "insideFrame":
+                        inside.show()
+                section.setVisible(False)
+                self.content_layout.addWidget(section, 0, QtCore.Qt.AlignmentFlag.AlignLeft)  # natural width (P9.4)
+                sub_button = VerticalButton(label)
+                sub_button.setCheckable(True)
+                sub_button.setToolTip(tooltip)
+                sub_button.setChecked(label in self.open[group])
+                sub_button.toggled.connect(lambda checked, g=group, l=label: self._toggle_section(g, l, checked))
+                sub_button.hide()
+                sub_layout.addWidget(sub_button)
+                self.sections[label], self.section_buttons[label], self.group_of[label] = section, sub_button, group
+        self.content_layout.addStretch(1)
+        sub_layout.addStretch(1)
+        group_layout.addStretch(1)
+
+        panel_layout.addWidget(self.scroll)
+        panel_layout.addWidget(self.sub_strip)
+        panel_layout.addWidget(group_strip)
+        gui.centralwidget.layout().replaceWidget(gui.control_tabWidget, self.widget)
+        gui.control_tabWidget.hide()
+        gui.Image_controls_frame.hide()  # its contents now live in the panel
+        gui.settings_panel = self.widget
+        self.select_group(state.get("group"), remember=False)
+
+    def select_group(self, group, remember=True):
+        """Show the subsections of `group` (None: close the panel to the group strip)."""
+        self.group = group
+        for name, button in self.group_buttons.items():
+            button.setChecked(name == group)
+        for label, button in self.section_buttons.items():
+            button.setVisible(self.group_of[label] == group)
+        self._refresh()
+        if remember:
+            self._remember()
+
+    def _toggle_section(self, group, label, shown):
+        if shown and label not in self.open[group]:
+            self.open[group].append(label)
+        elif not shown and label in self.open[group]:
+            self.open[group].remove(label)
+        self._refresh()
+        self._remember()
+
+    def _refresh(self):
+        width = 0
+        for label, section in self.sections.items():
+            visible = self.group_of[label] == self.group and label in self.open[self.group_of[label]]
+            if section.isVisibleTo(self.widget) and not visible and self.on_hidden is not None:
+                self.on_hidden(label)
+            section.setVisible(visible)
+            if visible:
+                width = max(width, section.sizeHint().width())
+        self.sub_strip.setVisible(self.group is not None)
+        self.scroll.setVisible(width > 0)
+        self.scroll.setFixedWidth(width + self.scroll.verticalScrollBar().sizeHint().width() + 4)
+
+    def _remember(self):
+        Preferences.put("panel", {"group": self.group, "open": self.open})
 
 
-def build_panel(gui, on_close=None):
-    """Replace the control tab widget by the strip + stacked sections. Returns {strip label: toggle button}."""
-    builders = {"@images": _images_section, "@size": _size_section}
-    panel = QtWidgets.QWidget(objectName="settings_panel")
-    panel_layout = QtWidgets.QHBoxLayout(panel)
-    panel_layout.setContentsMargins(0, 0, 0, 0)
-    panel_layout.setSpacing(2)
-
-    content = QtWidgets.QWidget(objectName="settings_panel_content")
-    content_layout = QtWidgets.QVBoxLayout(content)
-    content_layout.setContentsMargins(0, 0, 0, 0)
-    scroll = QtWidgets.QScrollArea(objectName="settings_panel_scroll")
-    scroll.setWidgetResizable(True)
-    scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-    scroll.setWidget(content)
-
-    strip = QtWidgets.QWidget(objectName="settings_panel_strip")
-    strip_layout = QtWidgets.QVBoxLayout(strip)
-    strip_layout.setContentsMargins(0, 0, 0, 0)
-    strip_layout.setSpacing(2)
-
-    buttons = {}
-    width = 0
-    for entry in SECTIONS:
-        if entry is None:
-            line = QtWidgets.QFrame()
-            line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
-            strip_layout.addWidget(line)
-            continue
-        label, tooltip, source = entry
-        section = builders[source](gui) if source in builders else _take(getattr(gui, source))
-        for inside in section.findChildren(QtWidgets.QGroupBox):
-            if inside.property("styleClass") == "insideFrame" and inside.parentWidget() is section:
-                inside.show()  # the header no longer collapses the content: the strip opens/closes sections
-        header = _header_of(section)
-        header.setCheckable(False)
-        header.setToolTip("Close section")
-        content_layout.addWidget(section)
-        width = max(width, section.minimumSizeHint().width())
-
-        button = VerticalButton(label)
-        button.setCheckable(True)
-        button.setToolTip(tooltip)
-        button.toggled.connect(section.setVisible)
-        header.clicked.connect(lambda checked=False, b=button: b.setChecked(False))
-        if on_close is not None:
-            button.toggled.connect(lambda checked, name=label: None if checked else on_close(name))
-        strip_layout.addWidget(button)
-        buttons[label] = button
-        section.setVisible(False)
-    content_layout.addStretch(1)
-    strip_layout.addStretch(1)
-
-    scroll.setFixedWidth(width + scroll.verticalScrollBar().sizeHint().width() + 4)
-
-    def update_collapsed(*_):  # with every section closed only the strip stays
-        scroll.setVisible(any(b.isChecked() for b in buttons.values()))
-    for button in buttons.values():
-        button.toggled.connect(update_collapsed)
-
-    panel_layout.addWidget(scroll)
-    panel_layout.addWidget(strip)
-    central = gui.centralwidget.layout()
-    central.replaceWidget(gui.control_tabWidget, panel)
-    gui.control_tabWidget.hide()
-    gui.settings_panel = panel
-    for label in OPEN_AT_START:
-        buttons[label].setChecked(True)
-    update_collapsed()
-    gui.Image_controls_frame.hide()  # its contents now live in the panel and the toolbar
-    return buttons
+def build_panel(gui, on_hidden=None):
+    return SettingsPanel(gui, on_hidden)
 
 
 def build_toolbar(gui, c):
@@ -236,6 +272,6 @@ def build_toolbar(gui, c):
 def build(gui, c):
     """Arrange toolbar and settings panel (call after main.create_components)."""
     build_toolbar(gui, c)
-    # leaving the colour / mask sections switches off their canvas tools (was: switching the tab)
-    reset_tools = lambda name: c.image_colorer.set_single_toggle_state('') if name in ("Color", "Masks") else None
-    return build_panel(gui, on_close=reset_tools)
+    # hiding the mask section switches off the mask tools (colour tools stay active: they have hotkeys, P9.10)
+    reset_tools = lambda name: c.image_colorer.set_single_toggle_state('') if name == "Masks" else None
+    return build_panel(gui, on_hidden=reset_tools)

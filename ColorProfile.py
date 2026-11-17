@@ -3,18 +3,16 @@
 It is chosen once (toolbar / Laser Settings) and used by DB recolouring, automatic hatching and the database
 colour pickers. The choice is remembered in USER_DIR/preferences.json and restored from the database on startup.
 """
-import json
 import logging
 
 from PyQt6 import QtGui, QtWidgets
 
 from Database.database_main import DatabaseManager, DatabaseNavigatorWidget, NavigatorMode
 from HelperClasses import DBColorPalette
-from PathManager import USER_DIR
+import Preferences
+from Preferences import PREFERENCES_FILE  # noqa: F401  (re-exported for the tests)
 
 log = logging.getLogger(__name__)
-
-PREFERENCES_FILE = USER_DIR / "preferences.json"
 
 
 def palette_from_payload(payload):
@@ -118,10 +116,7 @@ class ColorProfileController:
             callback(palette)
 
     def restore(self):
-        try:
-            ids = json.loads(PREFERENCES_FILE.read_text(encoding="utf-8")).get("color_profile")
-        except (OSError, ValueError):
-            return
+        ids = Preferences.get("color_profile")
         if not ids:
             return
         try:
@@ -134,15 +129,6 @@ class ColorProfileController:
 
     @staticmethod
     def _save_preference(palette):
-        try:
-            prefs = json.loads(PREFERENCES_FILE.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            prefs = {}
         ids = palette.identifiers
-        prefs["color_profile"] = {"laser_id": ids["laser"]["id"], "material_id": ids["material"]["id"],
-                                  "type_id": ids["material_type"]["id"]}
-        try:
-            PREFERENCES_FILE.parent.mkdir(parents=True, exist_ok=True)
-            PREFERENCES_FILE.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
-        except OSError as e:
-            log.warning("Could not save preferences: %s", e)
+        Preferences.put("color_profile", {"laser_id": ids["laser"]["id"], "material_id": ids["material"]["id"],
+                                          "type_id": ids["material_type"]["id"]})

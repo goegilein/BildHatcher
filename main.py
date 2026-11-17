@@ -147,7 +147,7 @@ def main():
     gui.show()
 
     components = create_components(gui)  # keep references alive for the app lifetime
-    MainLayout.build(gui, components)  # P8.6/P8.7: toolbar and settings panel
+    components.panel = MainLayout.build(gui, components)  # P8.6/P8.7, P9.3-P9.5: toolbar and settings panel
     sys.exit(app.exec())
 
 
