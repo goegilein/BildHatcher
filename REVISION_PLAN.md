@@ -271,10 +271,10 @@ Requested after Phase 8. Order = dependencies (icons first, then panel structure
 - [ ] **P9.12 Tests, screenshots, docs** (README, architecture slide 1).
 
 **Open questions**
-- Q9.1 Icon source.
-- Q9.2 Layout of the two navigation levels.
-- Q9.3 Where the compact section layouts live: `.ui` (Designer) or code.
-- Q9.4 Hotkey keys.
+- Q9.1 Icon source. **Decided:** bundled SVG set (Tabler Icons, MIT) in `GUI_Files/icons`, recoloured in code.
+- Q9.2 Layout of the two navigation levels. **Decided:** two strips side by side – outer strip = groups, inner strip = subsections of the active group.
+- Q9.3 Where the compact section layouts live. **Decided:** in `BildHatcher.ui` (Designer stays the source of truth for the arrangement); icons/tooltips assigned in code from one table; the navigation strips themselves stay in code (custom vertical buttons).
+- Q9.4 Hotkey keys. **Decided:** mnemonic – D Draw, F Fill, R Replace, P Pick from image, C More colors, T Transparent.
 - Q9.5 *Keep Changes* – it sets the current image as new restore point for *Restore Original Colors* (and resets the hatch centre); with undo this is mostly redundant → remove?
 - Q9.6 Wheel trigger: Windows reports the pen's barrel button as a right mouse button – use that (also lets mouse users hold the right button)? Needs a test on the real device.
 
@@ -356,3 +356,4 @@ Requested after Phase 8. Order = dependencies (icons first, then panel structure
 | 2026-11-16 | P8.6, P8.7 | Toolbar and settings panel (`MainLayout.py`, `tests/test_layout.py`); checked via real-platform screenshots. Open: panel width = minimum width of the widest section (three-column Designer layouts). 73 tests. |
 | 2026-11-16 | P8.8 | Architecture slides rebuilt (checked via PowerPoint rendering). Phase 8 done except optional P8.9. |
 | 2026-11-17 | Phase 9 | Draft plan (compact UI with pictograms, two-level panel, section reworks, hotkeys, tool wheel); open questions Q9.1–Q9.6. |
+| 2026-11-17 | Phase 9 | Decided: Tabler SVG icons, two navigation strips, section layouts in the .ui, mnemonic hotkeys (D/F/R/P/C/T). Open: Q9.5, Q9.6. |
