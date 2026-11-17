@@ -18,6 +18,19 @@ python -m pip install -r requirements-dev.txt
 python main.py
 ```
 
+## Using the app
+
+- **Toolbar:** load / save / new, the active tool and colour, zoom, re-center, grid, colour profile (database
+  laser / material / type, used everywhere) and machine profile. Hover a pictogram for its name.
+- **Settings panel (right):** the icon strip on the far right selects a group (Image, Text, Hatching,
+  Automation); clicking the active group again closes the panel. Next to it, the rotated buttons show or hide
+  the sections of that group – several can be open. The selection is remembered.
+- **Hotkeys** (over the main window, not while typing in a field): `D` draw, `F` fill, `R` replace,
+  `P` pick a colour from the image, `C` more colours, `T` transparent. They work with the panel closed.
+- **Tool wheel:** hold the right mouse button over the image, move to a tool, release. A short right click
+  keeps the wheel open; click a tool (centre or `Esc` closes).
+- Undo / redo: `Ctrl+Z` / `Ctrl+Y`.
+
 ## Tests
 
 ```
@@ -38,9 +51,14 @@ UPDATE_GOLDEN=1 python -m pytest tests/test_characterization.py
 | Path | Content |
 |---|---|
 | `main.py` | Starts the app; `create_main_window()` / `create_components()` build the UI (also used by the tests) |
+| `MainLayout.py` | Toolbar and settings panel (groups, sections, pictograms); section contents come from the .ui file |
+| `Tools.py` | Hotkeys, active-tool indicator and tool wheel for the colour tools |
+| `icons.py` | Pictograms (Tabler Icons in `GUI_Files/icons/`, MIT), recoloured to the app colours |
 | `core/` | Processing without Qt: `image_doc` (RGBA image model), `hatching` (hatch patterns), `fill` (flood fill), `toolpath` (layer/polyline model), `postprocess`, `gcode`, `machine` (machine profiles) |
 | `ImageControlling.py` | Image list, load/save, size, rotate/mirror/crop, upscaling, zoom/pan |
-| `ImageEditing.py` | Adjustments, quantization, painting/fill, contours, masks |
+| `ImageEditing.py` | Adjustments, quantization, painting/fill, contours |
+| `Masks.py` | Mask drawing, editing and moving |
+| `ColorProfile.py` / `Preferences.py` | Active colour-database profile / remembered settings (`preferences.json`) |
 | `TextandGeometries.py` | Text and geometry overlays |
 | `NCDataGeneration.py` | Hatching UI and worker thread, contours/DXF import |
 | `Parsing.py` | Process blocks and export (G-code, J-code, txt) |
@@ -48,7 +66,7 @@ UPDATE_GOLDEN=1 python -m pytest tests/test_characterization.py
 | `DataHandling.py` | Application state: active image document, hatch data, masks, machine profile |
 | `UndoRedo.py` | Undo/redo |
 | `Database/` | Material/laser parameter database |
-| `GUI_Files/` | Qt Designer files |
+| `GUI_Files/` | Qt Designer file (`BildHatcher.ui`, section layouts and stylesheet) and icons |
 | `machine_profiles/` | Bundled machine profiles (JSON) |
 
 Images are RGBA with a binary alpha: transparent pixels are background and never hatched (see
@@ -63,6 +81,7 @@ Images are RGBA with a binary alpha: transparent pixels are background and never
 - `machine_profiles/` – machine profiles; add a machine by copying and editing a JSON file
   (fields: see `core/machine.py`), then restart. *Settings → Open Machine Profiles Folder* opens it.
 - `libraries/realesrgan/` – the AI upscaling engine, downloaded on first use
+- `preferences.json` – remembered UI state and the active colour profile
 - `bildhatcher.log` – log file
 
 ## Build

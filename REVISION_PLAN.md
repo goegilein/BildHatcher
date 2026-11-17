@@ -22,7 +22,7 @@ This file is the single source of truth for status – update it in the same com
 | 6 – Editing tools | done | fill/quantize/clean-up fast, B17/B33 fixed |
 | 7 – Polish | done | version 2.0.0 |
 | 8 – UI rework & image tools | done (P8.9 optional) | branch not merged yet – user decides |
-| 9 – Compact UI, hotkeys, tool wheel | in progress | P9.1–P9.11 done |
+| 9 – Compact UI, hotkeys, tool wheel | done | P9.1–P9.12; waiting for the user's test |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
 
@@ -268,7 +268,7 @@ Requested after Phase 8. Order = dependencies (icons first, then panel structure
 - [x] **P9.9 Remaining sections iconified** (Adjust, Masks, Size & Center, Hatch, Tests, Export, Automation): icons where they are unambiguous, compact grid layouts. Done: Masks as icon grid (tools / list / management), Size & Center as 4-column grids with icon buttons for the center, action buttons with icon + text (`MainLayout.ACTION_BUTTONS`); Automation without the profile box (profile in the toolbar and in the button tooltip).
 - [x] **P9.10 Hotkeys (4).** Draw, Fill, Replace, Pick from Image, More Colors (+ proposal: Transparent / eraser colour, Undo/Redo stay Ctrl+Z/Y): application-wide, independent of whether the panel/section is visible, same effect as the button; ignored while a text/number field has the keyboard focus (otherwise typing a text overlay would switch tools). Keys: Q9.4. Colour tools no longer switch off when the Color section is closed (Phase 8 behaviour) – the toolbar indicator shows the active tool instead. Done: new module `Tools.py` (`TOOLS` table, `ToolController`): window shortcuts D/F/R/P/C/T click the section buttons (work with the panel closed), ignored while a text/number field has focus (`typing_focus`); hotkeys in the button tooltips; toolbar indicator (active tool icon + colour swatch) fed by `ImageColorer.state_callbacks` / `active_tool`. Checked on the real platform with real key presses.
 - [x] **P9.11 Tool wheel for touch mode (5).** Holding the pen button over the canvas opens a radial menu with the hotkey tools around the pen position; hovering highlights, releasing selects, releasing in the centre cancels. Trigger: see Q9.6. Done: `Tools.ToolWheel` (overlay on the canvas viewport) – right button held: opens around the pointer, hover highlights, release selects, release in the centre cancels; a short right click keeps it open (then click a tool, centre / Esc closes). New `EventHandler.add_canvas_event_filter`: the wheel consumes its clicks before the colour/mask tools see them. Checked on the real platform.
-- [ ] **P9.12 Tests, screenshots, docs** (README, architecture slide 1).
+- [x] **P9.12 Tests, screenshots, docs** (README, architecture slide 1). Done: tests per item (tests/test_layout.py, tests/test_tools.py; 88 in total), real-platform screenshots / key and mouse checks, README (using the app, structure, user folder), architecture slides 1–2.
 
 **Open questions**
 - Q9.1 Icon source. **Decided:** bundled SVG set (Tabler Icons, MIT) in `GUI_Files/icons`, recoloured in code.
@@ -365,3 +365,4 @@ Requested after Phase 8. Order = dependencies (icons first, then panel structure
 | 2026-11-17 | P9.9 | Remaining sections with pictograms: Masks, Size & Center, Adjust, Hatch, Tests, Export, Automation. 82 tests. |
 | 2026-11-17 | P9.10 | Hotkeys D/F/R/P/C/T (also with the panel closed, not while typing) and the active tool / colour indicator in the toolbar. 86 tests. |
 | 2026-11-17 | P9.11 | Tool wheel on the right mouse button over the image (hold–hover–release, or click–click). 88 tests. |
+| 2026-11-17 | P9.12 | README and architecture slides updated; Phase 9 complete. 88 tests. |
