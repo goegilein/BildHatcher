@@ -2,6 +2,7 @@
 
 icon("brush")                  -> burgundy outline icon (for light backgrounds: toolbar, menus)
 icon("brush", ON_DARK)         -> white icon (for the filled burgundy buttons of the sections)
+icon("brush", ON_DARK, APP)    -> white, burgundy while checked (checked section buttons are white)
 """
 from functools import lru_cache
 
@@ -17,25 +18,30 @@ _SIZES = (16, 24, 32, 48)
 
 
 @lru_cache(maxsize=None)
-def icon(name, color=APP):
-    """QIcon of GUI_Files/icons/<name>.svg drawn in `color` (hex without #). Needs a QApplication."""
-    svg = (ICON_DIR / f"{name}.svg").read_text(encoding="utf-8").replace("currentColor", f"#{color}")
-    renderer = QSvgRenderer(QtCore.QByteArray(svg.encode("utf-8")))
+def icon(name, color=APP, checked_color=None):
+    """QIcon of GUI_Files/icons/<name>.svg drawn in `color` (hex without #), in `checked_color` while the
+    button is checked (optional). Needs a QApplication."""
+    source = (ICON_DIR / f"{name}.svg").read_text(encoding="utf-8")
     result = QtGui.QIcon()
-    for size in _SIZES:
-        pixmap = QtGui.QPixmap(size, size)
-        pixmap.fill(QtCore.Qt.GlobalColor.transparent)
-        painter = QtGui.QPainter(pixmap)
-        renderer.render(painter)
-        painter.end()
-        result.addPixmap(pixmap)
+    states = [(color, QtGui.QIcon.State.Off)]
+    if checked_color:
+        states.append((checked_color, QtGui.QIcon.State.On))
+    for hex_color, state in states:
+        renderer = QSvgRenderer(QtCore.QByteArray(source.replace("currentColor", f"#{hex_color}").encode("utf-8")))
+        for size in _SIZES:
+            pixmap = QtGui.QPixmap(size, size)
+            pixmap.fill(QtCore.Qt.GlobalColor.transparent)
+            painter = QtGui.QPainter(pixmap)
+            renderer.render(painter)
+            painter.end()
+            result.addPixmap(pixmap, QtGui.QIcon.Mode.Normal, state)
     return result
 
 
-def set_icon(widget, name, tooltip=None, color=APP, keep_text=False, size=20):
+def set_icon(widget, name, tooltip=None, color=APP, keep_text=False, size=20, checked_color=None):
     """Give a button / action an icon; its former text becomes the tooltip (unless given) and is removed."""
     text = widget.text() if hasattr(widget, "text") else ""
-    widget.setIcon(icon(name, color))
+    widget.setIcon(icon(name, color, checked_color))
     widget.setToolTip(tooltip or text.strip())
     if not keep_text and hasattr(widget, "setText") and not isinstance(widget, QtGui.QAction):
         widget.setText("")

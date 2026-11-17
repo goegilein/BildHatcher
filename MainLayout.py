@@ -18,7 +18,7 @@ GROUPS = {
         ("Images", "Images: list, add / remove, split / combine", "@images"),
         ("Size", "Image size and hatch center", "@size"),
         ("Adjust", "Image adjustments: brightness, contrast, colors", "image_adjustment_frame"),
-        ("Color", "Color image: paint, fill, contours, clean up", "image_color_frame"),
+        ("Color", "Color image: paint, fill, contours, clean up", "@color"),
         ("Masks", "Mask drawing", "draw_mask_groupbox"),
     ]),
     "Text": ("typography", [("Text", "Text and geometries", "tg_frame")]),
@@ -100,12 +100,44 @@ IMAGE_BUTTONS = (
 )
 
 
-def _iconify(gui, table, color=icons.ON_DARK, size=20, box=(34, 30)):
+# P9.7: Color section. Tools keep a short text and share one size; the rest are icon buttons
+COLOR_BUTTONS = (
+    ("select_color_color_button", "palette", "More colors..."),
+    ("pick_color_from_image_button", "color-picker", "Pick a color from the image"),
+    ("pick_color_from_db_button", "database", "Pick a color of the active color profile"),
+    ("recolor_from_database_button", "color-swatch", "Recolor with the colors of the active color profile"),
+    ("clean_up_image_colors_button", "wand", "Clean up colors (merge similar colors, remove stray pixels)"),
+    ("imprint_color_overlays_button", "stack-push", "Imprint the colored overlays into the image"),
+    ("undo_color_button", "arrow-back-up", "Undo the last color step"),
+    ("restore_uncolored_image_button", "restore", "Restore the uncolored image"),
+)
+COLOR_TOOLS = (
+    ("toggle_draw_button", "brush", "Draw with the active color"),
+    ("flood_fill_button", "bucket-droplet", "Fill an area with the active color"),
+    ("replace_color_button", "replace", "Replace a color everywhere with the active color"),
+    ("draw_contour_button", "vector", "Show / hide the contours of the image"),
+)
+
+
+def _iconify(gui, table, color=icons.ON_DARK, size=20, box=(34, 30), keep_text=False):
     for name, icon_name, tooltip in table:
         button = getattr(gui, name)
-        icons.set_icon(button, icon_name, tooltip=tooltip, color=color, size=size)
+        tip = button.toolTip() if name == "recolor_from_database_button" and button.toolTip() else tooltip
+        icons.set_icon(button, icon_name, tooltip=tip, color=color, size=size, keep_text=keep_text,
+                       checked_color=icons.APP)
         button.setMinimumSize(0, 0)
         button.setFixedSize(*box)
+
+
+def _color_section(gui):
+    _iconify(gui, COLOR_BUTTONS)
+    _iconify(gui, COLOR_TOOLS, size=18, box=(92, 30), keep_text=True)
+    options = gui.fill_options_widget  # the fill-mode options must not resize the section
+    options.setFixedHeight(30)
+    options.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored, QtWidgets.QSizePolicy.Policy.Fixed)
+    options.setStyleSheet("#fill_options_widget { background: transparent; }")
+    gui.fill_options_grid_layout.setContentsMargins(0, 0, 0, 0)
+    return _take(gui.image_color_frame)
 
 
 def _images_section(gui):
@@ -124,7 +156,7 @@ class SettingsPanel:
     def __init__(self, gui, on_hidden=None):
         self.gui = gui
         self.on_hidden = on_hidden
-        builders = {"@images": _images_section, "@size": _size_section}
+        builders = {"@images": _images_section, "@size": _size_section, "@color": _color_section}
         state = Preferences.get("panel") or DEFAULT_STATE
         self.open = {group: list(state.get("open", {}).get(group, DEFAULT_STATE["open"][group])) for group in GROUPS}
         self.group = None

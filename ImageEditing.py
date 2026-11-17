@@ -2,6 +2,7 @@ from contextlib import nullcontext
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtCore import QRectF
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+import icons
 import cv2
 import numpy as np
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
@@ -427,6 +428,7 @@ class ImageColorer(MaskTools, QtCore.QObject):
 
         # Add Show Contours toggle button
         self.draw_contour_button = gui.draw_contour_button
+        self.draw_contour_button.setCheckable(True)  # P9.7: checked while the contours are shown
         self.draw_contour_button.clicked.connect(self.toggle_contours)
 
         #Add combobox for contour mode
@@ -450,12 +452,9 @@ class ImageColorer(MaskTools, QtCore.QObject):
         self.contour_space_spinbox.setValue(1)
         self.contour_space_spinbox.valueChanged.connect(self.find_image_contours)
 
-        # Add button and labels for database recoloring (labels show the active colour profile, P8.5)
+        # database recolouring with the active colour profile (P8.5; P9.7: the profile is named in the tooltip)
         self.recolor_from_database_button = gui.recolor_from_database_button
         self.recolor_from_database_button.clicked.connect(self.recolor_color_from_db)
-        self.recolor_laser_label = gui.recolor_laser_label
-        self.recolor_material_label = gui.recolor_material_label
-        self.recolor_type_label = gui.recolor_type_label
         self.data_handler.color_profiles.callbacks.append(self.show_color_profile)
         self.show_color_profile(self.data_handler.color_profile)
 
@@ -514,8 +513,10 @@ class ImageColorer(MaskTools, QtCore.QObject):
             # Add the button to the layout
             self.default_color_buttons_layout.addWidget(btn, row, col)
 
-        transparent_btn = QtWidgets.QPushButton("Transparent")
-        transparent_btn.setToolTip("Paint/fill with transparency: the area becomes background and is not hatched")
+        transparent_btn = QtWidgets.QPushButton(objectName="transparent_color_button")
+        icons.set_icon(transparent_btn, "droplet-off", color=icons.ON_DARK, size=18,
+                       tooltip="Transparent: painted / filled areas become background and are not hatched")
+        transparent_btn.setFixedHeight(25)
         transparent_btn.clicked.connect(lambda checked: self.set_active_color(list(image_doc.TRANSPARENT)))
         self.default_color_buttons_layout.addWidget(transparent_btn, 3, 0, 1, 3)
     
@@ -822,14 +823,15 @@ class ImageColorer(MaskTools, QtCore.QObject):
         self.fill_option_spinbox.setMaximum(255)
         self.fill_option_spinbox.setValue(self.flood_fill_parameter_value)
         self.fill_option_spinbox.valueChanged.connect(self.on_fill_parameter_changed)
-        self.fill_options_grid_layout.addWidget(self.fill_option_label, 0, 0)
-        self.fill_options_grid_layout.addWidget(self.fill_option_spinbox, 1, 0)
+        self.fill_options_grid_layout.addWidget(self.fill_option_label, 0, 0)  # P9.7: one row, no resizing
+        self.fill_options_grid_layout.addWidget(self.fill_option_spinbox, 0, 1)
+        self.fill_options_grid_layout.setColumnStretch(1, 1)
 
     def on_fill_parameter_changed(self, value):
         self.flood_fill_parameter_value = value
 
     def show_to_color_options(self):
-        label = QtWidgets.QLabel("Pick Limit color")
+        label = QtWidgets.QLabel("Limit color")
         label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         combo = QtWidgets.QComboBox()
         combo.addItem("Choose source...")
@@ -1080,10 +1082,9 @@ class ImageColorer(MaskTools, QtCore.QObject):
                 self.undo_manager.push_action(action)
 
     def show_color_profile(self, palette):
-        ids = getattr(palette, "identifiers", None)
-        for label, key in ((self.recolor_laser_label, "laser"), (self.recolor_material_label, "material"),
-                           (self.recolor_type_label, "material_type")):
-            label.setText(f"<b> {ids[key]['name']} </b>" if ids else "-")
+        from ColorProfile import profile_name
+        self.recolor_from_database_button.setToolTip(
+            f"Recolor with the colors of the active color profile ({profile_name(palette)})")
 
     def recolor_color_from_db(self):
         """Recolour the image with the colours of the active colour profile (P8.5; asked for if none is set)."""
@@ -1335,14 +1336,14 @@ class ImageColorer(MaskTools, QtCore.QObject):
     def toggle_contours(self):
         if not self.contours_visible:
             # Outlines are currently not visible; show them
-            self.draw_contour_button.setText("Delete Contours")
             self.contours_visible = True
+            self.draw_contour_button.setChecked(True)
             self.find_image_contours()
 
         else:
             # Outlines are visible; hide them
-            self.draw_contour_button.setText("Draw Contours")
             self.contours_visible = False
+            self.draw_contour_button.setChecked(False)
             # Hide overlay instead of removing it
             if self.contour_overlay_item is not None:
                 self.contour_overlay_item.hide()

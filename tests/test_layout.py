@@ -102,3 +102,27 @@ def test_p96_bright_transparent_button_opens_the_operation(app_components, monke
     monkeypatch.setattr(app_components.image_controller, "make_bright_transparent", lambda: calls.append(1))
     app_components.gui.bright_transparent_button.click()
     assert calls == [1]
+
+
+def test_p97_color_section_compact_and_stable(app_components):
+    c = app_components
+    gui, panel = c.gui, c.panel_buttons
+    gui.show()
+    panel.select_group("Image")
+    panel.section_buttons["Color"].setChecked(True)
+    section = gui.image_color_frame
+    sizes = set()
+    for i in range(gui.flood_fill_mode_combobox.count()):  # fill options must not resize the section
+        gui.flood_fill_mode_combobox.setCurrentIndex(i)
+        c.app.processEvents() if hasattr(c, "app") else None
+        sizes.add((section.sizeHint().width(), section.sizeHint().height()))
+    assert len(sizes) == 1
+    tools = [gui.toggle_draw_button, gui.flood_fill_button, gui.replace_color_button]
+    assert len({b.size().toTuple() if hasattr(b.size(), "toTuple") else (b.width(), b.height()) for b in tools}) == 1
+    assert len({b.y() for b in tools}) == 1  # side by side
+    assert not hasattr(gui, "recolor_laser_label")
+    gui.draw_contour_button.click()
+    assert gui.draw_contour_button.isChecked()
+    gui.draw_contour_button.click()
+    assert not gui.draw_contour_button.isChecked()
+    gui.hide()
