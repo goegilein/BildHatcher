@@ -11,6 +11,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 import icons
 import Preferences
+import Tools
 
 # group: (icon, [(strip label, tooltip / full name, section groupbox name or builder key)])
 GROUPS = {
@@ -362,7 +363,7 @@ def build_toolbar(gui, c):
                          (gui.actionNew_Blank, "file-plus")):
         icons.set_icon(action, name)
         bar.addAction(action)
-    bar.addSeparator()
+    c.tool_slot = bar.addSeparator()  # P9.10: the active-tool indicator goes before this separator
 
     # (P9.6: the image operations live in the Images section again)
 
@@ -402,6 +403,8 @@ def build(gui, c):
     reset_tools = lambda name: c.image_colorer.set_single_toggle_state('') if name == "Masks" else None
     _iconify_remaining(gui)
     panel = build_panel(gui, on_hidden=reset_tools)
+    c.tools = Tools.ToolController(gui, c.image_colorer)  # P9.10: hotkeys D F R P C T + indicator
+    c.tools.add_indicator(gui.toolBar, before=c.tool_slot)
     tg = c.overlay_manager  # colour buttons: icons in the contrast colour of the current colour (P9.8)
     tg._style_color_button(gui.fill_color_button, tg.current_fill_color)
     tg._style_color_button(gui.outline_color_button, tg.current_outline_color)

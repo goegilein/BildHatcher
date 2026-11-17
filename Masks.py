@@ -1018,3 +1018,4 @@ class MaskTools:
         #disable move mask mode and reset state
         self.move_masked_area_button.setChecked(False)
         self.move_mask_on = False
+        self._notify_state()

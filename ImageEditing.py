@@ -341,6 +341,7 @@ class ImageColorer(MaskTools, QtCore.QObject):
         self.gui = gui
         self.undo_manager = getattr(data_handler, "undo_manager", None)
         self.active_color = [255, 255, 255, 255]  # RGBA, alpha 0 = transparent (erases)
+        self.state_callbacks = []  # P9.10: called after the active tool or colour changed (toolbar indicator)
 
         #Flags and variables for contouring
         self.contours_visible = False
@@ -549,6 +550,7 @@ class ImageColorer(MaskTools, QtCore.QObject):
             color = self.choose_color(event)
             self.pick_color_from_image_button.setChecked(False)
             self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+            self._notify_state()  # P9.10: pick mode ended
             if color is not None:
                 self.set_active_color(color)
         elif self.limit_color_choose_on:
@@ -687,6 +689,8 @@ class ImageColorer(MaskTools, QtCore.QObject):
                     
         except Exception:
             log.exception("Error in set_single_toggle_state")
+        finally:
+            self._notify_state()
     #### SELECT COLOR METHODS ####
 
     def select_color(self):
@@ -752,6 +756,7 @@ class ImageColorer(MaskTools, QtCore.QObject):
             self.pixel_pen.setBrush(QBrush(QPixmap.fromImage(self._checker_qimage(8, 8))))
             self.active_color_dislplay_edit.setText("Transparent")
             self.active_color_dislplay_edit.setStyleSheet("color: black; background-color: white")
+            self._notify_state()
             return
         self.pixel_pen.setColor(QColor(*self.active_color[:3]))
 
@@ -761,6 +766,21 @@ class ImageColorer(MaskTools, QtCore.QObject):
         color_string = f"R{color.red()}, G{color.green()}, B{color.blue()}"
         self.active_color_dislplay_edit.setText(color_string)
         self.active_color_dislplay_edit.setStyleSheet(f"color: {opposite_color.name()}; background-color: {color.name()}")
+        self._notify_state()
+
+    def _notify_state(self):
+        for callback in self.state_callbacks:
+            callback()
+
+    @property
+    def active_tool(self):
+        """Name of the active canvas tool (P9.10), '' if none."""
+        for flag, name in (("color_drawing_on", "Draw"), ("flood_fill_color_on", "Fill"),
+                           ("replace_color_on", "Replace"), ("choose_color_on", "Pick"),
+                           ("mask_drawing_on", "Mask"), ("mask_edit_mode", "Mask"), ("move_mask_on", "Mask")):
+            if getattr(self, flag, False):
+                return name
+        return ""
 
     @property
     def erasing(self):
