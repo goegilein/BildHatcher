@@ -9,9 +9,6 @@ class AutomatedProcessor:
 
         #load the GUI
         #DB Settings
-        self.selected_laser_label = gui.selected_laser_label
-        self.selected_material_label = gui.selected_material_label
-        self.selected_material_type_label = gui.selected_material_type_label
         self.load_material_profile_button = gui.load_material_profile_button
         self.load_material_profile_button.clicked.connect(self.load_material_profile)
         self.profiles = data_handler.color_profiles
@@ -32,10 +29,9 @@ class AutomatedProcessor:
         self.profiles.choose()  # P8.5: sets the application-wide profile
 
     def show_profile(self, palette):
-        ids = getattr(palette, "identifiers", None)
-        for label, key in ((self.selected_laser_label, "laser"), (self.selected_material_label, "material"),
-                           (self.selected_material_type_label, "material_type")):
-            label.setText(f"<b> {ids[key]['name']} </b>" if ids else "-")
+        """P9.9: the active profile is shown in the toolbar and in the tooltip of the profile button."""
+        from ColorProfile import profile_name
+        self.load_material_profile_button.setToolTip(f"Choose the color profile (active: {profile_name(palette)})")
     
     def automatic_gcode_file(self):
         palette = self.profiles.require()

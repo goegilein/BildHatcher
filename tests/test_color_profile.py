@@ -29,7 +29,7 @@ def test_profile_is_used_everywhere_and_remembered(app_components, monkeypatch):
 
     name = ColorProfile.profile_name(palette)
     assert c.color_profiles.action.text() == f"Color Profile: {name}"
-    assert c.gui.selected_laser_label.text().strip("<b> /") == palette.identifiers["laser"]["name"]
+    assert palette.identifiers["laser"]["name"] in c.gui.load_material_profile_button.toolTip()
     assert palette.identifiers["laser"]["name"] in c.gui.recolor_from_database_button.toolTip()
     saved = json.loads(ColorProfile.PREFERENCES_FILE.read_text())["color_profile"]
     assert (saved["laser_id"], saved["material_id"], saved["type_id"]) == ids

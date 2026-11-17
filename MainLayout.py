@@ -27,7 +27,7 @@ GROUPS = {
         ("Tests", "Test structures", "testStruc_frame"),
         ("Export", "Build NC data: process blocks and export", "export_frame"),
     ]),
-    "Automation": ("robot", [("Automation", "Laser settings and automatic J-code generation", "laser_settings_frame")]),
+    "Automation": ("robot", [("Automation", "Automatic J-code generation (uses the active color profile)", "laser_settings_frame")]),
 }
 DEFAULT_STATE = {"group": "Image", "open": {"Image": ["Images"], "Text": ["Text"], "Hatching": ["Hatch"],
                                             "Automation": ["Automation"]}}
@@ -164,6 +164,46 @@ TEXT_LABELS = (
 )
 
 
+# P9.9: remaining sections. Mask tools as icon buttons; action buttons keep their text and get an icon
+MASK_BUTTONS = (
+    ("rectangle_mask_button", "square", "Rectangle mask"),
+    ("ellipse_mask_button", "circle", "Ellipse mask"),
+    ("polygon_mask_button", "polygon", "Polygon mask"),
+    ("edit_mask_button", "pencil", "Edit the selected mask"),
+    ("move_masked_area_button", "arrows-move", "Move the masked area"),
+    ("unselect_mask_button", "deselect", "Unselect the mask"),
+    ("delete_mask_button", "trash", "Delete the selected mask"),
+    ("delete_all_masks_button", "trash-x", "Delete all masks"),
+    ("save_mask_button", "device-floppy", "Save the selected mask area as an image"),
+)
+CENTER_BUTTONS = (
+    ("show_image_center_button", "target", "Show the hatch center"),
+    ("set_image_center_button", "crosshair", "Select the hatch center in the image"),
+    ("reset_image_center_button", "focus-centered", "Reset the hatch center"),
+)
+ACTION_BUTTONS = (
+    ("restore_original_color_button", "restore"), ("invert_color_button", "contrast"),
+    ("convolute_image_button", "adjustments"), ("reset_image_size_button", "dimensions"),
+    ("hatch_image_button", "texture"),
+    ("create_contours_button", "vector"), ("create_test_button", "test-pipe"),
+    ("add_process_block_button", "square-plus"), ("remove_process_block_button", "trash"),
+    ("export_button", "file-export"), ("load_material_profile_button", "database"),
+    ("automatic_gcode_file_button", "robot"),
+)
+
+
+def _iconify_remaining(gui):
+    _iconify(gui, MASK_BUTTONS)
+    _iconify(gui, CENTER_BUTTONS)
+    for name, icon_name in ACTION_BUTTONS:
+        button = getattr(gui, name)
+        tooltip = button.toolTip() or button.text().strip()
+        icons.set_icon(button, icon_name, tooltip=tooltip, color=icons.ON_DARK, keep_text=True, size=18,
+                       checked_color=icons.APP)
+        button.setProperty("iconName", icon_name)
+    gui.masks_list_widget.setMaximumHeight(120)
+
+
 def _icon_labels(gui, table, size=20):
     for name, icon_name, tooltip in table:
         label = getattr(gui, name)
@@ -191,7 +231,7 @@ def _images_section(gui):
 
 
 def _size_section(gui):
-    return _new_section("Size & Center", _take(gui.image_dimension_frame), _take(gui.groupBox_2))
+    return _new_section("Size && Center", _take(gui.image_dimension_frame), _take(gui.groupBox_2))
 
 
 class SettingsPanel:
@@ -360,6 +400,7 @@ def build(gui, c):
     build_toolbar(gui, c)
     # hiding the mask section switches off the mask tools (colour tools stay active: they have hotkeys, P9.10)
     reset_tools = lambda name: c.image_colorer.set_single_toggle_state('') if name == "Masks" else None
+    _iconify_remaining(gui)
     panel = build_panel(gui, on_hidden=reset_tools)
     tg = c.overlay_manager  # colour buttons: icons in the contrast colour of the current colour (P9.8)
     tg._style_color_button(gui.fill_color_button, tg.current_fill_color)

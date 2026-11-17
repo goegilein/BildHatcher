@@ -156,3 +156,15 @@ def test_p98_color_buttons_keep_a_visible_icon(app_components):
     c.overlay_manager.set_fill_color(QtGui.QColor(0, 0, 0))  # black button -> light icon
     light = button.icon().pixmap(20, 20).toImage()
     assert dark != light
+
+
+def test_p99_remaining_sections_have_pictograms(app_components):
+    gui = app_components.gui
+    for name, *_ in MainLayout.MASK_BUTTONS:
+        button = getattr(gui, name)
+        assert button.text() == "" and button.toolTip() and not button.icon().isNull()
+    for name, _ in MainLayout.ACTION_BUTTONS:
+        button = getattr(gui, name)
+        assert button.text() and not button.icon().isNull()  # action buttons keep their text
+    assert not hasattr(gui, "selected_laser_label")  # the profile is shown in the toolbar
+    assert gui.load_material_profile_button.parentWidget() is gui.inside_jcode_settings_frame
