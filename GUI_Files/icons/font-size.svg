@@ -1,20 +1,8 @@
-<svg
-  xmlns="http://www.w3.org/2000/svg"
-  width="24"
-  height="24"
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="#7A0020"
-  stroke-width="2"
-  stroke-linecap="round"
-  stroke-linejoin="round"
-  class="icon icon-tabler icons-tabler-outline icon-tabler-text-size"
->
-  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-  <path d="M3 7v-2h13v2" />
-  <path d="M10 5v14" />
-  <path d="M12 19h-4" />
-  <path d="M15 13v-1h6v1" />
-  <path d="M18 12v7" />
-  <path d="M17 19h2" />
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+<path d="M 2.5 6.5 L 2.5 3.5 L 14 3.5 L 14 6.5" fill="none" stroke="#37474F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="8.25,3.5 8.25,20.5" fill="none" stroke="#37474F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="5.5,20.5 11,20.5" fill="none" stroke="#37474F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 14.5 13 L 14.5 11.5 L 21.5 11.5 L 21.5 13" fill="none" stroke="#37474F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="18,11.5 18,20.5" fill="none" stroke="#37474F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="16.5,20.5 19.5,20.5" fill="none" stroke="#37474F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

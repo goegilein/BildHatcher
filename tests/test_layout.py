@@ -214,3 +214,20 @@ def test_p10_export_formats_short_names_and_old_configs(app_components):
         assert gui.power_format_combobox.currentText() == "scaled"
         assert gui.speed_format_combobox.currentText() == "max"
 
+
+
+def test_p105_show_hide_toggles_switch_their_pictogram(app_components):
+    from PyQt6 import QtGui
+    gui = app_components.gui
+    on, off = QtGui.QIcon.State.On, QtGui.QIcon.State.Off
+    for button in (gui.show_image_center_button, gui.draw_contour_button):
+        assert button.isCheckable()
+        icon = button.icon()
+        assert icon.pixmap(20, 20, QtGui.QIcon.Mode.Normal, off).toImage() != \
+            icon.pixmap(20, 20, QtGui.QIcon.Mode.Normal, on).toImage(), button.objectName()
+    gui.show_image_center_button.click()
+    assert gui.show_image_center_button.isChecked() and not gui.show_image_center_button.text()
+    gui.show_image_center_button.click()
+    assert not gui.show_image_center_button.isChecked()
+    grid = next(a for a in gui.toolBar.actions() if a.text() == "Grid")
+    assert grid.isCheckable() and not grid.icon().isNull()

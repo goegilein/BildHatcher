@@ -1085,11 +1085,9 @@ class ImageMover(QtCore.QObject):
             for item in self.image_scene.items():
                 if isinstance(item, QGraphicsLineItem) and item.zValue() == 2:
                     self.image_scene.removeItem(item)
-            self.show_image_center_button.setText("Show Image Center")
-        else:
-            self.show_image_center_button.setText("Hide Image Center")
 
         self.showing_image_center = not self.showing_image_center
+        self.show_image_center_button.setChecked(self.showing_image_center)  # P10.5: icon shows / hides
         self.redraw_center_cross()
 
     def redraw_center_cross(self):

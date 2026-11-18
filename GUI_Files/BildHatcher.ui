@@ -1246,8 +1246,8 @@ QPushButton[styleClass="IconButton"]:disabled {
                           <widget class="QPushButton" name="reset_image_size_button">
                            <property name="icon">
                             <iconset>
-                             <normaloff>icons/reset.svg</normaloff>
-                             <normalon>icons/reset.svg</normalon>
+                             <normaloff>icons/size-reset.svg</normaloff>
+                             <normalon>icons/size-reset.svg</normalon>
                             </iconset>
                            </property>
                            <property name="iconSize">
@@ -1370,12 +1370,12 @@ QPushButton[styleClass="IconButton"]:disabled {
                          <item row="1" column="1">
                           <widget class="QPushButton" name="show_image_center_button">
                            <property name="checkable">
-                            <bool>false</bool>
+                            <bool>true</bool>
                            </property>
                            <property name="icon">
                             <iconset>
                              <normaloff>icons/center-show.svg</normaloff>
-                             <normalon>icons/center-show.svg</normalon>
+                             <normalon>icons/center-hide.svg</normalon>
                             </iconset>
                            </property>
                            <property name="iconSize">
@@ -1451,8 +1451,8 @@ QPushButton[styleClass="IconButton"]:disabled {
                           <widget class="QPushButton" name="reset_image_center_button">
                            <property name="icon">
                             <iconset>
-                             <normaloff>icons/reset.svg</normaloff>
-                             <normalon>icons/reset.svg</normalon>
+                             <normaloff>icons/center-reset.svg</normaloff>
+                             <normalon>icons/center-reset.svg</normalon>
                             </iconset>
                            </property>
                            <property name="iconSize">
@@ -2037,8 +2037,8 @@ QPushButton[styleClass="IconButton"]:disabled {
                    <widget class="QPushButton" name="restore_original_color_button">
                     <property name="icon">
                      <iconset>
-                      <normaloff>icons/reset.svg</normaloff>
-                      <normalon>icons/reset.svg</normalon>
+                      <normaloff>icons/colors-reset.svg</normaloff>
+                      <normalon>icons/colors-reset.svg</normalon>
                      </iconset>
                     </property>
                     <property name="iconSize">
@@ -3024,8 +3024,8 @@ QPushButton[styleClass="IconButton"]:disabled {
                       <widget class="QPushButton" name="restore_uncolored_image_button">
                        <property name="icon">
                         <iconset>
-                         <normaloff>icons/reset.svg</normaloff>
-                         <normalon>icons/reset.svg</normalon>
+                         <normaloff>icons/image-restore.svg</normaloff>
+                         <normalon>icons/image-restore.svg</normalon>
                         </iconset>
                        </property>
                        <property name="iconSize">
@@ -3101,7 +3101,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                        <property name="icon">
                         <iconset>
                          <normaloff>icons/contours.svg</normaloff>
-                         <normalon>icons/contours.svg</normalon>
+                         <normalon>icons/contours-hide.svg</normalon>
                         </iconset>
                        </property>
                        <property name="iconSize">
@@ -3647,8 +3647,8 @@ QPushButton[styleClass="IconButton"]:disabled {
                    <widget class="QPushButton" name="save_mask_button">
                     <property name="icon">
                      <iconset>
-                      <normaloff>icons/save.svg</normaloff>
-                      <normalon>icons/save.svg</normalon>
+                      <normaloff>icons/mask-save.svg</normaloff>
+                      <normalon>icons/mask-save.svg</normalon>
                      </iconset>
                     </property>
                     <property name="iconSize">
@@ -5857,8 +5857,8 @@ QPushButton[styleClass="IconButton"]:disabled {
                    <widget class="QPushButton" name="add_process_block_button">
                     <property name="icon">
                      <iconset>
-                      <normaloff>icons/add.svg</normaloff>
-                      <normalon>icons/add.svg</normalon>
+                      <normaloff>icons/hatch-add.svg</normaloff>
+                      <normalon>icons/hatch-add.svg</normalon>
                      </iconset>
                     </property>
                     <property name="iconSize">
@@ -5894,8 +5894,8 @@ QPushButton[styleClass="IconButton"]:disabled {
                    <widget class="QPushButton" name="remove_process_block_button">
                     <property name="icon">
                      <iconset>
-                      <normaloff>icons/remove.svg</normaloff>
-                      <normalon>icons/remove.svg</normalon>
+                      <normaloff>icons/hatch-remove.svg</normaloff>
+                      <normalon>icons/hatch-remove.svg</normalon>
                      </iconset>
                     </property>
                     <property name="iconSize">

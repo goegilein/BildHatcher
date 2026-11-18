@@ -215,7 +215,7 @@ def build_toolbar(gui, c):
     bar.addWidget(_take(gui.zoom_spinbox))
     bar.addAction(icons.icon("zoom-reset"), "Reset Zoom").triggered.connect(lambda: mover.reset_zoom())
     bar.addAction(icons.icon("recenter"), "Re-center").triggered.connect(lambda: mover.recenter_image())
-    grid_action = bar.addAction(icons.icon("grid"), "Grid")
+    grid_action = bar.addAction(icons.toggle_icon("grid", "grid-hide"), "Grid")
     grid_action.setCheckable(True)
     grid_action.toggled.connect(lambda checked: mover.toggle_grid() if checked != mover.grid_on else None)
     gui.grid_distance_spinbox.setSuffix(" mm")

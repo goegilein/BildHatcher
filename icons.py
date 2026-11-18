@@ -38,6 +38,16 @@ def icon(name, color=APP, checked_color=None):
     return result
 
 
+@lru_cache(maxsize=None)
+def toggle_icon(off_name, on_name):
+    """QIcon showing `off_name` while unchecked and `on_name` while checked (e.g. grid / grid-hide)."""
+    result = QtGui.QIcon()
+    for name, state in ((off_name, QtGui.QIcon.State.Off), (on_name, QtGui.QIcon.State.On)):
+        for size in _SIZES:
+            result.addPixmap(icon(name).pixmap(size, size), QtGui.QIcon.Mode.Normal, state)
+    return result
+
+
 def set_icon(widget, name, tooltip=None, color=APP, keep_text=False, size=20, checked_color=None):
     """Give a button / action an icon; its former text becomes the tooltip (unless given) and is removed."""
     text = widget.text() if hasattr(widget, "text") else ""

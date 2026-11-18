@@ -6,18 +6,18 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 
 | File | Source | Set / licence |
 |---|---|---|
-| open | fluent-emoji-flat:open-file-folder | Fluent Emoji Flat (Microsoft, MIT) |
-| save | fluent-emoji-flat:floppy-disk | Fluent Emoji Flat (Microsoft, MIT) |
-| new | flat-color-icons:file | Flat Color Icons (Icons8, MIT) |
-| zoom-reset | fluent-emoji-flat:magnifying-glass-tilted-left | Fluent Emoji Flat (Microsoft, MIT) |
-| recenter | streamline-color:focus-points | Streamline Color (Streamline, CC BY 4.0) |
-| grid | flat-color-icons:grid | Flat Color Icons (Icons8, MIT) |
-| color-profile | fluent-emoji-flat:card-file-box | Fluent Emoji Flat (Microsoft, MIT) |
-| machine | fluent-emoji-flat:desktop-computer | Fluent Emoji Flat (Microsoft, MIT) |
-| group-image | fluent-emoji-flat:framed-picture | Fluent Emoji Flat (Microsoft, MIT) |
-| group-text | fluent-emoji-flat:input-latin-letters | Fluent Emoji Flat (Microsoft, MIT) |
-| group-hatching | drawn for BildHatcher | BildHatcher |
-| group-automation | fluent-emoji-flat:robot | Fluent Emoji Flat (Microsoft, MIT) |
+| open | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| save | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| new | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| zoom-reset | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| recenter | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| grid | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| color-profile | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| machine | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| group-image | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| group-text | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| group-hatching | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| group-automation | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | image-add | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | image-remove | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | set-original | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
@@ -27,59 +27,66 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | rotate | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | mirror-h | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | mirror-v | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
-| crop | streamline-color:crop-selection | Streamline Color (Streamline, CC BY 4.0) |
-| cut-mask | fluent-emoji-flat:scissors | Fluent Emoji Flat (Microsoft, MIT) |
-| upscale-ai | fluent-emoji-flat:sparkles | Fluent Emoji Flat (Microsoft, MIT) |
-| upscale | streamline-color:arrow-expand | Streamline Color (Streamline, CC BY 4.0) |
-| bright-transparent | fluent-emoji-flat:sun | Fluent Emoji Flat (Microsoft, MIT) |
-| width | streamline-color:expand-horizontal-1 | Streamline Color (Streamline, CC BY 4.0) |
-| height | streamline-color:fit-to-height-square | Streamline Color (Streamline, CC BY 4.0) |
+| crop | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| cut-mask | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| upscale-ai | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| upscale | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| bright-transparent | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| width | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| height | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | lock-ratio | fluent-emoji-flat:link | Fluent Emoji Flat (Microsoft, MIT) |
-| reset | flat-color-icons:refresh | Flat Color Icons (Icons8, MIT) |
-| center-show | fluent-emoji-flat:eye | Fluent Emoji Flat (Microsoft, MIT) |
-| center-set | fluent-emoji-flat:bullseye | Fluent Emoji Flat (Microsoft, MIT) |
-| invert | fluent-emoji-flat:yin-yang | Fluent Emoji Flat (Microsoft, MIT) |
-| filter | fluent-emoji-flat:control-knobs | Fluent Emoji Flat (Microsoft, MIT) |
-| more-colors | fluent-emoji-flat:artist-palette | Fluent Emoji Flat (Microsoft, MIT) |
-| pick | streamline-color:color-picker | Streamline Color (Streamline, CC BY 4.0) |
-| pick-db | streamline-color:database | Streamline Color (Streamline, CC BY 4.0) |
-| draw | fluent-emoji-flat:paintbrush | Fluent Emoji Flat (Microsoft, MIT) |
-| fill | streamline-color:paint-bucket | Streamline Color (Streamline, CC BY 4.0) |
-| replace | flat-color-icons:synchronize | Flat Color Icons (Icons8, MIT) |
+| center-show | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| center-set | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| invert | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| filter | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| more-colors | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| pick | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| pick-db | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| draw | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| fill | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| replace | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | transparent | drawn for BildHatcher | BildHatcher |
-| recolor-db | streamline-color:color-swatches | Streamline Color (Streamline, CC BY 4.0) |
-| clean-up | fluent-emoji-flat:magic-wand | Fluent Emoji Flat (Microsoft, MIT) |
-| imprint | streamline-color:add-layer-2 | Streamline Color (Streamline, CC BY 4.0) |
-| undo | flat-color-icons:undo | Flat Color Icons (Icons8, MIT) |
-| contours | streamline-color:pen-tool | Streamline Color (Streamline, CC BY 4.0) |
-| mask-rect | tabler:square (dashed) | Tabler Icons (MIT) |
-| mask-ellipse | tabler:circle (dashed) | Tabler Icons (MIT) |
-| mask-polygon | tabler:polygon (dashed) | Tabler Icons (MIT) |
-| mask-edit | fluent-emoji-flat:pencil | Fluent Emoji Flat (Microsoft, MIT) |
-| mask-move | streamline-color:arrow-move | Streamline Color (Streamline, CC BY 4.0) |
-| mask-unselect | tabler:deselect | Tabler Icons (MIT) |
-| delete | fluent-emoji-flat:wastebasket | Fluent Emoji Flat (Microsoft, MIT) |
-| delete-all | flat-color-icons:full-trash | Flat Color Icons (Icons8, MIT) |
-| add-text | fluent-emoji-flat:memo | Fluent Emoji Flat (Microsoft, MIT) |
-| add-geometry | fluent-emoji-flat:triangular-ruler | Fluent Emoji Flat (Microsoft, MIT) |
-| font | streamline-color:text-style | Streamline Color (Streamline, CC BY 4.0) |
-| font-size | tabler:text-size | Tabler Icons (MIT) |
-| outline-width | tabler:line-height | Tabler Icons (MIT) |
+| recolor-db | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| clean-up | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| imprint | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| undo | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| contours | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| mask-rect | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| mask-ellipse | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| mask-polygon | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| mask-edit | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| mask-move | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| mask-unselect | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| delete | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| delete-all | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| add-text | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| add-geometry | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| font | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| font-size | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| outline-width | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | bold | tabler:bold | Tabler Icons (MIT) |
 | italic | tabler:italic | Tabler Icons (MIT) |
 | underline | tabler:underline | Tabler Icons (MIT) |
 | strike | tabler:strikethrough | Tabler Icons (MIT) |
-| text-fill-color | tabler:paint (currentColor, recoloured at runtime) | Tabler Icons (MIT) |
-| text-outline-color | tabler:border-outer (currentColor, recoloured at runtime) | Tabler Icons (MIT) |
+| text-fill-color | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| text-outline-color | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | geo-line | tabler:line | Tabler Icons (MIT) |
 | geo-rect | tabler:square | Tabler Icons (MIT) |
 | geo-triangle | tabler:triangle | Tabler Icons (MIT) |
 | geo-ellipse | tabler:oval | Tabler Icons (MIT) |
-| hatch | fluent-emoji-flat:fire | Fluent Emoji Flat (Microsoft, MIT) |
-| test-structure | fluent-emoji-flat:test-tube | Fluent Emoji Flat (Microsoft, MIT) |
-| add | flat-color-icons:plus | Flat Color Icons (Icons8, MIT) |
-| remove | flat-color-icons:minus | Flat Color Icons (Icons8, MIT) |
-| export | flat-color-icons:export | Flat Color Icons (Icons8, MIT) |
+| hatch | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| test-structure | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| export | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | generate-jcode | fluent-emoji-flat:robot | Fluent Emoji Flat (Microsoft, MIT) |
 | tool-none | tabler:click | Tabler Icons (MIT) |
 | close | tabler:x | Tabler Icons (MIT) |
+| size-reset | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| center-hide | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| center-reset | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| colors-reset | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| image-restore | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| contours-hide | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| mask-save | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| hatch-add | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| hatch-remove | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| grid-hide | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |

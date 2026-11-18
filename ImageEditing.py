@@ -1290,7 +1290,6 @@ class ImageColorer(MaskTools, QtCore.QObject):
         #ensure to reset contours
         self.contours_visible = False
         self.contour_overlay_item = None
-        self.draw_contour_button.setText("Draw Contours")
         self.draw_contour_button.setChecked(False)
 
         #ensure to restet mask moving

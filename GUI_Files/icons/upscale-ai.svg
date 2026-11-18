@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32"><path fill="#f9c23c" d="M10.52 7.052a1.17 1.17 0 0 1-.639-.636L8.93 4.257c-.178-.343-.69-.343-.858 0l-.952 2.16a1.28 1.28 0 0 1-.638.635l-1.214.524a.462.462 0 0 0 0 .838l1.214.524c.293.121.523.353.638.636l.952 2.169c.178.343.69.343.858 0l.952-2.17c.126-.282.356-.504.638-.635l1.214-.524a.462.462 0 0 0 0-.838zm15.054 6.503a3.73 3.73 0 0 1-1.922-1.977L20.79 4.81a1.432 1.432 0 0 0-2.58 0l-2.863 6.768a3.8 3.8 0 0 1-1.921 1.977l-3.622 1.64c-1.072.53-1.072 2.08 0 2.61l3.622 1.64a3.74 3.74 0 0 1 1.922 1.977l2.862 6.768a1.432 1.432 0 0 0 2.58 0l2.863-6.768a3.8 3.8 0 0 1 1.921-1.977l3.622-1.64c1.072-.53 1.072-2.08 0-2.61zM8.281 20.33c.16.392.454.696.822.872l1.55.725a.646.646 0 0 1 0 1.146l-1.55.725c-.368.176-.661.49-.822.872l-1.228 2.977a.61.61 0 0 1-1.106 0L4.72 24.67a1.66 1.66 0 0 0-.822-.872l-1.55-.725a.646.646 0 0 1 0-1.146l1.55-.725c.368-.176.661-.49.822-.872l1.228-2.977a.61.61 0 0 1 1.106 0z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+<path d="M 8.4 10.3 C 8.4 8 11.7 8 11.7 10.3 C 11.7 11.8 8.4 13.4 8.4 15.2 L 11.9 15.2" fill="none" stroke="#37474F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="13.1,11.6 16.1,15.2" fill="none" stroke="#37474F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="16.1,11.6 13.1,15.2" fill="none" stroke="#37474F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="7,7 4.48,4.48" fill="none" stroke="#1E88E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="2.5,2.5 6.39,3.41 3.41,6.39" fill="#1E88E5" stroke="#1E88E5" stroke-width="0.8" stroke-linejoin="round"/>
+<polyline points="7,17 4.48,19.52" fill="none" stroke="#1E88E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="2.5,21.5 3.41,17.61 6.39,20.59" fill="#1E88E5" stroke="#1E88E5" stroke-width="0.8" stroke-linejoin="round"/>
+<polyline points="17,17 19.52,19.52" fill="none" stroke="#1E88E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="21.5,21.5 17.61,20.59 20.59,17.61" fill="#1E88E5" stroke="#1E88E5" stroke-width="0.8" stroke-linejoin="round"/>
+<polyline points="16.2,7.8 17.02,6.98" fill="none" stroke="#1E88E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="19,5 18.09,8.89 15.11,5.91" fill="#1E88E5" stroke="#1E88E5" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="20.6,0.4 21.44,2.56 23.6,3.4 21.44,4.24 20.6,6.4 19.76,4.24 17.6,3.4 19.76,2.56" fill="#FFB300" stroke="#FFB300" stroke-width="0.6" stroke-linejoin="round"/>
+<polygon points="16.2,0.9 16.68,2.12 17.9,2.6 16.68,3.08 16.2,4.3 15.72,3.08 14.5,2.6 15.72,2.12" fill="#FFB300" stroke="#FFB300" stroke-width="0.6" stroke-linejoin="round"/>
+</svg>
