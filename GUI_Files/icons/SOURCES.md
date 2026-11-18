@@ -18,15 +18,15 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | group-text | fluent-emoji-flat:input-latin-letters | Fluent Emoji Flat (Microsoft, MIT) |
 | group-hatching | drawn for BildHatcher | BildHatcher |
 | group-automation | fluent-emoji-flat:robot | Fluent Emoji Flat (Microsoft, MIT) |
-| image-add | flat-color-icons:add-image | Flat Color Icons (Icons8, MIT) |
-| image-remove | flat-color-icons:remove-image | Flat Color Icons (Icons8, MIT) |
-| set-original | fluent-emoji-flat:pushpin | Fluent Emoji Flat (Microsoft, MIT) |
-| split-channels | fluent-emoji-flat:rainbow | Fluent Emoji Flat (Microsoft, MIT) |
-| combine | flat-color-icons:stack-of-photos | Flat Color Icons (Icons8, MIT) |
-| combine-mono | streamline-color:layers-1 | Streamline Color (Streamline, CC BY 4.0) |
-| rotate | fluent-emoji-flat:clockwise-vertical-arrows | Fluent Emoji Flat (Microsoft, MIT) |
-| mirror-h | fluent-emoji-flat:left-right-arrow | Fluent Emoji Flat (Microsoft, MIT) |
-| mirror-v | fluent-emoji-flat:up-down-arrow | Fluent Emoji Flat (Microsoft, MIT) |
+| image-add | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| image-remove | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| set-original | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| split-channels | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| combine | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| combine-mono | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| rotate | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| mirror-h | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| mirror-v | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | crop | streamline-color:crop-selection | Streamline Color (Streamline, CC BY 4.0) |
 | cut-mask | fluent-emoji-flat:scissors | Fluent Emoji Flat (Microsoft, MIT) |
 | upscale-ai | fluent-emoji-flat:sparkles | Fluent Emoji Flat (Microsoft, MIT) |

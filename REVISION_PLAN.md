@@ -23,7 +23,7 @@ This file is the single source of truth for status – update it in the same com
 | 7 – Polish | done | version 2.0.0 |
 | 8 – UI rework & image tools | done (P8.9 optional) | branch not merged yet – user decides |
 | 9 – Compact UI, hotkeys, tool wheel | done | P9.1–P9.12 |
-| 10 – Fixed-width panel, coloured pictograms | done | P10.1–P10.4; waiting for the user's test |
+| 10 – Fixed-width panel, coloured pictograms | in progress | P10.1–P10.4 done; P10.5 own pictograms step by step |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
 
@@ -285,6 +285,7 @@ User feedback on Phase 9: the panel width changed per group; several sections (S
 - [x] **P10.2 Narrow sections.** Spinboxes / combos with maximum widths in the .ui; Size & Center as own .ui section (`size_frame`) with pictogram labels; Adjust in 4 narrow columns, icon buttons; Hatch in 3 columns (no 4th column, seed moved left and now a .ui widget, Hatch button 2 columns, state in column 3, short labels: Pattern, Angle, Seed, Distance, Min / Max (µm), Mode, Prec., Cyl. rad.); Tests with narrow spinboxes and a short *Create* button; Export: settings in 3 columns, process list below, labels Pwr / v; Text, Color and Automation trimmed to the width.
 - [x] **P10.3 Format names.** Speed / power format options `max`, `scaled`, `test` (were *constant (max. Val.)*, *color-scaled*, *test_structure*); older configs are translated (`Settings.RENAMED_OPTIONS`). Golden G-code unchanged.
 - [x] **P10.4 Coloured pictograms, set in the .ui.** New icon set in `GUI_Files/icons/<meaning>.svg` (e.g. `draw.svg`, `fill.svg`): Fluent Emoji Flat (MIT), Flat Color Icons (MIT), Streamline Color (CC BY 4.0) and a few Tabler symbols in fixed colours (B/I/U/S, mask shapes in the mask cyan); origins in `GUI_Files/icons/SOURCES.md`. Icons, icon sizes, tooltips, button sizes and the new light `IconButton` style are written into `BildHatcher.ui`, so Designer shows the real look; the icon tables in `MainLayout.py` are gone. To change a pictogram, replace the file.
+- [~] **P10.5 Own pictograms.** Many downloaded icons were misleading; the user describes each pictogram, we draw it in one consistent style with `tools/make_icons.py` (24 px grid, dark outline, flat colours, colour only where it means something) and replace the file step by step. Done: Images section part 1 (add / remove image, set as original, split channels, combine, combine monochrome, rotate, mirror). Next: the user's remarks, then the remaining icons.
 
 ## 6. Open questions
 
@@ -375,3 +376,4 @@ User feedback on Phase 9: the panel width changed per group; several sections (S
 | 2026-11-17 | P9.11 | Tool wheel on the right mouse button over the image (hold–hover–release, or click–click). 88 tests. |
 | 2026-11-17 | P9.12 | README and architecture slides updated; Phase 9 complete. 88 tests. |
 | 2026-11-18 | P10.1–P10.4 | One panel width (Images), narrow sections, short format names, coloured pictograms with icons / tooltips / sizes in the .ui. 90 tests. |
+| 2026-11-18 | P10.5 (part 1) | Own pictogram generator `tools/make_icons.py`; first 9 Images icons drawn to the user's descriptions. |
