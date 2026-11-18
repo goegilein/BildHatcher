@@ -75,7 +75,7 @@ def run_hatching(c, pattern, angle=45.0, dist_mode="ColorRanged", dist_min=300, 
     return result
 
 
-def run_parser(c, post_processing="None", power_format="color-scaled", speed_format="constant (max. Val.)",
+def run_parser(c, post_processing="None", power_format="scaled", speed_format="max",
                min_power=10, max_power=80, min_speed=20, max_speed=60,
                laser_mode="constant", air_assist="off", power_mode="half", offset=(0, 0, 0)):
     """Creates a process block from the active hatch data and renders its G-code body."""
@@ -154,7 +154,7 @@ POST_PROCESSING = [
 def test_post_processing(app_components, name, hatch_kwargs, post):
     load_image(app_components, make_test_image())
     run_hatching(app_components, **hatch_kwargs)
-    assert_golden(name, run_parser(app_components, post_processing=post, speed_format="color-scaled",
+    assert_golden(name, run_parser(app_components, post_processing=post, speed_format="scaled",
                                    offset=(1.5, -2.0, 0.25)))
 
 
@@ -195,7 +195,7 @@ def test_test_structure_to_process_block(app_components):
     c.gui.struct_hDist_spinbox.setValue(0.25)
     c.test_structure.create_test_structure()
     assert_golden("test_structure_filled_squares_horz",
-                  run_parser(c, power_format="test_structure", speed_format="test_structure"))
+                  run_parser(c, power_format="test", speed_format="test"))
 
 
 @pytest.mark.parametrize("pattern", ["FixedMeander", "Radial"])

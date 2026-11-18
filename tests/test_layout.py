@@ -1,4 +1,9 @@
-"""P8.6 / P8.7 / P9.3-P9.5: toolbar and settings panel (built by MainLayout in the app_components fixture)."""
+"""P8.6 / P8.7 / P9.3-P9.5 / P10: toolbar and settings panel (built by MainLayout in the app_components fixture)."""
+import os
+import sys
+from pathlib import Path
+
+import pytest
 from PyQt6 import QtWidgets
 
 import MainLayout
@@ -31,19 +36,6 @@ def test_panel_groups_single_select_sections_multi_select(app_components):
     assert panel.group is None and not scroll.isVisible() and not panel.sub_strip.isVisible()
     panel.select_group("Hatching")  # the open subsections are remembered
     assert gui.hatch_frame.isVisible() and gui.export_frame.isVisible()
-    gui.hide()
-
-
-def test_panel_keeps_natural_width_and_has_no_section_headers(app_components):
-    gui, panel = app_components.gui, app_components.panel_buttons
-    gui.show()
-    panel.select_group("Automation")
-    scroll = panel.scroll
-    assert scroll.width() < 700  # sized to the content, not stretched
-    assert gui.inside_jcode_settings_frame.parentWidget() is gui.laser_settings_frame
-    headers = [b for b in gui.settings_panel.findChildren(QtWidgets.QPushButton)
-               if b.property("styleClass") == "MenuButton"]
-    assert headers == []
     gui.hide()
 
 
@@ -83,18 +75,6 @@ def test_p92_toolbar_pictograms_and_menus(app_components):
     settings_menu = [a.text() for a in gui.settings_menu.actions()]
     assert "Load: Pure White as Transparent" in settings_menu and "Load: Pure White as Transparent" not in file_menu
     assert "Make Bright Colors Transparent..." not in file_menu
-
-
-def test_p96_images_section_pictograms(app_components):
-    gui = app_components.gui
-    names = [entry[0] for entry in MainLayout.IMAGE_BUTTONS]
-    for name in names:
-        button = getattr(gui, name)
-        assert button.text() == "" and button.toolTip() and not button.icon().isNull()
-        assert button.window() is gui
-    assert gui.keep_changes_button.toolTip().startswith("Set as original")
-    assert not hasattr(gui, "monochrome_check")
-    assert gui.images_ListWidget.parentWidget() is gui.inside_images_frame
 
 
 def test_p96_bright_transparent_button_opens_the_operation(app_components, monkeypatch):
@@ -150,7 +130,7 @@ def test_p98_color_buttons_keep_a_visible_icon(app_components):
     from PyQt6 import QtGui
     c = app_components
     button = c.gui.fill_color_button
-    assert button.property("iconName") == "paint"
+    assert button.property("iconName") == "text-fill-color"
     c.overlay_manager.set_fill_color(QtGui.QColor(255, 255, 255))  # white button -> dark icon
     dark = button.icon().pixmap(20, 20).toImage()
     c.overlay_manager.set_fill_color(QtGui.QColor(0, 0, 0))  # black button -> light icon
@@ -158,13 +138,79 @@ def test_p98_color_buttons_keep_a_visible_icon(app_components):
     assert dark != light
 
 
-def test_p99_remaining_sections_have_pictograms(app_components):
+def test_p10_panel_has_one_fixed_width_and_every_section_fits(app_components):
+    gui, panel = app_components.gui, app_components.panel_buttons
+    gui.show()
+    width = panel.sections[MainLayout.WIDTH_SECTION].width()
+    assert width == panel.width
+    widths = set()
+    for group, (_, entries) in MainLayout.GROUPS.items():
+        panel.select_group(group)
+        for label, *_ in entries:
+            panel.section_buttons[label].setChecked(True)
+        QtWidgets.QApplication.processEvents()
+        widths.add(panel.scroll.width())
+    assert len(widths) == 1  # the panel has the same width for every group
+    assert {section.width() for section in panel.sections.values()} == {width}
+    headers = [b for b in gui.settings_panel.findChildren(QtWidgets.QPushButton)
+               if b.property("styleClass") == "MenuButton"]
+    assert headers == []
+    gui.hide()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="measures with the real Windows fonts")
+def test_p10_no_section_is_wider_than_images_with_real_fonts():
+    """The offscreen test platform has no real fonts (text gets far too wide), so measure in a real window."""
+    import json
+    import subprocess
+    probe = Path(__file__).with_name("layout_probe.py")
+    env = {k: v for k, v in os.environ.items() if k != "QT_QPA_PLATFORM"}
+    out = subprocess.run([sys.executable, str(probe)], capture_output=True, text=True, env=env, timeout=120,
+                         cwd=Path(__file__).parents[1])
+    assert out.returncode == 0, out.stderr[-2000:]
+    result = json.loads(out.stdout.strip().splitlines()[-1])
+    images = result["Images"]
+    too_wide = {label: width for label, width in result.items() if width > images}
+    assert not too_wide, f"sections wider than Images ({images}px): {too_wide}"
+
+
+def test_p10_pictograms_come_from_the_ui_and_exist():
+    import re
+    from PathManager import get_gui_file_path
+    ui_text = get_gui_file_path("BildHatcher.ui").read_text(encoding="utf-8")
+    used = set(re.findall(r"icons/([\w-]+)\.svg", ui_text))
+    assert len(used) > 60
+    missing = [name for name in used if not get_gui_file_path("icons").joinpath(f"{name}.svg").exists()]
+    assert not missing
+    sources = get_gui_file_path("icons").joinpath("SOURCES.md").read_text(encoding="utf-8")
+    assert all(f"| {name} |" in sources for name in used)  # every icon has its origin / licence listed
+
+
+def test_p10_panel_buttons_have_a_text_or_a_pictogram_with_tooltip(app_components):
+    gui, panel = app_components.gui, app_components.panel_buttons
+    for label, section in panel.sections.items():
+        for button in section.findChildren(QtWidgets.QAbstractButton):
+            if button.text().strip():
+                continue
+            if button.objectName() in ("",) or button.parent() is gui.default_color_buttons_layout.parentWidget()                     and not button.objectName():
+                continue  # colour swatches
+            assert not button.icon().isNull(), (label, button.objectName())
+            assert button.toolTip(), (label, button.objectName())
+    assert gui.images_ListWidget.parentWidget() is gui.inside_images_frame
+    assert gui.keep_changes_button.toolTip().startswith("Set as original")
+    assert not hasattr(gui, "selected_laser_label")
+    assert gui.inside_jcode_settings_frame.parentWidget() is gui.laser_settings_frame
+    assert gui.inside_contour_frame.parentWidget() is gui.hatch_frame
+
+
+def test_p10_export_formats_short_names_and_old_configs(app_components):
+    import Settings
     gui = app_components.gui
-    for name, *_ in MainLayout.MASK_BUTTONS:
-        button = getattr(gui, name)
-        assert button.text() == "" and button.toolTip() and not button.icon().isNull()
-    for name, _ in MainLayout.ACTION_BUTTONS:
-        button = getattr(gui, name)
-        assert button.text() and not button.icon().isNull()  # action buttons keep their text
-    assert not hasattr(gui, "selected_laser_label")  # the profile is shown in the toolbar
-    assert gui.load_material_profile_button.parentWidget() is gui.inside_jcode_settings_frame
+    items = [gui.power_format_combobox.itemText(i) for i in range(gui.power_format_combobox.count())]
+    assert items == ["max", "scaled", "test"]
+    settings = Settings.Settings(gui)
+    if settings is not None:
+        settings.apply_settings({"power_format": "color-scaled", "speed_format": "constant (max. Val.)"})
+        assert gui.power_format_combobox.currentText() == "scaled"
+        assert gui.speed_format_combobox.currentText() == "max"
+

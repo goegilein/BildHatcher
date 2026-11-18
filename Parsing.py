@@ -10,6 +10,10 @@ import logging
 
 log = logging.getLogger(__name__)
 
+
+# P10: speed / power formats: constant maximum, scaled by colour brightness, test structure steps
+FORMATS = ["max", "scaled", "test"]
+
 class Parser:
     def __init__(self, data_handler, gui):
         self.data_handler = data_handler
@@ -40,16 +44,15 @@ class Parser:
 
         # Set default values for spinboxes and comboboxes
         self.post_processing_combobox.addItems(["None", "Maximize Lines", "Constant Drive", "Over Drive"])
-        self.power_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
-        self.speed_format_combobox.addItems(["constant (max. Val.)", "color-scaled", "test_structure"])
+        self.power_format_combobox.addItems(FORMATS)
+        self.speed_format_combobox.addItems(FORMATS)
         self.export_format_combobox.addItems([".jcode", ".gcode", ".txt"])
 
-        # P5.1: machine profile selection (in the cells of the former white threshold); fills the mode drop-downs
-        gui.machine_profile_label = QtWidgets.QLabel("Machine")
-        gui.machine_profile_combobox = QtWidgets.QComboBox()
+        # P5.1: machine profile selection; fills the mode drop-downs (shown in the toolbar, MainLayout)
+        gui.machine_profile_label = QtWidgets.QLabel("Machine", gui)
+        gui.machine_profile_label.hide()
+        gui.machine_profile_combobox = QtWidgets.QComboBox(gui)
         gui.machine_profile_combobox.setToolTip("Machine profile (JSON files in " + str(machine.USER_DIR) + ")")
-        gui.gridLayout_15.addWidget(gui.machine_profile_label, 0, 1)
-        gui.gridLayout_15.addWidget(gui.machine_profile_combobox, 1, 1)
         self.machine_profile_combobox = gui.machine_profile_combobox
         self.machine_profile_combobox.currentTextChanged.connect(self.set_machine_profile)
         self.reload_machine_profiles()

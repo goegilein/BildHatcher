@@ -46,6 +46,9 @@ HATCHING_SETTINGS = {
     'iterations': 'iterations_spinbox',
     'air_assist': 'air_assist_combobox',
 }
+# P10: combobox options that were renamed (configs written before keep loading)
+RENAMED_OPTIONS = {"constant (max. Val.)": "max", "color-scaled": "scaled", "test_structure": "test"}
+
 ALL_SETTINGS = {**IMAGE_SETTINGS, **HATCHING_SETTINGS}
 
 
@@ -87,6 +90,8 @@ class Settings:
                 if isinstance(widget, QtWidgets.QComboBox):
                     if isinstance(value, int):  # configs before 2.0 stored the index
                         widget.setCurrentIndex(value)
+                    elif isinstance(value, str) and value in RENAMED_OPTIONS and widget.findText(value) < 0:
+                        widget.setCurrentText(RENAMED_OPTIONS[value])
                     elif widget.findText(value) >= 0:
                         widget.setCurrentText(value)
                     else:

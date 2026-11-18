@@ -1,35 +1,36 @@
-"""P8.6 / P8.7 / P9.3-P9.5: main window layout – toolbar ("hotbar") and the right-hand settings panel.
+"""P8.6 / P8.7 / P9.3-P9.5 / P10: main window layout – toolbar ("hotbar") and the right-hand settings panel.
 
-The section contents come from GUI_Files/BildHatcher.ui (editable in Qt Designer); this module only arranges them.
-Panel navigation has two levels: an outer strip with one (icon) button per group – single select, clicking the
-active group closes the panel – and an inner strip with the subsections of the active group (multi select).
-The open subsections of every group are remembered (also across restarts, Preferences "panel").
-Sections keep their natural size (nothing is stretched); the panel is as wide as the widest visible section.
-Widgets keep their object names, so the controllers find them as before.
+The sections, their pictograms, tooltips and sizes come from GUI_Files/BildHatcher.ui (edit them in Qt Designer);
+this module only arranges them. Panel navigation has two levels: an outer strip with one (icon) button per group –
+single select, clicking the active group closes the panel – and an inner strip with the subsections of the active
+group (multi select). The open subsections of every group are remembered (Preferences "panel").
+P10: the panel has one fixed width – the width of the Images section; every section is laid out to fit it.
 """
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtWidgets
 
 import icons
 import Preferences
 import Tools
 
-# group: (icon, [(strip label, tooltip / full name, section groupbox name or builder key)])
+# group: (icon, [(strip label, tooltip / full name, section groupbox in the .ui)])
 GROUPS = {
-    "Image": ("photo", [
-        ("Images", "Images: list, add / remove, split / combine", "@images"),
-        ("Size", "Image size and hatch center", "@size"),
-        ("Adjust", "Image adjustments: brightness, contrast, colors", "image_adjustment_frame"),
-        ("Color", "Color image: paint, fill, contours, clean up", "@color"),
+    "Image": ("group-image", [
+        ("Images", "Images: list, add / remove, split / combine, rotate, crop, upscale", "images_frame"),
+        ("Size", "Image size and hatch center", "size_frame"),
+        ("Adjust", "Image adjustments: colors, brightness, contrast, filter", "image_adjustment_frame"),
+        ("Color", "Color image: paint, fill, contours, clean up", "image_color_frame"),
         ("Masks", "Mask drawing", "draw_mask_groupbox"),
     ]),
-    "Text": ("typography", [("Text", "Text and geometries", "@text")]),
-    "Hatching": ("texture", [
+    "Text": ("group-text", [("Text", "Text and geometries", "tg_frame")]),
+    "Hatching": ("group-hatching", [
         ("Hatch", "Image hatching and contours / outlines", "hatch_frame"),
         ("Tests", "Test structures", "testStruc_frame"),
         ("Export", "Build NC data: process blocks and export", "export_frame"),
     ]),
-    "Automation": ("robot", [("Automation", "Automatic J-code generation (uses the active color profile)", "laser_settings_frame")]),
+    "Automation": ("group-automation", [("Automation", "Automatic J-code generation (uses the active color profile)",
+                                         "laser_settings_frame")]),
 }
+WIDTH_SECTION = "Images"  # P10: every section gets the width of this one
 DEFAULT_STATE = {"group": "Image", "open": {"Image": ["Images"], "Text": ["Text"], "Hatching": ["Hatch"],
                                             "Automation": ["Automation"]}}
 
@@ -62,18 +63,6 @@ def _styled(widget, style_class):
     return widget
 
 
-def _new_section(title, *contents):
-    """A section in the look of the Designer sections (outsideFrame with a titled insideFrame)."""
-    section = _styled(QtWidgets.QGroupBox(), "outsideFrame")
-    layout = QtWidgets.QVBoxLayout(section)
-    inside = _styled(QtWidgets.QGroupBox(title), "insideFrame")
-    inside_layout = QtWidgets.QVBoxLayout(inside)
-    for widget in contents:
-        inside_layout.addWidget(widget)
-    layout.addWidget(inside)
-    return section
-
-
 def _take(widget):
     """Remove a widget from its current layout (it is re-added elsewhere)."""
     parent = widget.parentWidget()
@@ -82,166 +71,12 @@ def _take(widget):
     return widget
 
 
-# P9.6: pictograms of the Images section (filled buttons: white icons); the texts become tooltips
-IMAGE_BUTTONS = (
-    ("add_image_button", "photo-plus", "Add image"),
-    ("remove_image_button", "photo-minus", "Remove image"),
-    ("keep_changes_button", "photo-check", "Set as original: the current image becomes the restore point"),
-    ("split_color_button", "arrows-split-2", "Split into color channels"),
-    ("combine_image_button", "layers-union", "Combine selected images (darkest color wins)"),
-    ("combine_monochrome_button", "contrast", "Combine selected images monochrome (one average color)"),
-    ("rot_image_90_button", "rotate-clockwise", "Rotate 90° clockwise"),
-    ("mirror_image_horizontal_button", "flip-vertical", "Mirror horizontally (left / right)"),
-    ("mirror_image_vertical_button", "flip-horizontal", "Mirror vertically (top / bottom)"),
-    ("crop_background_button", "crop", "Crop transparent background"),
-    ("cut_to_mask_button", "scissors", "Cut to the active mask"),
-    ("upscale_button", "sparkles", "Upscale 2x (AI)"),
-    ("upscale_preserving_button", "arrows-maximize", "Upscale 2x, keep the colors"),
-    ("bright_transparent_button", "sun-off", "Make bright colors transparent..."),
-)
-
-
-# P9.7: Color section. Tools keep a short text and share one size; the rest are icon buttons
-COLOR_BUTTONS = (
-    ("select_color_color_button", "palette", "More colors..."),
-    ("pick_color_from_image_button", "color-picker", "Pick a color from the image"),
-    ("pick_color_from_db_button", "database", "Pick a color of the active color profile"),
-    ("recolor_from_database_button", "color-swatch", "Recolor with the colors of the active color profile"),
-    ("clean_up_image_colors_button", "wand", "Clean up colors (merge similar colors, remove stray pixels)"),
-    ("imprint_color_overlays_button", "stack-push", "Imprint the colored overlays into the image"),
-    ("undo_color_button", "arrow-back-up", "Undo the last color step"),
-    ("restore_uncolored_image_button", "restore", "Restore the uncolored image"),
-)
-COLOR_TOOLS = (
-    ("toggle_draw_button", "brush", "Draw with the active color"),
-    ("flood_fill_button", "bucket-droplet", "Fill an area with the active color"),
-    ("replace_color_button", "replace", "Replace a color everywhere with the active color"),
-    ("draw_contour_button", "vector", "Show / hide the contours of the image"),
-)
-
-
-def _iconify(gui, table, color=icons.ON_DARK, size=20, box=(34, 30), keep_text=False):
-    for name, icon_name, tooltip in table:
-        button = getattr(gui, name)
-        tip = button.toolTip() if name == "recolor_from_database_button" and button.toolTip() else tooltip
-        icons.set_icon(button, icon_name, tooltip=tip, color=color, size=size, keep_text=keep_text,
-                       checked_color=icons.APP)
-        button.setProperty("iconName", icon_name)  # e.g. colour buttons recolour their icon
-        button.setMinimumSize(0, 0)
-        button.setFixedSize(*box)
-
-
-def _color_section(gui):
-    _iconify(gui, COLOR_BUTTONS)
-    _iconify(gui, COLOR_TOOLS, size=18, box=(92, 30), keep_text=True)
-    options = gui.fill_options_widget  # the fill-mode options must not resize the section
-    options.setFixedHeight(30)
-    options.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored, QtWidgets.QSizePolicy.Policy.Fixed)
-    options.setStyleSheet("#fill_options_widget { background: transparent; }")
-    gui.fill_options_grid_layout.setContentsMargins(0, 0, 0, 0)
-    return _take(gui.image_color_frame)
-
-
-# P9.8: Text section – icon buttons, B / I / U / S toggles and pictogram labels
-TEXT_BUTTONS = (
-    ("add_text_button", "text-plus", "Add a text field (click into the image)"),
-    ("add_geometry_button", "square-plus", "Add a geometry (drag in the image)"),
-    ("text_bold_checkbox", "bold", "Bold"),
-    ("text_italic_checkbox", "italic", "Italic"),
-    ("text_underline_checkbox", "underline", "Underline"),
-    ("text_strike_checkbox", "strikethrough", "Strike out"),
-    ("fill_color_button", "paint", "Fill / text color"),
-    ("outline_color_button", "border-outer", "Outline color"),
-    ("delete_tg_overlay_button", "trash", "Delete the selected overlays"),
-    ("delete_all_tg_overlays_button", "trash-x", "Delete all overlays"),
-    ("imprint_selected_tg_overlays_button", "stack-push", "Imprint the selected overlays into the image"),
-)
-TEXT_LABELS = (
-    ("label_25", "typography", "Font family"),
-    ("label_26", "text-size", "Font size"),
-    ("label_30", "line-height", "Outline width"),
-    ("label_28", "arrow-autofit-width", "Width (mm)"),
-    ("label_29", "arrow-autofit-height", "Height (mm)"),
-)
-
-
-# P9.9: remaining sections. Mask tools as icon buttons; action buttons keep their text and get an icon
-MASK_BUTTONS = (
-    ("rectangle_mask_button", "square", "Rectangle mask"),
-    ("ellipse_mask_button", "circle", "Ellipse mask"),
-    ("polygon_mask_button", "polygon", "Polygon mask"),
-    ("edit_mask_button", "pencil", "Edit the selected mask"),
-    ("move_masked_area_button", "arrows-move", "Move the masked area"),
-    ("unselect_mask_button", "deselect", "Unselect the mask"),
-    ("delete_mask_button", "trash", "Delete the selected mask"),
-    ("delete_all_masks_button", "trash-x", "Delete all masks"),
-    ("save_mask_button", "device-floppy", "Save the selected mask area as an image"),
-)
-CENTER_BUTTONS = (
-    ("show_image_center_button", "target", "Show the hatch center"),
-    ("set_image_center_button", "crosshair", "Select the hatch center in the image"),
-    ("reset_image_center_button", "focus-centered", "Reset the hatch center"),
-)
-ACTION_BUTTONS = (
-    ("restore_original_color_button", "restore"), ("invert_color_button", "contrast"),
-    ("convolute_image_button", "adjustments"), ("reset_image_size_button", "dimensions"),
-    ("hatch_image_button", "texture"),
-    ("create_contours_button", "vector"), ("create_test_button", "test-pipe"),
-    ("add_process_block_button", "square-plus"), ("remove_process_block_button", "trash"),
-    ("export_button", "file-export"), ("load_material_profile_button", "database"),
-    ("automatic_gcode_file_button", "robot"),
-)
-
-
-def _iconify_remaining(gui):
-    _iconify(gui, MASK_BUTTONS)
-    _iconify(gui, CENTER_BUTTONS)
-    for name, icon_name in ACTION_BUTTONS:
-        button = getattr(gui, name)
-        tooltip = button.toolTip() or button.text().strip()
-        icons.set_icon(button, icon_name, tooltip=tooltip, color=icons.ON_DARK, keep_text=True, size=18,
-                       checked_color=icons.APP)
-        button.setProperty("iconName", icon_name)
-    gui.masks_list_widget.setMaximumHeight(120)
-
-
-def _icon_labels(gui, table, size=20):
-    for name, icon_name, tooltip in table:
-        label = getattr(gui, name)
-        label.setPixmap(icons.icon(icon_name).pixmap(size, size))
-        label.setToolTip(tooltip)
-        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-
-
-def _text_section(gui):
-    _iconify(gui, TEXT_BUTTONS)
-    _icon_labels(gui, TEXT_LABELS)
-    combo = gui.geometry_type_combobox
-    for i, icon_name in enumerate(("line", "square", "triangle", "oval")):  # Line, Rectangle, Triangle, Ellipse
-        if i < combo.count():
-            combo.setItemIcon(i, icons.icon(icon_name))
-    combo.setToolTip("Geometry type")
-    gui.tg_overlay_list_widget.setMaximumHeight(140)
-    return _take(gui.tg_frame)
-
-
-def _images_section(gui):
-    _iconify(gui, IMAGE_BUTTONS)
-    gui.images_ListWidget.setMaximumHeight(160)
-    return _take(gui.images_frame)
-
-
-def _size_section(gui):
-    return _new_section("Size && Center", _take(gui.image_dimension_frame), _take(gui.groupBox_2))
-
-
 class SettingsPanel:
     """Two-level navigation (groups / subsections) over the stacked sections."""
 
     def __init__(self, gui, on_hidden=None):
         self.gui = gui
         self.on_hidden = on_hidden
-        builders = {"@images": _images_section, "@size": _size_section, "@color": _color_section, "@text": _text_section}
         state = Preferences.get("panel") or DEFAULT_STATE
         self.open = {group: list(state.get("open", {}).get(group, DEFAULT_STATE["open"][group])) for group in GROUPS}
         self.group = None
@@ -279,12 +114,12 @@ class SettingsPanel:
             group_layout.addWidget(button)
             self.group_buttons[group] = button
             for label, tooltip, source in entries:
-                section = builders[source](gui) if source in builders else _take(getattr(gui, source))
+                section = _take(getattr(gui, source))
                 for inside in section.findChildren(QtWidgets.QGroupBox):
                     if inside.property("styleClass") == "insideFrame":
                         inside.show()
                 section.setVisible(False)
-                self.content_layout.addWidget(section, 0, QtCore.Qt.AlignmentFlag.AlignLeft)  # natural width (P9.4)
+                self.content_layout.addWidget(section)
                 sub_button = VerticalButton(label)
                 sub_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
                 sub_button.setCheckable(True)
@@ -296,6 +131,15 @@ class SettingsPanel:
                 self.sections[label], self.section_buttons[label], self.group_of[label] = section, sub_button, group
         self.content_layout.addStretch(1)
         sub_layout.addStretch(1)
+        # P10: one width for every section (and so for the panel): the Images section's, measured with the
+        # stylesheet applied; never narrower than a section needs (tests check that Images is the widest)
+        for section in self.sections.values():
+            section.ensurePolished()
+        self.width = max([self.sections[WIDTH_SECTION].sizeHint().width()] +
+                         [section.minimumSizeHint().width() for section in self.sections.values()])
+        for section in self.sections.values():
+            section.setFixedWidth(self.width)
+        self.scroll.setFixedWidth(self.width + self.scroll.verticalScrollBar().sizeHint().width() + 4)
         group_layout.addStretch(1)
 
         fixed, maximum, preferred = (QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Maximum,
@@ -334,17 +178,15 @@ class SettingsPanel:
         self._remember()
 
     def _refresh(self):
-        width = 0
+        any_visible = False
         for label, section in self.sections.items():
             visible = self.group_of[label] == self.group and label in self.open[self.group_of[label]]
             if section.isVisibleTo(self.widget) and not visible and self.on_hidden is not None:
                 self.on_hidden(label)
             section.setVisible(visible)
-            if visible:
-                width = max(width, section.sizeHint().width())
+            any_visible = any_visible or visible
         self.sub_strip.setVisible(self.group is not None)
-        self.scroll.setVisible(width > 0)
-        self.scroll.setFixedWidth(width + self.scroll.verticalScrollBar().sizeHint().width() + 4)
+        self.scroll.setVisible(any_visible)  # fixed width (P10); only the group strip when nothing is open
 
     def _remember(self):
         Preferences.put("panel", {"group": self.group, "open": self.open})
@@ -359,9 +201,7 @@ def build_toolbar(gui, c):
     bar = gui.toolBar
     bar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly)  # P9.2: pictograms, texts as tooltips
     bar.setIconSize(QtCore.QSize(22, 22))
-    for action, name in ((gui.actionLoad_Image, "folder-open"), (gui.actionSave_Image, "device-floppy"),
-                         (gui.actionNew_Blank, "file-plus")):
-        icons.set_icon(action, name)
+    for action in (gui.actionLoad_Image, gui.actionSave_Image, gui.actionNew_Blank):  # icons from the .ui
         bar.addAction(action)
     c.tool_slot = bar.addSeparator()  # P9.10: the active-tool indicator goes before this separator
 
@@ -374,8 +214,8 @@ def build_toolbar(gui, c):
     gui.zoom_spinbox.setToolTip("Zoom")
     bar.addWidget(_take(gui.zoom_spinbox))
     bar.addAction(icons.icon("zoom-reset"), "Reset Zoom").triggered.connect(lambda: mover.reset_zoom())
-    bar.addAction(icons.icon("focus-centered"), "Re-center").triggered.connect(lambda: mover.recenter_image())
-    grid_action = bar.addAction(icons.icon("grid-4x4"), "Grid")
+    bar.addAction(icons.icon("recenter"), "Re-center").triggered.connect(lambda: mover.recenter_image())
+    grid_action = bar.addAction(icons.icon("grid"), "Grid")
     grid_action.setCheckable(True)
     grid_action.toggled.connect(lambda checked: mover.toggle_grid() if checked != mover.grid_on else None)
     gui.grid_distance_spinbox.setSuffix(" mm")
@@ -385,11 +225,11 @@ def build_toolbar(gui, c):
     bar.addSeparator()
 
     # application-wide profiles
-    c.color_profiles.action.setIcon(icons.icon("database"))
+    c.color_profiles.action.setIcon(icons.icon("color-profile"))
     bar.addAction(c.color_profiles.action)
     bar.widgetForAction(c.color_profiles.action).setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
     machine_label = QtWidgets.QLabel()
-    machine_label.setPixmap(icons.icon("device-desktop-cog").pixmap(22, 22))
+    machine_label.setPixmap(icons.icon("machine").pixmap(22, 22))
     machine_label.setToolTip("Machine profile")
     bar.addWidget(machine_label)
     gui.machine_profile_label.hide()
@@ -401,7 +241,6 @@ def build(gui, c):
     build_toolbar(gui, c)
     # hiding the mask section switches off the mask tools (colour tools stay active: they have hotkeys, P9.10)
     reset_tools = lambda name: c.image_colorer.set_single_toggle_state('') if name == "Masks" else None
-    _iconify_remaining(gui)
     panel = build_panel(gui, on_hidden=reset_tools)
     c.tools = Tools.ToolController(gui, c.image_colorer)  # P9.10: hotkeys D F R P C T + indicator
     c.tools.add_indicator(gui.toolBar, before=c.tool_slot)

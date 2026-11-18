@@ -12,15 +12,15 @@ import icons
 
 # key, label, icon, object name of the Color-section button
 TOOLS = (
-    ("D", "Draw", "brush", "toggle_draw_button"),
-    ("F", "Fill", "bucket-droplet", "flood_fill_button"),
+    ("D", "Draw", "draw", "toggle_draw_button"),
+    ("F", "Fill", "fill", "flood_fill_button"),
     ("R", "Replace", "replace", "replace_color_button"),
-    ("P", "Pick from image", "color-picker", "pick_color_from_image_button"),
-    ("C", "More colors", "palette", "select_color_color_button"),
-    ("T", "Transparent", "droplet-off", "transparent_color_button"),
+    ("P", "Pick from image", "pick", "pick_color_from_image_button"),
+    ("C", "More colors", "more-colors", "select_color_color_button"),
+    ("T", "Transparent", "transparent", "transparent_color_button"),
 )
-TOOL_ICONS = {"Draw": "brush", "Fill": "bucket-droplet", "Replace": "replace", "Pick": "color-picker",
-              "Mask": "mask", "": "click"}
+TOOL_ICONS = {"Draw": "draw", "Fill": "fill", "Replace": "replace", "Pick": "pick", "Mask": "mask-rect",
+              "": "tool-none"}
 _TYPING_WIDGETS = (QtWidgets.QLineEdit, QtWidgets.QAbstractSpinBox, QtWidgets.QTextEdit, QtWidgets.QPlainTextEdit)
 
 
@@ -90,7 +90,7 @@ class ToolController:
         pixmap.fill(QtCore.Qt.GlobalColor.transparent)
         painter = QtGui.QPainter(pixmap)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
-        painter.drawPixmap(QtCore.QRect(0, 0, size, size), icons.icon(TOOL_ICONS.get(tool, "click")).pixmap(48, 48))
+        painter.drawPixmap(QtCore.QRect(0, 0, size, size), icons.icon(TOOL_ICONS.get(tool, "tool-none")).pixmap(48, 48))
         swatch = QtCore.QRect(size + 4, 4, size - 8, size - 8)
         if rgba[3] == 0:  # transparent: checkerboard
             painter.fillRect(swatch, QtGui.QColor("white"))
@@ -234,7 +234,7 @@ class ToolWheel(QtWidgets.QWidget):
             r = (self.RADIUS + self.INNER) / 2 + 4
             p = QtCore.QPointF(c.x() + r * math.cos(a), c.y() + r * math.sin(a))
             on = i == self.highlight
-            pix = icons.icon(icon_name, icons.ON_DARK if on else icons.APP).pixmap(48, 48)
+            pix = icons.icon(icon_name).pixmap(48, 48)
             painter.drawPixmap(QtCore.QRectF(p.x() - 12, p.y() - 18, 24, 24), pix, QtCore.QRectF(pix.rect()))
             painter.setPen(QtGui.QColor("white") if on else app)
             painter.drawText(QtCore.QRectF(p.x() - 45, p.y() + 6, 90, 16), QtCore.Qt.AlignmentFlag.AlignCenter,
@@ -243,6 +243,6 @@ class ToolWheel(QtWidgets.QWidget):
         painter.setPen(QtGui.QPen(app, 1.5))
         painter.setBrush(QtGui.QColor(245, 245, 245))
         painter.drawEllipse(inner)
-        x = icons.icon("x").pixmap(48, 48)
+        x = icons.icon("close").pixmap(48, 48)
         painter.drawPixmap(QtCore.QRectF(c.x() - 10, c.y() - 10, 20, 20), x, QtCore.QRectF(x.rect()))
         painter.end()

@@ -629,7 +629,9 @@ class TextGeometryOverlayManager:
 
         #geometry type combobox
         self.geometry_type_combobox = gui.geometry_type_combobox 
-        self.geometry_type_combobox.addItems(["Line", "Rectangle", "Triangle", "Ellipse"])
+        for text, icon_name in (("Line", "geo-line"), ("Rectangle", "geo-rect"), ("Triangle", "geo-triangle"),
+                                ("Ellipse", "geo-ellipse")):
+            self.geometry_type_combobox.addItem(icons.icon(icon_name), text)
         self.geometry_type_combobox.currentTextChanged.connect(lambda text: self.set_geometry_type(text.lower()))
 
         #font family combobox

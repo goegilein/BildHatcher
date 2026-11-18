@@ -1,8 +1,8 @@
-"""P9.1: pictograms (Tabler Icons, GUI_Files/icons), recoloured to the app colours.
+"""P9.1 / P10: pictograms, GUI_Files/icons/<meaning>.svg (see GUI_Files/icons/SOURCES.md).
 
-icon("brush")                  -> burgundy outline icon (for light backgrounds: toolbar, menus)
-icon("brush", ON_DARK)         -> white icon (for the filled burgundy buttons of the sections)
-icon("brush", ON_DARK, APP)    -> white, burgundy while checked (checked section buttons are white)
+The panel's icons are set in GUI_Files/BildHatcher.ui; this module serves the code-built parts (toolbar actions,
+group strip, tool wheel, indicator). Coloured icons are used as they are; monochrome ones that use
+`currentColor` (e.g. the text colour buttons) are drawn in `color`.
 """
 from functools import lru_cache
 

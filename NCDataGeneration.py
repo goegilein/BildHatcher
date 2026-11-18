@@ -76,14 +76,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.create_contours_button = gui.create_contours_button
         self.contour_source_combobox = gui.contour_source_combobox
 
-        # P4.4: random seed for RandomMeander / Circular (0 = new random pattern every time); uses the freed cell
-        gui.random_seed_label = QtWidgets.QLabel("Random Seed")
-        gui.random_seed_spinbox = QtWidgets.QSpinBox()
-        gui.random_seed_spinbox.setRange(0, 999999)
-        gui.random_seed_spinbox.setSpecialValueText("off (random)")
-        gui.random_seed_spinbox.setToolTip("Same seed -> same random angles / start points, so a hatching can be reproduced")
-        gui.gridLayout_6.addWidget(gui.random_seed_label, 0, 3)
-        gui.gridLayout_6.addWidget(gui.random_seed_spinbox, 1, 3)
+        # P4.4: random seed for RandomMeander / Circular (0 = new random pattern every time; widget in the .ui, P10)
         self.random_seed_spinbox = gui.random_seed_spinbox
 
         # Initialize combobox values
@@ -212,7 +205,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self._last_progress = 0
         self._hatch_result = None
         self._hatch_error = None
-        self.hatch_progress_label.setText("Hatch Progress: Hatching...")
+        self.hatch_progress_label.setText("Hatching...")
 
         self.worker = HatchingWorker(self, settings)
         self.worker.progress.connect(self.progress_dialog.setValue)
@@ -304,7 +297,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         if result:
             self.hatch_data = result
             self.set_handler_data()
-            self.hatch_progress_label.setText("Hatch State: Finished!")
+            self.hatch_progress_label.setText("Finished")
 
     def _on_worker_done(self):
         self._worker_done = True
@@ -313,7 +306,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         if not self.hatching_cancelled:
             self.hatching_finished(self.worker.result)
             if self.worker.result is None:
-                self.hatch_progress_label.setText("Hatch State: Failed")
+                self.hatch_progress_label.setText("Failed")
                 QtWidgets.QMessageBox.warning(self.gui, "Hatching failed", self._hatch_error or "Hatching produced no result.")
         if self._wait_loop is not None:
             self._wait_loop.quit()
@@ -325,7 +318,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         # keep QThread.finished connected: it closes the dialog and ends the automatic-mode wait loop
         self.worker.progress.disconnect()
         self.worker.wait()
-        self.hatch_progress_label.setText("Hatch State: Cancelled")
+        self.hatch_progress_label.setText("Cancelled")
 
     def hatch_cluster(self, labels, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", hatch_dist_min=300, hatch_dist_max=700, cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, db_color_palette=None, cluster_progress=0, rng=random):
         """Hatch every colour of one cluster. labels: label image from hatching.label_colors, color_list: its colours."""

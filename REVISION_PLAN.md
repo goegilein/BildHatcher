@@ -22,7 +22,8 @@ This file is the single source of truth for status – update it in the same com
 | 6 – Editing tools | done | fill/quantize/clean-up fast, B17/B33 fixed |
 | 7 – Polish | done | version 2.0.0 |
 | 8 – UI rework & image tools | done (P8.9 optional) | branch not merged yet – user decides |
-| 9 – Compact UI, hotkeys, tool wheel | done | P9.1–P9.12; waiting for the user's test |
+| 9 – Compact UI, hotkeys, tool wheel | done | P9.1–P9.12 |
+| 10 – Fixed-width panel, coloured pictograms | done | P10.1–P10.4; waiting for the user's test |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
 
@@ -271,12 +272,19 @@ Requested after Phase 8. Order = dependencies (icons first, then panel structure
 - [x] **P9.12 Tests, screenshots, docs** (README, architecture slide 1). Done: tests per item (tests/test_layout.py, tests/test_tools.py; 88 in total), real-platform screenshots / key and mouse checks, README (using the app, structure, user folder), architecture slides 1–2.
 
 **Open questions**
-- Q9.1 Icon source. **Decided:** bundled SVG set (Tabler Icons, MIT) in `GUI_Files/icons`, recoloured in code.
+- Q9.1 Icon source. **Decided:** bundled SVG set (Tabler Icons, MIT) in `GUI_Files/icons`, recoloured in code. *(Replaced in P10.4 by coloured icons set in the .ui.)*
 - Q9.2 Layout of the two navigation levels. **Decided:** two strips side by side – outer strip = groups, inner strip = subsections of the active group.
 - Q9.3 Where the compact section layouts live. **Decided:** in `BildHatcher.ui` (Designer stays the source of truth for the arrangement); icons/tooltips assigned in code from one table; the navigation strips themselves stay in code (custom vertical buttons).
 - Q9.4 Hotkey keys. **Decided:** mnemonic – D Draw, F Fill, R Replace, P Pick from image, C More colors, T Transparent.
 - Q9.5 *Keep Changes* – sets the current image as new restore point for *Restore Original Colors*. **Decided:** keep, renamed to *Set as Original*.
 - Q9.6 Wheel trigger. **Decided:** right mouse button held over the image (the pen's barrel button arrives as right button on Windows; the right button is unused so far) – also outside touch mode.
+
+### Phase 10 – Fixed-width panel, coloured pictograms in the .ui  `[x]` (2026-11-18, waiting for the user's test)
+User feedback on Phase 9: the panel width changed per group; several sections (Size & Center, Adjust, Text, Hatch, Export) too wide; spinboxes too wide; layouts too horizontal; wish for coloured pictograms. Also: "the .ui did not change" – it did, but Designer still showed the old look because icons, tooltips and sizes were set in code.
+- [x] **P10.1 One panel width.** Every section gets the width of the Images section (measured with the stylesheet applied); the panel no longer changes width between groups. A real-font probe (`tests/layout_probe.py`, run by `tests/test_layout.py`) checks that no section needs more than Images.
+- [x] **P10.2 Narrow sections.** Spinboxes / combos with maximum widths in the .ui; Size & Center as own .ui section (`size_frame`) with pictogram labels; Adjust in 4 narrow columns, icon buttons; Hatch in 3 columns (no 4th column, seed moved left and now a .ui widget, Hatch button 2 columns, state in column 3, short labels: Pattern, Angle, Seed, Distance, Min / Max (µm), Mode, Prec., Cyl. rad.); Tests with narrow spinboxes and a short *Create* button; Export: settings in 3 columns, process list below, labels Pwr / v; Text, Color and Automation trimmed to the width.
+- [x] **P10.3 Format names.** Speed / power format options `max`, `scaled`, `test` (were *constant (max. Val.)*, *color-scaled*, *test_structure*); older configs are translated (`Settings.RENAMED_OPTIONS`). Golden G-code unchanged.
+- [x] **P10.4 Coloured pictograms, set in the .ui.** New icon set in `GUI_Files/icons/<meaning>.svg` (e.g. `draw.svg`, `fill.svg`): Fluent Emoji Flat (MIT), Flat Color Icons (MIT), Streamline Color (CC BY 4.0) and a few Tabler symbols in fixed colours (B/I/U/S, mask shapes in the mask cyan); origins in `GUI_Files/icons/SOURCES.md`. Icons, icon sizes, tooltips, button sizes and the new light `IconButton` style are written into `BildHatcher.ui`, so Designer shows the real look; the icon tables in `MainLayout.py` are gone. To change a pictogram, replace the file.
 
 ## 6. Open questions
 
@@ -366,3 +374,4 @@ Requested after Phase 8. Order = dependencies (icons first, then panel structure
 | 2026-11-17 | P9.10 | Hotkeys D/F/R/P/C/T (also with the panel closed, not while typing) and the active tool / colour indicator in the toolbar. 86 tests. |
 | 2026-11-17 | P9.11 | Tool wheel on the right mouse button over the image (hold–hover–release, or click–click). 88 tests. |
 | 2026-11-17 | P9.12 | README and architecture slides updated; Phase 9 complete. 88 tests. |
+| 2026-11-18 | P10.1–P10.4 | One panel width (Images), narrow sections, short format names, coloured pictograms with icons / tooltips / sizes in the .ui. 90 tests. |

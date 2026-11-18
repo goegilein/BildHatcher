@@ -224,7 +224,8 @@ def apply_speed_and_power(hatch_data_in: HatchData, power_mode, speed_mode,
                           min_pwr=None, max_pwr=None, min_speed=None, max_speed=None,
                           pwr_struc_num=1, speed_struc_num=1, db_color_palette=None):
     """Return a deep copy of hatch_data with speed and power set on every layer.
-    power_mode / speed_mode: "constant (max. Val.)", "color-scaled", "test_structure" or "db_based"."""
+    power_mode / speed_mode: "max" (constant maximum), "scaled" (by colour brightness), "test" (test structure)
+    or "db_based"."""
     #work on a deepcopy of the raw data to avoid pointing issues
     hatch_data = copy.deepcopy(hatch_data_in)
 
@@ -237,11 +238,11 @@ def apply_speed_and_power(hatch_data_in: HatchData, power_mode, speed_mode,
 
 
             #power settings
-            if power_mode=="constant (max. Val.)":
+            if power_mode == "max":
                 pwr = max_pwr
-            elif power_mode=="color-scaled":
+            elif power_mode == "scaled":
                 pwr=int(max_pwr-(max_pwr-min_pwr)*sum(color)/765)
-            elif power_mode=="test_structure":
+            elif power_mode == "test":
                 if pwr_struc_num>1:
                     pwr=int(min_pwr+(max_pwr-min_pwr)*np.floor(counter/speed_struc_num)/(pwr_struc_num-1))
                 else:
@@ -252,11 +253,11 @@ def apply_speed_and_power(hatch_data_in: HatchData, power_mode, speed_mode,
             else:
                 log.error("error: PowerMode not recognized")
             #speed/feedrate settings
-            if speed_mode=="constant (max. Val.)":
+            if speed_mode == "max":
                 speed = max_speed
-            elif speed_mode=="color-scaled":
+            elif speed_mode == "scaled":
                 speed=int(min_speed+(max_speed-min_speed)*sum(color)/765)
-            elif speed_mode=="test_structure":
+            elif speed_mode == "test":
                 if speed_struc_num>1:
                     speed=int((min_speed+(max_speed-min_speed)*(counter%speed_struc_num/(speed_struc_num-1))))
                 else:    

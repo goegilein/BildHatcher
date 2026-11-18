@@ -515,7 +515,8 @@ class ImageColorer(MaskTools, QtCore.QObject):
             self.default_color_buttons_layout.addWidget(btn, row, col)
 
         transparent_btn = QtWidgets.QPushButton(objectName="transparent_color_button")
-        icons.set_icon(transparent_btn, "droplet-off", color=icons.ON_DARK, size=18,
+        transparent_btn.setProperty("styleClass", "IconButton")
+        icons.set_icon(transparent_btn, "transparent", size=18,
                        tooltip="Transparent: painted / filled areas become background and are not hatched")
         transparent_btn.setFixedHeight(25)
         transparent_btn.clicked.connect(lambda checked: self.set_active_color(list(image_doc.TRANSPARENT)))
