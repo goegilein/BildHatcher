@@ -694,7 +694,9 @@ ICONS = {
         line([(9, 14), (13, 19), (18, 19)], GREEN), head((22, 19), (1, 0), GREEN)),
     "combine": lambda: combine_icon(),
     "combine-mono": lambda: combine_icon(BLACK),
-    "rotate": lambda: svg(rect(3, 9, 11, 11, SKY), arc_arrow(14, 9, 6.2, 205, 65)),
+    # square with a right-angle arrow along its top and right edge (a little away from them)
+    "rotate": lambda: svg(rect(3, 9, 11, 11, SKY), line([(4.5, 5.5), (17.8, 5.5), (17.8, 17.6)], BLUE),
+                          head((17.8, 20.6), (0, 1), BLUE)),
     # mirror top / bottom: original filled above, mirror image outlined below a horizontal axis
     "mirror-v": lambda: svg(polygon([(5, 9.2), (19, 9.2), (19, 3)], BLUE, BLUE),
                             polygon([(5, 14.8), (19, 14.8), (19, 21)], "none", BLUE),
