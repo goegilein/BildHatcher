@@ -559,48 +559,66 @@ class OverlayStore:
 class FontPreviewFilter(QtCore.QObject):
     """Previews fonts on the selected text overlay while hovering them in the font dropdown.
 
-    Installed on the dropdown's view: its Show event starts the preview, its Hide event ends it."""
+    Installed on the dropdown's view (Show starts the preview, Hide ends it) and on its viewport (mouse moves):
+    the Windows 11 style has no list mouse tracking, so hovering never changes the current row and the combo box's
+    `highlighted` signal only follows the keyboard – the hovered row is taken from the mouse position instead."""
 
     def __init__(self, combo_box: QtWidgets.QComboBox, tg_manager: 'TextGeometryOverlayManager'):
         super().__init__(combo_box)
         self.combo_box = combo_box
         self.tg_manager = tg_manager
-        self.original_font = None
+        self.originals = {}  # text overlay -> its font family when the dropdown opened
+        self.shown = None  # the family currently previewed
         self.original_index = -1
         self.previewing = False
-        
+
     def start_preview(self):
-        """Called when dropdown opens - save original state."""
-        active_item = self.tg_manager.overlay_store.active_item
-        if isinstance(active_item, TextFieldOverlay):
-            self.original_font = active_item.font.family()
-            self.original_index = self.combo_box.currentIndex()
-            self.previewing = True
+        """Dropdown opens: remember the fonts of the overlays the font choice applies to."""
+        self.originals = {item: item.font.family() for item in self.tg_manager.font_targets()}
+        self.shown = None
+        self.original_index = self.combo_box.currentIndex()
+        self.previewing = bool(self.originals)
+
+    def install(self):
+        view = self.combo_box.view()
+        view.installEventFilter(self)
+        view.viewport().setMouseTracking(True)
+        view.viewport().installEventFilter(self)
+        self.combo_box.highlighted.connect(self.preview_font)  # keyboard
 
     def eventFilter(self, obj, event):
-        if event.type() == QtCore.QEvent.Type.Show:
+        kind = event.type()
+        view = self.combo_box.view()
+        if obj is view and kind == QtCore.QEvent.Type.Show:
             self.start_preview()
-        elif event.type() == QtCore.QEvent.Type.Hide and self.previewing:
+        elif obj is view and kind == QtCore.QEvent.Type.Hide and self.previewing:
             self.end_preview()
+        elif obj is view.viewport() and kind == QtCore.QEvent.Type.MouseMove and self.previewing:
+            index = view.indexAt(event.position().toPoint())
+            if index.isValid():
+                self.preview_font(index.row())
         return False
 
     def preview_font(self, index: int):
-        """Preview font at given index during hover."""
-        if not self.previewing:
+        """Show the hovered font on the overlays."""
+        if not self.previewing or index < 0:
             return
-        font_family = self.combo_box.itemText(index)
-        active_item = self.tg_manager.overlay_store.active_item
-        if isinstance(active_item, TextFieldOverlay):
-            active_item.set_font_family(font_family)
-            
+        family = self.combo_box.itemText(index)
+        if family == self.shown:
+            return
+        self.shown = family
+        for item in self.originals:
+            item.set_font_family(family)
+        self.tg_manager.refresh_scene()
+
     def end_preview(self):
-        """Called when dropdown closes - revert if no selection was made."""
+        """Dropdown closes: without a new choice the overlays get their fonts back."""
         if self.combo_box.currentIndex() == self.original_index:
-            # No selection was made, revert to original font
-            active_item = self.tg_manager.overlay_store.active_item
-            if isinstance(active_item, TextFieldOverlay) and self.original_font:
-                active_item.set_font_family(self.original_font)
+            for item, family in self.originals.items():
+                item.set_font_family(family)
+            self.tg_manager.refresh_scene()
         self.previewing = False
+        self.originals = {}
 
 
 class TextGeometryOverlayManager:
@@ -651,8 +669,7 @@ class TextGeometryOverlayManager:
         # Font preview: hovering a font in the open dropdown shows it on the selected text overlay; closing the
         # dropdown without choosing restores the font (the popup view's show / hide events start and end it)
         self.font_preview_filter = FontPreviewFilter(self.font_family_combobox, self)
-        self.font_family_combobox.highlighted.connect(self.font_preview_filter.preview_font)
-        self.font_family_combobox.view().installEventFilter(self.font_preview_filter)
+        self.font_preview_filter.install()
 
         #font size spinbox
         self.font_size_spinbox = gui.font_size_spinbox
@@ -1230,12 +1247,19 @@ class TextGeometryOverlayManager:
         if not self.font_family_combobox:
             return
         family = self.font_family_combobox.currentText()
+        for item in self.font_targets():
+            item.set_font_family(family)
+        self.refresh_scene()
+
+    def font_targets(self):
+        """The text overlays a font choice applies to: the selected ones, else the active one."""
         selected_items = self.gui.image_scene.selectedItems() if hasattr(self.gui, "image_scene") else []
         text_items = [item for item in selected_items if isinstance(item, TextFieldOverlay)]
         if not text_items and isinstance(self.overlay_store.active_item, TextFieldOverlay):
             text_items = [self.overlay_store.active_item]
-        for item in text_items:
-            item.set_font_family(family)
+        return text_items
+
+    def refresh_scene(self):
         if hasattr(self.gui, "image_scene"):
             self.gui.image_scene.update()
 

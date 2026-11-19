@@ -291,25 +291,39 @@ def test_p106_no_color_undo_button_and_imprint_in_toolbar(app_components, monkey
 
 
 def test_p106_font_preview_while_hovering_the_dropdown(app_components):
-    """P10.6: the dropdown's show / hide (Qt never calls Python-patched showPopup / hidePopup) drive the preview."""
+    """P10.6: hovering a font in the open dropdown previews it on the text selected in the scene.
+
+    The Windows 11 style has no list mouse tracking (hover never changes the current row, `highlighted` is not
+    emitted), so the preview follows mouse moves over the list; closing without a choice restores the font."""
+    from PyQt6 import QtCore, QtGui
     from TextandGeometries import TextFieldOverlay
     c = app_components
     combo = c.gui.font_family_combobox
-    added = combo.count() < 2
-    if added:  # the offscreen test platform may list a single font
-        combo.addItem("Courier New")
-    original, other = combo.itemText(0), combo.itemText(1)
+    added = []
+    for family in ("Courier New", "Times New Roman"):  # the offscreen test platform may list a single font
+        if combo.findText(family) < 0:
+            combo.addItem(family)
+            added.append(family)
+    original = combo.itemText(0)
+    row = next(i for i in range(combo.count()) if QtGui_family(combo.itemText(i)) != QtGui_family(original))
     item = TextFieldOverlay(font_family=original)
-    c.overlay_store.active_item = item
+    item.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+    c.gui.image_scene.addItem(item)
+    item.setSelected(True)  # selected in the scene, not the overlay store's active item
     combo.setCurrentIndex(0)
     combo.showPopup()
-    combo.highlighted.emit(1)
-    assert item.font.family() == QtGui_family(other)
+    view = combo.view()
+    rect = view.visualRect(combo.model().index(row, 0))
+    move = QtGui.QMouseEvent(QtCore.QEvent.Type.MouseMove, QtCore.QPointF(rect.center()),
+                             QtCore.QPointF(view.viewport().mapToGlobal(rect.center())), QtCore.Qt.MouseButton.NoButton,
+                             QtCore.Qt.MouseButton.NoButton, QtCore.Qt.KeyboardModifier.NoModifier)
+    QtWidgets.QApplication.sendEvent(view.viewport(), move)
+    assert item.font.family() == QtGui_family(combo.itemText(row))
     combo.hidePopup()  # closed without choosing: back to the original font
     assert item.font.family() == QtGui_family(original)
-    c.overlay_store.active_item = None
-    if added:
-        combo.removeItem(1)
+    c.gui.image_scene.removeItem(item)
+    for family in added:
+        combo.removeItem(combo.findText(family))
 
 
 def QtGui_family(name):
