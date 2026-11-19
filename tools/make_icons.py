@@ -518,10 +518,6 @@ def mask_save():
                picture(16.5, 8, 6.5, 7))
 
 
-def color_undo():
-    return svg(drop(18.2, 17.6, 3.2, BLUE), arc_arrow(10, 13, 5.6, -20, 180, BLACK, 2.0, ccw=True))
-
-
 def image_restore():
     return svg(picture(6.5, 8, 11, 8.5), sparkle(17.2, 7.4, 2.6), sparkle(6.6, 16.6, 1.8), reset_arrow())
 
@@ -576,10 +572,39 @@ def flask():
                circle(14, 17.5, 0.7, PAPER, "none", 0))
 
 
-def stamp():
-    return svg(circle(12, 4.6, 2.8, WOOD, INK, 1.4), rect(10.4, 7, 3.2, 4.6, WOOD, INK, 1.3, 0.3),
-               rect(4.5, 11.5, 15, 4.2, WOOD, INK, 1.4, 1.0), rect(5.5, 15.7, 13, 2.2, RED, INK, 1.2, 0.3),
-               line([(4.5, 21), (19.5, 21)], RED, 2.0))
+def stamp(dx=0.0):
+    return "\n".join([circle(12 + dx, 4.6, 2.8, WOOD, INK, 1.4), rect(10.4 + dx, 7, 3.2, 4.6, WOOD, INK, 1.3, 0.3),
+                      rect(4.5 + dx, 11.5, 15, 4.2, WOOD, INK, 1.4, 1.0),
+                      rect(5.5 + dx, 15.7, 13, 2.2, RED, INK, 1.2, 0.3),
+                      line([(4.5 + dx, 21), (19.5 + dx, 21)], RED, 2.0)])
+
+
+def imprint_colors():
+    """Stamp with a small colourful drop at the bottom right."""
+    return svg(stamp(-2.5), path(drop_path(19, 18.6, 3.4), PAPER, PAPER, 3.0), rgb_drop(19, 18.6, 3.4))
+
+
+def imprint_overlays():
+    """Stamp with a "T" in a square at the bottom right."""
+    return svg(stamp(-2.5), rect(14, 13.5, 9, 9, PAPER, PAPER, 2.6, 1.2), rect(14, 13.5, 9, 9, PAPER, INK, 1.4, 1.2),
+               letter_t(16, 16, 5, 4.6, INK, 1.7))
+
+
+def rotate_icon():
+    """Square at the bottom left, a quarter-circle arrow around its top right corner, "90°" above it."""
+    nine = circle(4.4, 4, 1.5, "none", INK, 1.3) + "\n" + path("M 5.9 4 L 5.9 6 Q 5.9 7.6 4.2 7.6", "none", INK, 1.3)
+    zero = ellipse(9.4, 4.9, 1.5, 2.25, "none", INK, 1.3)
+    degree = circle(12.3, 3, 0.85, "none", INK, 1.0)
+    return svg(rect(2.5, 10.5, 11, 11, SKY), nine, zero, degree,
+               path("M 14.2 5.5 Q 19.6 5.5 19.6 11.2", "none", BLUE, LINE), head((19.6, 14.4), (0, 1), BLUE))
+
+
+def spin_arrow(up):
+    """Slim chevron for the spin box buttons (8 x 5)."""
+    points = "1,4 4,1 7,4" if up else "1,1 4,4 7,1"
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="5" viewBox="0 0 8 5">\n'
+            f'<polyline points="{points}" fill="none" stroke="#7A0020" stroke-width="1.5" '
+            'stroke-linecap="round" stroke-linejoin="round"/>\n</svg>\n')
 
 
 def palette():
@@ -694,9 +719,7 @@ ICONS = {
         line([(9, 14), (13, 19), (18, 19)], GREEN), head((22, 19), (1, 0), GREEN)),
     "combine": lambda: combine_icon(),
     "combine-mono": lambda: combine_icon(BLACK),
-    # square with a right-angle arrow along its top and right edge (a little away from them)
-    "rotate": lambda: svg(rect(3, 9, 11, 11, SKY), line([(4.5, 5.5), (17.8, 5.5), (17.8, 17.6)], BLUE),
-                          head((17.8, 20.6), (0, 1), BLUE)),
+    "rotate": rotate_icon,
     # mirror top / bottom: original filled above, mirror image outlined below a horizontal axis
     "mirror-v": lambda: svg(polygon([(5, 9.2), (19, 9.2), (19, 3)], BLUE, BLUE),
                             polygon([(5, 14.8), (19, 14.8), (19, 21)], "none", BLUE),
@@ -732,8 +755,8 @@ ICONS = {
     "replace": replace_color,
     "recolor-db": recolor_db,
     "clean-up": clean_up,
-    "imprint": stamp,
-    "undo": color_undo,
+    "imprint-colors": imprint_colors,
+    "imprint-overlays": imprint_overlays,
     "image-restore": image_restore,
     "contours": lambda: svg(contour_lines()),
     "contours-hide": lambda: svg(contour_lines(), slash((3, 3), (21, 21))),
@@ -776,6 +799,9 @@ ICONS = {
     "grid-hide": lambda: grid(crossed=True),
     "color-profile": color_profile,
     "machine": machine,
+    # --- spin box arrows (stylesheet) ---
+    "spin-up": lambda: spin_arrow(True),
+    "spin-down": lambda: spin_arrow(False),
 }
 
 

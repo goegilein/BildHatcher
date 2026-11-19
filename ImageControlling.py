@@ -805,13 +805,8 @@ class ImageMover(QtCore.QObject):
         self.image_canvas.viewport().setAttribute(QtCore.Qt.WidgetAttribute.WA_AcceptTouchEvents, enabled)
         if not enabled:
             self._in_multitouch_gesture = False
+        # (P10.6: the spin box arrows are always visible – set in the .ui)
 
-        #set all up down buttons for all spinboxes to be enabled or disabled based on touchscreen mode
-        for spinbox_name in ["pen_width_spinbox", "color_similarity_spinbox", "contour_sensitivity_spinbox","contour_thickness_spinbox", "contour_space_spinbox"]:
-            spinbox  = getattr(self.gui, spinbox_name, None)
-            if spinbox:
-                spinbox.setButtonSymbols(QtWidgets.QAbstractSpinBox.ButtonSymbols.UpDownArrows if enabled else QtWidgets.QAbstractSpinBox.ButtonSymbols.NoButtons)
-  
 
     def trigger_canvas_event(self, event):
         if event.type() in (QtCore.QEvent.Type.TouchBegin, QtCore.QEvent.Type.TouchUpdate, QtCore.QEvent.Type.TouchEnd):

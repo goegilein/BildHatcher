@@ -557,10 +557,12 @@ class OverlayStore:
 
 
 class FontPreviewFilter(QtCore.QObject):
-    """Event filter for font family combobox to preview fonts on hover."""
-    
+    """Previews fonts on the selected text overlay while hovering them in the font dropdown.
+
+    Installed on the dropdown's view: its Show event starts the preview, its Hide event ends it."""
+
     def __init__(self, combo_box: QtWidgets.QComboBox, tg_manager: 'TextGeometryOverlayManager'):
-        super().__init__()
+        super().__init__(combo_box)
         self.combo_box = combo_box
         self.tg_manager = tg_manager
         self.original_font = None
@@ -574,7 +576,14 @@ class FontPreviewFilter(QtCore.QObject):
             self.original_font = active_item.font.family()
             self.original_index = self.combo_box.currentIndex()
             self.previewing = True
-            
+
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.Type.Show:
+            self.start_preview()
+        elif event.type() == QtCore.QEvent.Type.Hide and self.previewing:
+            self.end_preview()
+        return False
+
     def preview_font(self, index: int):
         """Preview font at given index during hover."""
         if not self.previewing:
@@ -639,16 +648,11 @@ class TextGeometryOverlayManager:
         self.font_family_combobox.addItems(TextFieldOverlay.available_fonts())
         self.font_family_combobox.currentTextChanged.connect(self._on_font_family_changed)
         
-        # Setup font preview filter for hover preview
+        # Font preview: hovering a font in the open dropdown shows it on the selected text overlay; closing the
+        # dropdown without choosing restores the font (the popup view's show / hide events start and end it)
         self.font_preview_filter = FontPreviewFilter(self.font_family_combobox, self)
-        # Connect to highlighted signal for preview on hover
         self.font_family_combobox.highlighted.connect(self.font_preview_filter.preview_font)
-        # Override showPopup to save state
-        self._original_show_popup = self.font_family_combobox.showPopup
-        self.font_family_combobox.showPopup = self._show_popup_with_preview
-        # Override hidePopup to restore original font if needed
-        self._original_hide_popup = self.font_family_combobox.hidePopup
-        self.font_family_combobox.hidePopup = self._hide_popup_with_preview
+        self.font_family_combobox.view().installEventFilter(self.font_preview_filter)
 
         #font size spinbox
         self.font_size_spinbox = gui.font_size_spinbox
@@ -958,16 +962,6 @@ class TextGeometryOverlayManager:
             if self.mode == self.MODE_ADD_GEOMETRY:
                 self.mode = self.MODE_IDLE
                 self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
-
-    def _show_popup_with_preview(self):
-        """Wrapper for showPopup that initializes font preview."""
-        self.font_preview_filter.start_preview()
-        self._original_show_popup()
-
-    def _hide_popup_with_preview(self):
-        """Wrapper for hidePopup that finalizes font preview."""
-        self.font_preview_filter.end_preview()
-        self._original_hide_popup()
 
     def set_geometry_type(self, geom_type: str):
         """Set the current geometry type to draw."""

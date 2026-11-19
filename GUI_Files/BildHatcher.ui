@@ -97,6 +97,48 @@ border-radius: 5px;  /* Rounded edges */
 padding : 2px;
 }
 
+/* spin arrows (P10.6): slim, always visible; hidden while the field is disabled (read-only values) */
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {
+	subcontrol-origin: padding;
+	width: 12px;
+	border: none;
+	border-left: 1px solid rgb(232, 205, 213);
+	background-color: rgb(252, 244, 246);
+}
+QAbstractSpinBox::up-button {
+	subcontrol-position: top right;
+	border-top-right-radius: 4px;
+	border-bottom: 1px solid rgb(232, 205, 213);
+}
+QAbstractSpinBox::down-button {
+	subcontrol-position: bottom right;
+	border-bottom-right-radius: 4px;
+}
+QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover {
+	background-color: rgb(244, 212, 221);
+}
+QAbstractSpinBox::up-button:pressed, QAbstractSpinBox::down-button:pressed {
+	background-color: rgb(225, 175, 190);
+}
+QAbstractSpinBox::up-arrow {
+	image: url(icons:spin-up.svg);
+	width: 8px;
+	height: 5px;
+}
+QAbstractSpinBox::down-arrow {
+	image: url(icons:spin-down.svg);
+	width: 8px;
+	height: 5px;
+}
+QAbstractSpinBox::up-button:disabled, QAbstractSpinBox::down-button:disabled {
+	width: 0px;
+	border: none;
+}
+QAbstractSpinBox::up-arrow:disabled, QAbstractSpinBox::down-arrow:disabled {
+	image: none;
+	width: 0px;
+}
+
 
 /* TEXT EDIT*/
 
@@ -1093,7 +1135,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                          <item row="0" column="1">
                           <widget class="QDoubleSpinBox" name="width_spinbox">
                            <property name="buttonSymbols">
-                            <enum>QAbstractSpinBox::NoButtons</enum>
+                            <enum>QAbstractSpinBox::UpDownArrows</enum>
                            </property>
                            <property name="maximum">
                             <double>1000.000000000000000</double>
@@ -1134,7 +1176,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                          <item row="0" column="3">
                           <widget class="QDoubleSpinBox" name="height_spinbox">
                            <property name="buttonSymbols">
-                            <enum>QAbstractSpinBox::NoButtons</enum>
+                            <enum>QAbstractSpinBox::UpDownArrows</enum>
                            </property>
                            <property name="maximum">
                             <double>1000.000000000000000</double>
@@ -1160,7 +1202,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                          <item row="1" column="1">
                           <widget class="QDoubleSpinBox" name="pixel_size_spinbox">
                            <property name="buttonSymbols">
-                            <enum>QAbstractSpinBox::NoButtons</enum>
+                            <enum>QAbstractSpinBox::UpDownArrows</enum>
                            </property>
                            <property name="decimals">
                             <number>3</number>
@@ -1319,7 +1361,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                             <set>Qt::AlignCenter</set>
                            </property>
                            <property name="buttonSymbols">
-                            <enum>QAbstractSpinBox::NoButtons</enum>
+                            <enum>QAbstractSpinBox::UpDownArrows</enum>
                            </property>
                            <property name="minimum">
                             <double>-10000.000000000000000</double>
@@ -1351,7 +1393,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                             <set>Qt::AlignCenter</set>
                            </property>
                            <property name="buttonSymbols">
-                            <enum>QAbstractSpinBox::NoButtons</enum>
+                            <enum>QAbstractSpinBox::UpDownArrows</enum>
                            </property>
                            <property name="minimum">
                             <double>-10000.000000000000000</double>
@@ -1549,7 +1591,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                    <item row="1" column="2">
                     <widget class="QSpinBox" name="zoom_spinbox">
                      <property name="buttonSymbols">
-                      <enum>QAbstractSpinBox::NoButtons</enum>
+                      <enum>QAbstractSpinBox::UpDownArrows</enum>
                      </property>
                      <property name="minimum">
                       <number>10</number>
@@ -1589,7 +1631,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                    <item row="3" column="2">
                     <widget class="QDoubleSpinBox" name="grid_distance_spinbox">
                      <property name="buttonSymbols">
-                      <enum>QAbstractSpinBox::NoButtons</enum>
+                      <enum>QAbstractSpinBox::UpDownArrows</enum>
                      </property>
                     </widget>
                    </item>
@@ -1977,7 +2019,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                   <item row="0" column="1">
                    <widget class="QSpinBox" name="color_count_spinbox">
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <number>1</number>
@@ -2184,7 +2226,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="maximum">
                      <number>1000</number>
@@ -2216,7 +2258,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="maximum">
                      <number>1000</number>
@@ -2248,7 +2290,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <number>1</number>
@@ -2676,7 +2718,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <item row="1" column="1" colspan="2">
                       <widget class="QSpinBox" name="pen_width_spinbox">
                        <property name="buttonSymbols">
-                        <enum>QAbstractSpinBox::NoButtons</enum>
+                        <enum>QAbstractSpinBox::UpDownArrows</enum>
                        </property>
                        <property name="minimum">
                         <number>1</number>
@@ -2950,8 +2992,8 @@ QPushButton[styleClass="IconButton"]:disabled {
                        </property>
                        <property name="icon">
                         <iconset>
-                         <normaloff>icons/imprint.svg</normaloff>
-                         <normalon>icons/imprint.svg</normalon>
+                         <normaloff>icons/imprint-colors.svg</normaloff>
+                         <normalon>icons/imprint-colors.svg</normalon>
                         </iconset>
                        </property>
                        <property name="iconSize">
@@ -2984,43 +3026,6 @@ QPushButton[styleClass="IconButton"]:disabled {
                       </widget>
                      </item>
                      <item row="0" column="3">
-                      <widget class="QPushButton" name="undo_color_button">
-                       <property name="icon">
-                        <iconset>
-                         <normaloff>icons/undo.svg</normaloff>
-                         <normalon>icons/undo.svg</normalon>
-                        </iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>20</width>
-                         <height>20</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Undo the last color step</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="minimumSize">
-                        <size>
-                         <width>34</width>
-                         <height>30</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>34</width>
-                         <height>30</height>
-                        </size>
-                       </property>
-                       <property name="styleClass" stdset="0">
-                        <string>IconButton</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="4">
                       <widget class="QPushButton" name="restore_uncolored_image_button">
                        <property name="icon">
                         <iconset>
@@ -3176,7 +3181,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <item row="2" column="1">
                       <widget class="QSpinBox" name="contour_sensitivity_spinbox">
                        <property name="buttonSymbols">
-                        <enum>QAbstractSpinBox::NoButtons</enum>
+                        <enum>QAbstractSpinBox::UpDownArrows</enum>
                        </property>
                        <property name="minimum">
                         <number>1</number>
@@ -3211,7 +3216,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                         <set>Qt::AlignCenter</set>
                        </property>
                        <property name="buttonSymbols">
-                        <enum>QAbstractSpinBox::NoButtons</enum>
+                        <enum>QAbstractSpinBox::UpDownArrows</enum>
                        </property>
                        <property name="minimum">
                         <number>1</number>
@@ -3243,7 +3248,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                         <set>Qt::AlignCenter</set>
                        </property>
                        <property name="buttonSymbols">
-                        <enum>QAbstractSpinBox::NoButtons</enum>
+                        <enum>QAbstractSpinBox::UpDownArrows</enum>
                        </property>
                        <property name="minimum">
                         <number>0</number>
@@ -4009,7 +4014,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <item row="1" column="1">
                       <widget class="QSpinBox" name="font_size_spinbox">
                        <property name="buttonSymbols">
-                        <enum>QAbstractSpinBox::NoButtons</enum>
+                        <enum>QAbstractSpinBox::UpDownArrows</enum>
                        </property>
                        <property name="minimum">
                         <number>1</number>
@@ -4299,7 +4304,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <item row="2" column="3" colspan="3">
                       <widget class="QDoubleSpinBox" name="outline_width_spinbox">
                        <property name="buttonSymbols">
-                        <enum>QAbstractSpinBox::NoButtons</enum>
+                        <enum>QAbstractSpinBox::UpDownArrows</enum>
                        </property>
                        <property name="maximum">
                         <double>1000.000000000000000</double>
@@ -4340,7 +4345,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <item row="3" column="1">
                       <widget class="QDoubleSpinBox" name="width_mm_spinbox">
                        <property name="buttonSymbols">
-                        <enum>QAbstractSpinBox::NoButtons</enum>
+                        <enum>QAbstractSpinBox::UpDownArrows</enum>
                        </property>
                        <property name="maximum">
                         <double>1000.000000000000000</double>
@@ -4381,7 +4386,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <item row="3" column="3" colspan="3">
                       <widget class="QDoubleSpinBox" name="height_mm_spinbox">
                        <property name="buttonSymbols">
-                        <enum>QAbstractSpinBox::NoButtons</enum>
+                        <enum>QAbstractSpinBox::UpDownArrows</enum>
                        </property>
                        <property name="maximum">
                         <double>1000.000000000000000</double>
@@ -4563,8 +4568,8 @@ QPushButton[styleClass="IconButton"]:disabled {
                        </property>
                        <property name="icon">
                         <iconset>
-                         <normaloff>icons/imprint.svg</normaloff>
-                         <normalon>icons/imprint.svg</normalon>
+                         <normaloff>icons/imprint-overlays.svg</normaloff>
+                         <normalon>icons/imprint-overlays.svg</normalon>
                         </iconset>
                        </property>
                        <property name="iconSize">
@@ -4783,7 +4788,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="maximum">
                      <number>10000</number>
@@ -4802,7 +4807,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="maximum">
                      <number>10000</number>
@@ -4835,7 +4840,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <double>0.000000000000000</double>
@@ -4860,7 +4865,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="maximum">
                      <double>10000.000000000000000</double>
@@ -4973,7 +4978,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="maximum">
                      <double>179.000000000000000</double>
@@ -5007,7 +5012,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      </size>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="alignment">
                      <set>Qt::AlignCenter</set>
@@ -5065,7 +5070,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <number>1</number>
@@ -5096,7 +5101,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <number>1</number>
@@ -5167,7 +5172,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="decimals">
                      <number>3</number>
@@ -5198,7 +5203,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <double>0.000000000000000</double>
@@ -5510,7 +5515,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <number>1</number>
@@ -5581,7 +5586,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="maximum">
                      <number>100</number>
@@ -5600,7 +5605,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="maximum">
                      <number>100</number>
@@ -5668,7 +5673,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="maximum">
                      <number>1000</number>
@@ -5687,7 +5692,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="maximum">
                      <number>1000</number>
@@ -5746,7 +5751,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <double>-100000.000000000000000</double>
@@ -5768,7 +5773,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <double>-100000.000000000000000</double>
@@ -5793,7 +5798,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <double>-10000.000000000000000</double>
@@ -6125,7 +6130,7 @@ QPushButton[styleClass="IconButton"]:disabled {
                      <set>Qt::AlignCenter</set>
                     </property>
                     <property name="buttonSymbols">
-                     <enum>QAbstractSpinBox::NoButtons</enum>
+                     <enum>QAbstractSpinBox::UpDownArrows</enum>
                     </property>
                     <property name="minimum">
                      <double>1.000000000000000</double>
@@ -6311,6 +6316,32 @@ QPushButton[styleClass="IconButton"]:disabled {
    </property>
    <property name="text">
     <string>Load Image</string>
+   </property>
+  </action>
+  <action name="actionImprint_Colors">
+   <property name="icon">
+    <iconset>
+     <normaloff>icons/imprint-colors.svg</normaloff>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>Imprint Colors</string>
+   </property>
+   <property name="toolTip">
+    <string>Imprint the colored overlays into the image</string>
+   </property>
+  </action>
+  <action name="actionImprint_Overlays">
+   <property name="icon">
+    <iconset>
+     <normaloff>icons/imprint-overlays.svg</normaloff>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>Imprint Overlays</string>
+   </property>
+   <property name="toolTip">
+    <string>Imprint the selected text / geometry overlays into the image</string>
    </property>
   </action>
   <action name="actionSave_Image">

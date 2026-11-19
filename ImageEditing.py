@@ -420,9 +420,6 @@ class ImageColorer(MaskTools, QtCore.QObject):
         self.restore_uncolored_image_button = gui.restore_uncolored_image_button
         self.restore_uncolored_image_button.clicked.connect(self.restore_uncolored_image)
 
-        self.undo_color_button = gui.undo_color_button
-        self.undo_color_button.clicked.connect(self.undo_coloring)
-
         #Add button to imprint color edits
         self.imprint_color_overlays_button = gui.imprint_color_overlays_button
         self.imprint_color_overlays_button.clicked.connect(self.imprint_color_overlays)

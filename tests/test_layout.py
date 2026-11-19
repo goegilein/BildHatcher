@@ -10,7 +10,7 @@ import MainLayout
 import Preferences
 
 
-def test_panel_groups_single_select_sections_multi_select(app_components):
+def test_panel_groups_and_sections_single_select(app_components):
     c = app_components
     gui, panel = c.gui, c.panel_buttons
     scroll = gui.settings_panel.findChild(QtWidgets.QScrollArea, "settings_panel_scroll")
@@ -25,17 +25,18 @@ def test_panel_groups_single_select_sections_multi_select(app_components):
     panel.group_buttons["Hatching"].click()  # single select between groups
     assert not panel.group_buttons["Image"].isChecked() and panel.group_buttons["Hatching"].isChecked()
     assert not gui.draw_mask_groupbox.isVisible()
-    for label in ("Hatch", "Export"):  # several subsections at once
-        panel.section_buttons[label].setChecked(True)
-    assert gui.hatch_frame.isVisible() and gui.export_frame.isVisible()
+    panel.section_buttons["Hatch"].setChecked(True)
+    panel.section_buttons["Export"].setChecked(True)  # P10.6: one section at a time
+    assert gui.export_frame.isVisible() and not gui.hatch_frame.isVisible()
+    assert not panel.section_buttons["Hatch"].isChecked()
     assert gui.inside_contour_frame.parentWidget() is gui.hatch_frame  # Contours merged into Hatch (P9.4)
     assert Preferences.get("panel")["group"] == "Hatching"
-    assert {"Hatch", "Export"} <= set(Preferences.get("panel")["open"]["Hatching"])
+    assert Preferences.get("panel")["open"]["Hatching"] == ["Export"]
 
     panel.group_buttons["Hatching"].click()  # clicking the active group closes the panel
     assert panel.group is None and not scroll.isVisible() and not panel.sub_strip.isVisible()
-    panel.select_group("Hatching")  # the open subsections are remembered
-    assert gui.hatch_frame.isVisible() and gui.export_frame.isVisible()
+    panel.select_group("Hatching")  # the open subsection is remembered
+    assert gui.export_frame.isVisible() and not gui.hatch_frame.isVisible()
     gui.hide()
 
 
@@ -231,3 +232,86 @@ def test_p105_show_hide_toggles_switch_their_pictogram(app_components):
     assert not gui.show_image_center_button.isChecked()
     grid = next(a for a in gui.toolBar.actions() if a.text() == "Grid")
     assert grid.isCheckable() and not grid.icon().isNull()
+
+
+def test_p106_spin_boxes_always_show_slim_arrows(app_components):
+    gui = app_components.gui
+    boxes = gui.findChildren(QtWidgets.QAbstractSpinBox)
+    assert boxes and all(b.buttonSymbols() == QtWidgets.QAbstractSpinBox.ButtonSymbols.UpDownArrows for b in boxes
+                         if b.objectName() and not b.objectName().startswith("qt_"))
+    assert "url(icons:spin-up.svg)" in gui.styleSheet()
+    from PyQt6 import QtCore
+    assert QtCore.QFile.exists("icons:spin-up.svg") and QtCore.QFile.exists("icons:spin-down.svg")
+
+
+def test_p106_spin_box_arrow_click_steps_the_value(app_components):
+    from PyQt6 import QtCore
+    from PyQt6.QtTest import QTest
+    gui = app_components.gui
+    box = gui.pen_width_spinbox
+    gui.show()
+    app_components.panel_buttons.select_group("Image")
+    app_components.panel_buttons.section_buttons["Color"].setChecked(True)
+    QtWidgets.QApplication.processEvents()
+    box.setEnabled(True)
+    box.setValue(3)
+    option = QtWidgets.QStyleOptionSpinBox()
+    box.initStyleOption(option) if hasattr(box, "initStyleOption") else None
+    option.initFrom(box)
+    option.subControls = QtWidgets.QStyle.SubControl.SC_SpinBoxUp | QtWidgets.QStyle.SubControl.SC_SpinBoxDown
+    up = box.style().subControlRect(QtWidgets.QStyle.ComplexControl.CC_SpinBox, option,
+                                    QtWidgets.QStyle.SubControl.SC_SpinBoxUp, box)
+    assert 0 < up.width() <= 16
+    QTest.mouseClick(box, QtCore.Qt.MouseButton.LeftButton, pos=up.center())
+    assert box.value() == 4
+    gui.hide()
+
+
+def test_p106_no_color_undo_button_and_imprint_in_toolbar(app_components, monkeypatch):
+    gui = app_components.gui
+    assert not hasattr(gui, "undo_color_button")
+    bar_actions = gui.toolBar.actions()
+    assert gui.actionImprint_Colors in bar_actions and gui.actionImprint_Overlays in bar_actions
+    for action, button in ((gui.actionImprint_Colors, gui.imprint_color_overlays_button),
+                           (gui.actionImprint_Overlays, gui.imprint_selected_tg_overlays_button)):
+        was = button.isEnabled()
+        button.setEnabled(False)
+        assert not action.isEnabled()
+        button.setEnabled(True)
+        assert action.isEnabled() and not action.icon().isNull()
+        button.setEnabled(was)
+    from PyQt6 import QtGui
+    stand_in, clicks = QtWidgets.QPushButton(), []  # (the real imprint opens dialogs)
+    stand_in.clicked.connect(lambda *_: clicks.append(1))
+    action = MainLayout.mirror_button(QtGui.QAction("x"), stand_in)
+    action.trigger()
+    stand_in.setEnabled(False)
+    action.trigger()  # disabled: nothing happens
+    assert clicks == [1] and not action.isEnabled()
+
+
+def test_p106_font_preview_while_hovering_the_dropdown(app_components):
+    """P10.6: the dropdown's show / hide (Qt never calls Python-patched showPopup / hidePopup) drive the preview."""
+    from TextandGeometries import TextFieldOverlay
+    c = app_components
+    combo = c.gui.font_family_combobox
+    added = combo.count() < 2
+    if added:  # the offscreen test platform may list a single font
+        combo.addItem("Courier New")
+    original, other = combo.itemText(0), combo.itemText(1)
+    item = TextFieldOverlay(font_family=original)
+    c.overlay_store.active_item = item
+    combo.setCurrentIndex(0)
+    combo.showPopup()
+    combo.highlighted.emit(1)
+    assert item.font.family() == QtGui_family(other)
+    combo.hidePopup()  # closed without choosing: back to the original font
+    assert item.font.family() == QtGui_family(original)
+    c.overlay_store.active_item = None
+    if added:
+        combo.removeItem(1)
+
+
+def QtGui_family(name):
+    from PyQt6 import QtGui
+    return QtGui.QFont(name).family()

@@ -3,7 +3,7 @@
 The sections, their pictograms, tooltips and sizes come from GUI_Files/BildHatcher.ui (edit them in Qt Designer);
 this module only arranges them. Panel navigation has two levels: an outer strip with one (icon) button per group –
 single select, clicking the active group closes the panel – and an inner strip with the subsections of the active
-group (multi select). The open subsections of every group are remembered (Preferences "panel").
+group (P10.6: single select as well – one section at a time). The open subsections of every group are remembered (Preferences "panel").
 P10: the panel has one fixed width – the width of the Images section; every section is laid out to fit it.
 """
 from PyQt6 import QtCore, QtWidgets
@@ -78,7 +78,8 @@ class SettingsPanel:
         self.gui = gui
         self.on_hidden = on_hidden
         state = Preferences.get("panel") or DEFAULT_STATE
-        self.open = {group: list(state.get("open", {}).get(group, DEFAULT_STATE["open"][group])) for group in GROUPS}
+        self.open = {group: list(state.get("open", {}).get(group, DEFAULT_STATE["open"][group]))[:1]
+                     for group in GROUPS}  # P10.6: at most one open section per group
         self.group = None
 
         self.widget = QtWidgets.QWidget(objectName="settings_panel")
@@ -170,9 +171,15 @@ class SettingsPanel:
             self._remember()
 
     def _toggle_section(self, group, label, shown):
-        if shown and label not in self.open[group]:
-            self.open[group].append(label)
-        elif not shown and label in self.open[group]:
+        if shown:  # P10.6: single select – the other sections of the group close
+            for other in self.open[group]:
+                if other != label:
+                    button = self.section_buttons[other]
+                    button.blockSignals(True)
+                    button.setChecked(False)
+                    button.blockSignals(False)
+            self.open[group] = [label]
+        elif label in self.open[group]:
             self.open[group].remove(label)
         self._refresh()
         self._remember()
@@ -196,6 +203,28 @@ def build_panel(gui, on_hidden=None):
     return SettingsPanel(gui, on_hidden)
 
 
+class _EnabledMirror(QtCore.QObject):
+    """Keeps an action enabled exactly while its panel button is."""
+
+    def __init__(self, action, button):
+        super().__init__(button)
+        self.action, self.button = action, button
+        button.installEventFilter(self)
+        action.setEnabled(button.isEnabled())
+
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.Type.EnabledChange:
+            self.action.setEnabled(self.button.isEnabled())
+        return False
+
+
+def mirror_button(action, button):
+    """Toolbar action that does what `button` does and is enabled when it is."""
+    action.triggered.connect(lambda: button.click() if button.isEnabled() else None)
+    action._mirror = _EnabledMirror(action, button)
+    return action
+
+
 def build_toolbar(gui, c):
     """File / image / view actions, colour profile and machine in the toolbar."""
     bar = gui.toolBar
@@ -204,6 +233,13 @@ def build_toolbar(gui, c):
     for action in (gui.actionLoad_Image, gui.actionSave_Image, gui.actionNew_Blank):  # icons from the .ui
         bar.addAction(action)
     c.tool_slot = bar.addSeparator()  # P9.10: the active-tool indicator goes before this separator
+
+    # P10.6: imprint colours / overlays – the same as the buttons in the Color and Text sections
+    for action, button in ((gui.actionImprint_Colors, gui.imprint_color_overlays_button),
+                           (gui.actionImprint_Overlays, gui.imprint_selected_tg_overlays_button)):
+        mirror_button(action, button)
+        bar.addAction(action)
+    bar.addSeparator()
 
     # (P9.6: the image operations live in the Images section again)
 

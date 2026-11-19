@@ -48,8 +48,6 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | transparent | drawn for BildHatcher | BildHatcher |
 | recolor-db | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | clean-up | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
-| imprint | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
-| undo | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | contours | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | mask-rect | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | mask-ellipse | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
@@ -90,3 +88,7 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | hatch-add | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | hatch-remove | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | grid-hide | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| imprint-colors | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| imprint-overlays | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| spin-up | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| spin-down | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
