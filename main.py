@@ -17,6 +17,7 @@ import DataHandling
 import Settings
 import ColorProfile
 import MainLayout
+import theme
 import AutomatedProcessing
 import EventHandling
 import TextandGeometries
@@ -75,6 +76,8 @@ def load_version():
 def create_main_window():
     """Load the main window from the .ui file and set up the image canvas."""
     gui = uic.loadUi(MAIN_GUI_PATH)
+    if QtWidgets.QApplication.instance().styleSheet():
+        gui.setStyleSheet("")  # the app-wide theme (theme.apply) already has the .ui's stylesheet: style once
 
     # create the image canvas. has to be done programmatically as there is no QtDesigner element for it
     gui.image_scene = QtWidgets.QGraphicsScene()
@@ -126,6 +129,7 @@ def main():
     setup_logging()
     sys.excepthook = show_unhandled_exception
     app = QtWidgets.QApplication(sys.argv)
+    theme.apply(app)  # Atelier look: fonts + stylesheet for all windows and dialogs
 
     gui = create_main_window()
     gui.setWindowTitle(f"BildHatcher - v{load_version()}")

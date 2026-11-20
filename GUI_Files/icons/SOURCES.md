@@ -96,3 +96,5 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | cursor-fill | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | cursor-replace | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | cursor-pick | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| combo-down | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| check | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |

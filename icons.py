@@ -12,7 +12,7 @@ from PyQt6.QtSvg import QSvgRenderer
 from PathManager import get_gui_file_path
 
 ICON_DIR = get_gui_file_path("icons")
-APP = "7A0020"      # app burgundy (light backgrounds)
+APP = "CBD5E1"      # pictogram ink on the dark Atelier surfaces (theme.py)
 ON_DARK = "FFFFFF"  # on the filled section buttons
 _SIZES = (16, 24, 32, 48)
 QtCore.QDir.addSearchPath("icons", str(ICON_DIR))  # stylesheet images: url(icons:spin-up.svg)

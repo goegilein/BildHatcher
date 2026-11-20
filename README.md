@@ -54,6 +54,7 @@ UPDATE_GOLDEN=1 python -m pytest tests/test_characterization.py
 | `MainLayout.py` | Toolbar and settings panel (groups, sections, pictograms); section contents come from the .ui file |
 | `Tools.py` | Hotkeys, active-tool indicator, tool wheel and canvas cursors (pen outline) for the colour tools |
 | `icons.py` | Pictograms for the code-built parts; the icons live in `GUI_Files/icons/<meaning>.svg` (origins and licences: `GUI_Files/icons/SOURCES.md`) |
+| `theme.py` | The app's look ("Atelier", after piupulaser.de): loads the fonts, applies `GUI_Files/styles/atelier.qss` to the whole app, palette for code-drawn parts |
 | `core/` | Processing without Qt: `image_doc` (RGBA image model), `hatching` (hatch patterns), `fill` (flood fill), `toolpath` (layer/polyline model), `postprocess`, `gcode`, `machine` (machine profiles) |
 | `ImageControlling.py` | Image list, load/save, size, rotate/mirror/crop, upscaling, zoom/pan |
 | `ImageEditing.py` | Adjustments, quantization, painting/fill, contours |
@@ -67,6 +68,9 @@ UPDATE_GOLDEN=1 python -m pytest tests/test_characterization.py
 | `UndoRedo.py` | Undo/redo |
 | `Database/` | Material/laser parameter database |
 | `GUI_Files/` | Qt Designer file (`BildHatcher.ui`: section layouts, pictograms, tooltips, sizes, stylesheet) and icons |
+| `GUI_Files/styles/` | Stylesheets: `atelier.qss` (the look, portable; edit this file and run `python tools/apply_style.py` to copy it into the .ui for Designer), `legacy_burgundy.qss` (the previous look) |
+| `GUI_Files/fonts/` | Plus Jakarta Sans and Space Mono (SIL Open Font License, licence texts next to the fonts) |
+| `tools/make_icons.py` | Draws BildHatcher's own pictograms and cursors (dark-theme colours) |
 | `machine_profiles/` | Bundled machine profiles (JSON) |
 
 Images are RGBA with a binary alpha: transparent pixels are background and never hatched (see

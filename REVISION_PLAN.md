@@ -24,7 +24,7 @@ This file is the single source of truth for status – update it in the same com
 | 8 – UI rework & image tools | done (P8.9 optional) | branch not merged yet – user decides |
 | 9 – Compact UI, hotkeys, tool wheel | done | P9.1–P9.12 |
 | 10 – Fixed-width panel, coloured pictograms | done | P10.1–P10.6 done, accepted by the user |
-| 11 – Extras after the revision | in progress | P11.1 tool cursors |
+| 11 – Extras after the revision | in progress | P11.1 tool cursors; P11.2 Atelier style |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
 
@@ -292,6 +292,7 @@ User feedback on Phase 9: the panel width changed per group; several sections (S
 ### Phase 11 – Extras after the revision  `[~]` (2026-11-20)
 The plan is complete; further wishes of the user are logged here.
 - [x] **P11.1 Tool cursors.** "No tool" pictogram is a computer mouse. Over the image the mouse shows the colour tool, its tip on the hot spot = the pixel that gets used (`Tools.CanvasCursors`, pictures `GUI_Files/icons/cursor-*.svg` from `tools/make_icons.py`, white halo for any background): draw = pencil plus the outline of the pixels the pen covers (scene item in image pixels, scales with the zoom; rule `Tools.pen_footprint`, checked against the real rendering), fill = slightly tipped bucket, a little paint (active colour) spills over the left rim into a point (hot spot pixel 5, 26), replace = plain triangle pointer in the active colour with a drop of it at the bottom right corner, pick = pipette. Note: the square pen caps turn with a diagonal stroke, so diagonal strokes are wider than the outline; a single click without moving paints nothing (Qt draws no one-point path) – reported to the user.
+- [x] **P11.2 Atelier style (after piupulaser.de).** New stylesheet `GUI_Files/styles/atelier.qss` imitating the web shop (repo `D:\Projekte\Coding\Webshop`, Tailwind palette "atelier"): dark background #0B0E14, surface cards #131822 with hairline borders and round corners, gold accent #D0A76F (titles, focus, selection, checked), gold primary buttons with a dark mono label (style class `PrimaryButton`: Hatch, Create, Export, J-Code), section tabs `SectionTab`, thin scroll bars, gold slider / check box / chevrons. Fonts Plus Jakarta Sans + Space Mono bundled in `GUI_Files/fonts` (OFL; Qt cannot load the shop's woff files). Portable: the .qss is the source (palette and style classes documented in its header); `theme.py` loads fonts, registers `icons:` and applies it app-wide (dialogs too); `tools/apply_style.py` copies it into the .ui root for Designer (a test keeps both identical; at runtime the window's copy is cleared so it is styled once). The previous look is kept as `styles/legacy_burgundy.qss`. Pictograms are written in dark-theme colours by `tools/make_icons.py` (light outlines, halos in the button colour; cursors keep dark ink), the remaining Tabler icons recoloured; tool wheel / indicator use the theme palette. Widget-level styles (imprint buttons, two text group boxes) removed.
 
 ## 6. Open questions
 
@@ -389,3 +390,4 @@ The plan is complete; further wishes of the user are logged here.
 | 2026-11-19 | P10.6 | Font hover preview really fixed (scene selection as target, own hover tracking for the Windows 11 style). 95 tests. |
 | 2026-11-20 | P11.1 | Tool cursors with pixel-exact hot spots, pen outline, mouse pictogram for "no tool". 99 tests. |
 | 2026-11-20 | P11.1 | Fill / replace cursors redrawn after the user's remarks (classic tipped bucket, drop on the pointer). 99 tests. |
+| 2026-11-20 | P11.2 | Atelier style after piupulaser.de (stylesheet, fonts, themed pictograms, theme.py, apply_style tool); legacy style kept. 103 tests. |

@@ -18,12 +18,14 @@ ICON_DIR = Path(__file__).resolve().parents[1] / "GUI_Files" / "icons"
 
 # --- style ---
 INK = "#37474F"     # outlines
-PAPER = "#FFFFFF"   # halo behind badges, paper, glass
+PAPER = "#FFFFFF"   # paper, glass, eye white
+HALO = "#FEFEFE"    # halo behind badges / slashes (becomes the button colour in the dark theme)
 SKY = "#E3F2FD"     # picture background
 HILL = "#81C784"    # picture hills
 SUN = "#FFB300"     # picture sun, sparkles
 RED, GREEN, BLUE = "#E53935", "#43A047", "#1E88E5"
-BLACK = "#263238"
+BLACK = "#263238"   # strong neutral (arrows, crop marks, hatch lines): light in the dark theme
+DARK = "#1B2329"    # stays dark in every theme (pupil, pencil lead, black half of the invert drop)
 MASK = "#0097B8"    # mask outlines (dashed)
 MASK_FILL = "#E0F7FA"
 GREY = "#CFD8DC"    # neutral bodies (database, bucket, robot)
@@ -148,7 +150,7 @@ def picture(x, y, w, h):
 
 def badge(*strokes, color=RED):
     """Red symbol (one or more strokes) with a white halo, readable on top of the motif."""
-    return "\n".join([line(s, PAPER, 4.6) for s in strokes] + [line(s, color, 2.4) for s in strokes])
+    return "\n".join([line(s, HALO, 4.6) for s in strokes] + [line(s, color, 2.4) for s in strokes])
 
 
 PLUS = badge([(18.5, 15), (18.5, 22)], [(15, 18.5), (22, 18.5)])
@@ -158,7 +160,7 @@ CROSS = badge([(15.5, 15.5), (21.5, 21.5)], [(21.5, 15.5), (15.5, 21.5)])
 
 def slash(a=(4, 3.5), b=(20, 20.5), color=INK):
     """Crossed out (with a white halo)."""
-    return line([a, b], PAPER, 4.4) + "\n" + line([a, b], color, 2.0)
+    return line([a, b], HALO, 4.4) + "\n" + line([a, b], color, 2.0)
 
 
 def sparkle(cx, cy, s, color=SUN):
@@ -187,7 +189,7 @@ def drop(cx, cy, r, fill=BLUE, stroke=INK, width=1.4):
     return path(drop_path(cx, cy, r), fill, stroke, width)
 
 
-def half_drop(cx, cy, r, fill_left=PAPER, fill_right=BLACK):
+def half_drop(cx, cy, r, fill_left=PAPER, fill_right=DARK):
     """Drop with a white left and a black right half."""
     tip, right, left, _ = _drop_geometry(cx, cy, r)
     bottom = (cx, cy + r)
@@ -231,8 +233,8 @@ def eye(cx, cy, w=10, crossed=False):
     h = w * 0.36
     d = (f"M {f(cx - w / 2)} {f(cy)} Q {f(cx)} {f(cy - 2 * h)} {f(cx + w / 2)} {f(cy)} "
          f"Q {f(cx)} {f(cy + 2 * h)} {f(cx - w / 2)} {f(cy)} Z")
-    parts = [path(d, PAPER, PAPER, 3.6), path(d, PAPER, INK, 1.4), circle(cx, cy, h * 0.95, BLUE, "none", 0),
-             circle(cx, cy, h * 0.42, BLACK, "none", 0)]
+    parts = [path(d, HALO, HALO, 3.6), path(d, PAPER, INK, 1.4), circle(cx, cy, h * 0.95, BLUE, "none", 0),
+             circle(cx, cy, h * 0.42, DARK, "none", 0)]
     if crossed:
         parts.append(slash((cx - w / 2 + 0.6, cy + h * 1.9), (cx + w / 2 - 0.6, cy - h * 1.9)))
     return "\n".join(parts)
@@ -297,7 +299,7 @@ def pencil(tip, angle=-45, length=19, width=4.6):
     body = place([(4.4, -h), (length - 3, -h), (length - 3, h), (4.4, h)], tip, angle)
     eraser = place([(length - 3, -h), (length, -h), (length, h), (length - 3, h)], tip, angle)
     return "\n".join([polygon(body, SUN, INK, 1.3), polygon(eraser, "#F48FB1", INK, 1.3),
-                      polygon(cone, "#FFE0B2", INK, 1.3), polygon(lead, BLACK, BLACK, 0.6)])
+                      polygon(cone, "#FFE0B2", INK, 1.3), polygon(lead, DARK, DARK, 0.6)])
 
 
 def bucket(fill_color=BLUE, mono=None):
@@ -330,7 +332,7 @@ def wand(tip, end):
     dx, dy = end[0] - tip[0], end[1] - tip[1]
     n = math.hypot(dx, dy)
     mid = (tip[0] + dx / n * 3, tip[1] + dy / n * 3)
-    return "\n".join([line([tip, end], INK, 3.4), line([mid, end], BLACK, 2.2), line([tip, mid], PAPER, 2.2)])
+    return "\n".join([line([tip, end], INK, 3.4), line([mid, end], DARK, 2.2), line([tip, mid], PAPER, 2.2)])
 
 
 def blob(cx, cy, rx, ry, wobble, phase=0.0, n=9):
@@ -513,7 +515,7 @@ def delete_all():
 
 
 def mask_save():
-    return svg(dashed_rect(1.5, 6.5, 10, 10, PAPER), floppy(3.8, 8.8, 5.4),
+    return svg(dashed_rect(1.5, 6.5, 10, 10), floppy(3.8, 8.8, 5.4),
                arrow((12.6, 11.5), (16, 11.5), BLACK, 1.6, 2.6),
                picture(16.5, 8, 6.5, 7))
 
@@ -581,12 +583,12 @@ def stamp(dx=0.0):
 
 def imprint_colors():
     """Stamp with a small colourful drop at the bottom right."""
-    return svg(stamp(-2.5), path(drop_path(19, 18.6, 3.4), PAPER, PAPER, 3.0), rgb_drop(19, 18.6, 3.4))
+    return svg(stamp(-2.5), path(drop_path(19, 18.6, 3.4), HALO, HALO, 3.0), rgb_drop(19, 18.6, 3.4))
 
 
 def imprint_overlays():
     """Stamp with a "T" in a square at the bottom right."""
-    return svg(stamp(-2.5), rect(14, 13.5, 9, 9, PAPER, PAPER, 2.6, 1.2), rect(14, 13.5, 9, 9, PAPER, INK, 1.4, 1.2),
+    return svg(stamp(-2.5), rect(14, 13.5, 9, 9, HALO, HALO, 2.6, 1.2), rect(14, 13.5, 9, 9, PAPER, INK, 1.4, 1.2),
                letter_t(16, 16, 5, 4.6, INK, 1.7))
 
 
@@ -599,11 +601,21 @@ def rotate_icon():
                path("M 14.2 5.5 Q 19.6 5.5 19.6 11.2", "none", BLUE, LINE), head((19.6, 14.4), (0, 1), BLUE))
 
 
-def spin_arrow(up):
-    """Slim chevron for the spin box buttons (8 x 5)."""
-    points = "1,4 4,1 7,4" if up else "1,1 4,4 7,1"
-    return ('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="5" viewBox="0 0 8 5">\n'
-            f'<polyline points="{points}" fill="none" stroke="#7A0020" stroke-width="1.5" '
+def chevron(up, width=8, height=5, color="#D0A76F", stroke=1.5):
+    """Slim chevron (spin box / combo box arrows of the stylesheet)."""
+    m = stroke
+    points = (f"{f(m)},{f(height - m)} {f(width / 2)},{f(m)} {f(width - m)},{f(height - m)}" if up else
+              f"{f(m)},{f(m)} {f(width / 2)},{f(height - m)} {f(width - m)},{f(m)}")
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+            f'viewBox="0 0 {width} {height}">\n'
+            f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="{f(stroke)}" '
+            'stroke-linecap="round" stroke-linejoin="round"/>\n</svg>\n')
+
+
+def check_mark():
+    """Check box tick (dark on the gold box)."""
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">\n'
+            '<polyline points="2.5,6.3 5,8.8 9.6,3.4" fill="none" stroke="#0B0E14" stroke-width="1.9" '
             'stroke-linecap="round" stroke-linejoin="round"/>\n</svg>\n')
 
 
@@ -845,8 +857,10 @@ ICONS = {
     "color-profile": color_profile,
     "machine": machine,
     # --- spin box arrows (stylesheet) ---
-    "spin-up": lambda: spin_arrow(True),
-    "spin-down": lambda: spin_arrow(False),
+    "spin-up": lambda: chevron(True),
+    "spin-down": lambda: chevron(False),
+    "combo-down": lambda: chevron(False, 10, 6, "#94A3B8", 1.6),
+    "check": check_mark,
     # --- tools (P11) ---
     "tool-none": mouse_device,
     "cursor-draw": lambda: cursor_svg(pencil(CURSOR_TIP, -45, 30, 6.4)),
@@ -867,10 +881,24 @@ def update_sources(names):
     sources.write_text(text, encoding="utf-8")
 
 
+# The pictograms are drawn with the light-theme colours above and mapped to the dark "Atelier" theme of the app
+# (GUI_Files/styles/atelier.qss) when written: light outlines on the dark surfaces. The canvas cursors keep the
+# dark ink (they sit on the image, with a white halo).
+DARK_THEME = {INK: "#CBD5E1", BLACK: "#E2E8F0", HALO: "#131822"}
+
+
+def themed(name, text):
+    if name.startswith("cursor-"):
+        return text
+    for light, dark in DARK_THEME.items():
+        text = text.replace(f'"{light}"', f'"{dark}"')
+    return text
+
+
 def main(names):
     names = names or list(ICONS)
     for name in names:
-        (ICON_DIR / f"{name}.svg").write_text(ICONS[name](), encoding="utf-8")
+        (ICON_DIR / f"{name}.svg").write_text(themed(name, ICONS[name]()), encoding="utf-8")
     update_sources(names)
     print(f"{len(names)} icons written to {ICON_DIR}")
 

@@ -121,7 +121,7 @@ class SettingsPanel:
                         inside.show()
                 section.setVisible(False)
                 self.content_layout.addWidget(section)
-                sub_button = VerticalButton(label)
+                sub_button = _styled(VerticalButton(label), "SectionTab")  # Atelier style class
                 sub_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
                 sub_button.setCheckable(True)
                 sub_button.setToolTip(tooltip)

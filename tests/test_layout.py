@@ -239,7 +239,7 @@ def test_p106_spin_boxes_always_show_slim_arrows(app_components):
     boxes = gui.findChildren(QtWidgets.QAbstractSpinBox)
     assert boxes and all(b.buttonSymbols() == QtWidgets.QAbstractSpinBox.ButtonSymbols.UpDownArrows for b in boxes
                          if b.objectName() and not b.objectName().startswith("qt_"))
-    assert "url(icons:spin-up.svg)" in gui.styleSheet()
+    assert "url(icons:spin-up.svg)" in QtWidgets.QApplication.instance().styleSheet()
     from PyQt6 import QtCore
     assert QtCore.QFile.exists("icons:spin-up.svg") and QtCore.QFile.exists("icons:spin-down.svg")
 

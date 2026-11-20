@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -14,111 +14,147 @@
    <string>MainWindow</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">QWidget{
-background-color: rgb(230,230,230);
+   <string notr="true">/* =====================================================================================================
+   ATELIER – dark Qt style after piupulaser.de (portable: copy this file, styles/../fonts and theme.py)
+
+   Palette (same names as the web shop's Tailwind "atelier" colours)
+     bg            #0B0E14   window, canvas, input fields
+     surface       #131822   cards / panel sections, buttons, menus
+     surfaceHover  #18202F
+     gold          #D0A76F   accent: titles, focus, selection, primary buttons
+     goldDark      rgba(208, 167, 111, 0.14)   tinted backgrounds (hover, checked, selection)
+     gold40        rgba(208, 167, 111, 0.40)   tinted borders
+     frost         rgba(255, 255, 255, 0.08)   hairline borders
+     frostActive   rgba(255, 255, 255, 0.18)
+     textHigh      #F1F5F9   text
+     textMuted     #94A3B8   labels
+     textSlate     #64748B   disabled text
+     onGold        #020617   text on gold
+
+   Fonts: "Plus Jakarta Sans" (text), "Space Mono" (titles, labels of primary buttons, tabs) – loaded by
+   theme.load_fonts() from GUI_Files/fonts (SIL Open Font License).
+   Images: url(icons:...) – theme.py registers the "icons" search path (GUI_Files/icons).
+
+   Style classes (dynamic property "styleClass" on the widget):
+     outsideFrame     QGroupBox   a panel section: surface card with rounded corners
+     insideFrame      QGroupBox   the section's content; its title is the section title (gold, mono)
+     verticalSubFrame QGroupBox   a sub group inside a section: hairline on top, small muted title
+     IconButton       QPushButton square button with a pictogram
+     PrimaryButton    QPushButton the main action of a section (gold, like "In den Warenkorb")
+     PanelGroup       QToolButton the group strip at the right edge
+     SectionTab       QPushButton the (vertical) section tabs next to the panel
+   ===================================================================================================== */
+
+/* ---------- base ---------- */
+QWidget {
+	background-color: #0B0E14;
+	color: #F1F5F9;
+	font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+	font-size: 9pt;
+	selection-background-color: rgba(208, 167, 111, 0.30);
+	selection-color: #FFFFFF;
+}
+QMainWindow, QDialog {
+	background-color: #0B0E14;
+}
+QLabel {
+	background: transparent;
+	color: #94A3B8;
+}
+QLabel:disabled {
+	color: #64748B;
+}
+QToolTip {
+	background-color: #131822;
+	color: #F1F5F9;
+	border: 1px solid rgba(208, 167, 111, 0.40);
+	border-radius: 6px;
+	padding: 4px 6px;
 }
 
-QGroupBox{
-color:  rgb(80, 0, 19);  /* Text color */
-font-weight: bold;  /* Bold text */
+/* ---------- group boxes ---------- */
+QGroupBox {
+	background: transparent;
+	color: #F1F5F9;
+	font-weight: 600;
+	border: none;
+}
+QGroupBox::title {
+	color: #D0A76F;
 }
 
-QLabel{
-color:  rgb(80, 0, 19);;  /* Text color */
-}
-
-
-/* BUTTON*/
-
+/* ---------- buttons (secondary look: surface tile, hairline, gold on hover) ---------- */
 QPushButton {
-	background-color: rgb(122,0,28);  /* Background color */
-	border: 1px solid rgb(0, 0, 0);
-    color: rgb(255, 255, 255);  /* Text color */
-    border-radius: 5px;  /* Rounded edges */
-	padding: 2px;
+	background-color: #131822;
+	color: #F1F5F9;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 8px;
+	padding: 3px 8px;
 }
-
 QPushButton:hover {
-    background-color: rgb(142, 0, 38);  /* Background color when hovered */
-	color: rgb(245, 245, 245);
-    border-color:rgb(40, 40, 40);  /* Border color when hovered */
+	background-color: rgba(208, 167, 111, 0.14);
+	border-color: rgba(208, 167, 111, 0.40);
+	color: #D0A76F;
 }
-
 QPushButton:pressed {
-   color:  rgb(80, 0, 19);  /* Background color when pressed */
-	border-color: rgb(0, 0, 0);
+	background-color: rgba(208, 167, 111, 0.24);
 }
-QPushButton:clicked {
-   background-color: rgb(80,0,19);  /* Background color when pressed */
-	border-color:  rgb(0,0, 0);
-}
-
 QPushButton:checked {
-    background-color: rgb(255,255,255);
-	color:  rgb(80, 0, 19);
-	border: 2px solid rgb(122, 0, 28);
-	font-weight: bold;  /* Bold text */
+	background-color: rgba(208, 167, 111, 0.14);
+	border: 1px solid #D0A76F;
+	color: #D0A76F;
+	font-weight: 600;
 }
-
 QPushButton:disabled {
-    background-color: rgb(180,180, 180);
-	border: 1px solid rgb(0, 0,0);
+	background-color: rgba(255, 255, 255, 0.03);
+	border-color: rgba(255, 255, 255, 0.05);
+	color: #64748B;
 }
 
-
-/* SPIN BOX*/
-
-QDoubleSpinBox:enabled{
-background-color: rgb(255,255,255);
-color:  rgb(80, 0, 19);  /* Text color */
-border: 1px solid  rgb(122, 0, 28);  /* Border color */
-border-radius: 5px;  /* Rounded edges */
-padding : 2px;
+/* ---------- input fields ---------- */
+QLineEdit, QPlainTextEdit, QTextEdit, QAbstractSpinBox, QComboBox {
+	background-color: #0B0E14;
+	color: #F1F5F9;
+	border: 1px solid rgba(255, 255, 255, 0.10);
+	border-radius: 8px;
+	padding: 1px 2px;
 }
-QDoubleSpinBox:disabled{
-color: rgb(80, 0, 19);  /* Text color */
-border: 1px solid rgb(255,255,255);  /* Border color */
-border-radius: 5px;  /* Rounded edges */
-padding : 2px;
+QLineEdit:hover, QPlainTextEdit:hover, QTextEdit:hover, QAbstractSpinBox:hover, QComboBox:hover {
+	border-color: rgba(255, 255, 255, 0.18);
 }
-
-QSpinBox:enabled{
-background-color: rgb(255,255,255);
-color:  rgb(80, 0, 19);  /* Text color */
-border: 1px solid  rgb(122, 0, 28);  /* Border color */
-border-radius: 5px;  /* Rounded edges */
-padding : 2px;
-
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QAbstractSpinBox:focus, QComboBox:focus {
+	border-color: rgba(208, 167, 111, 0.60);
 }
-QSpinBox:disabled{
-color: rgb(80, 0, 19);  /* Text color */
-border: 1px solid rgb(255,255,255);  /* Border color */
-border-radius: 5px;  /* Rounded edges */
-padding : 2px;
+QLineEdit:disabled, QPlainTextEdit:disabled, QTextEdit:disabled, QAbstractSpinBox:disabled, QComboBox:disabled {
+	background-color: rgba(255, 255, 255, 0.03);
+	border-color: rgba(255, 255, 255, 0.04);
+	color: #94A3B8;
+}
+QLineEdit:read-only {
+	background-color: rgba(255, 255, 255, 0.03);
 }
 
-/* spin arrows (P10.6): slim, always visible; hidden while the field is disabled (read-only values) */
+/* spin arrows: slim gold chevrons in a quiet strip inside the field; none on disabled (read-only) fields */
 QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {
 	subcontrol-origin: padding;
-	width: 12px;
+	width: 11px;
 	border: none;
-	border-left: 1px solid rgb(232, 205, 213);
-	background-color: rgb(252, 244, 246);
+	border-left: 1px solid rgba(255, 255, 255, 0.06);
+	background-color: rgba(255, 255, 255, 0.03);
 }
 QAbstractSpinBox::up-button {
 	subcontrol-position: top right;
-	border-top-right-radius: 4px;
-	border-bottom: 1px solid rgb(232, 205, 213);
+	border-top-right-radius: 6px;
 }
 QAbstractSpinBox::down-button {
 	subcontrol-position: bottom right;
-	border-bottom-right-radius: 4px;
+	border-bottom-right-radius: 6px;
 }
 QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover {
-	background-color: rgb(244, 212, 221);
+	background-color: rgba(208, 167, 111, 0.14);
 }
 QAbstractSpinBox::up-button:pressed, QAbstractSpinBox::down-button:pressed {
-	background-color: rgb(225, 175, 190);
+	background-color: rgba(208, 167, 111, 0.30);
 }
 QAbstractSpinBox::up-arrow {
 	image: url(icons:spin-up.svg);
@@ -139,253 +175,399 @@ QAbstractSpinBox::up-arrow:disabled, QAbstractSpinBox::down-arrow:disabled {
 	width: 0px;
 }
 
-
-/* TEXT EDIT*/
-
-QPlainTextEdit{
-background-color: rgb(255,255,255);
-border-radius: 5px;  /* Rounded edges */
+/* combo box */
+QComboBox {
+	padding-left: 4px;
+	padding-right: 14px;
+}
+QComboBox::drop-down {
+	subcontrol-origin: padding;
+	subcontrol-position: center right;
+	width: 14px;
+	border: none;
+	background: transparent;
+}
+QComboBox::down-arrow {
+	image: url(icons:combo-down.svg);
+	width: 10px;
+	height: 6px;
+}
+QComboBox::down-arrow:on, QComboBox::down-arrow:hover {
+	image: url(icons:spin-down.svg);
+}
+QComboBox QAbstractItemView {
+	background-color: #131822;
+	color: #F1F5F9;
+	border: 1px solid rgba(208, 167, 111, 0.40);
+	border-radius: 6px;
+	padding: 2px;
+	outline: 0;
+	selection-background-color: rgba(208, 167, 111, 0.14);
+	selection-color: #D0A76F;
 }
 
-
-/* LINE EDIT*/
-
-QLineEdit:endabled{
-background-color: rgb(255,255,255);
-color:  rgb(80, 0, 19);  /* Text color */
-border: 1px solid rgb(0,0,0);  /* Border color */
-border-radius: 5px;  /* Rounded edges */
-padding : 2px;
+/* ---------- lists ---------- */
+QListWidget, QListView, QTreeView, QTableView {
+	background-color: #0B0E14;
+	color: #F1F5F9;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 10px;
+	padding: 2px;
+	outline: 0;
+}
+QListWidget::item, QListView::item {
+	border-radius: 6px;
+	padding: 2px 4px;
+}
+QListWidget::item:hover, QListView::item:hover {
+	background-color: rgba(255, 255, 255, 0.04);
+}
+QListWidget::item:selected, QListView::item:selected {
+	background-color: rgba(208, 167, 111, 0.14);
+	color: #D0A76F;
+}
+QHeaderView::section {
+	background-color: #131822;
+	color: #94A3B8;
+	border: none;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	padding: 3px 6px;
 }
 
-QLineEdit:disabled{
-background-color: rgb(230,230,230);
-color:  rgb(80, 0, 19);  /* Text color */
-border: 1px solid rgb(0,0,0);  /* Border color */
-border-radius: 5px;  /* Rounded edges */
-padding : 2px;
-}
-
-
-/* COMBOBOX*/
-
-QComboBox{
-background-color: rgb(255,255,255);
-color:  rgb(80, 0, 19);  /* Text color */
-border: 1px solid rgb(0,0,0);  /* Border color */
-border-radius: 5px;  /* Rounded edges */
-padding : 2px;
-}
-
-
-/* TAB*/
-
-QTabBar::tab {
-    color:  rgb(80, 0, 19); 
-    border: 1px solid rgb(122,0,28);
-    padding: 5px;
-    border-top-left-radius: 5px;
-    border-top-right-radius: 5px;
-	min-width:80px;
-}
-
-QTabBar::tab:selected {
-    color:  rgb(80, 0, 19); 
-    background-color: rgb(255, 255, 255); ;
-    font-weight: bold;
-	border: 2px solid rgb(122, 0, 28);
-}
-
-QTabBar::tab:hover {
-    color:  rgb(122, 0, 28); /* Slightly lighter orange */
-	background-color: rgb(245, 245, 245); ;
-}
-
-
-/* CHECKBOX*/
-
+/* ---------- check boxes ---------- */
 QCheckBox {
-        spacing: 8 px;
-        color: rgb(80, 0, 19);
-    }
-    
-    QCheckBox::indicator {
-        width: 14px;
-        height: 14px;
-        border: 2px solid rgb(122, 0, 28);
-        border-radius: 3px;
-        background-color: rgb(255, 255, 255);
-    }
-    
-    QCheckBox::indicator:hover {
-        border: 2px solid rgb(142, 0, 38);
-        background-color: rgb(245, 245, 245);
-    }
-    
-    QCheckBox::indicator:checked {
-        background-color: rgb(122, 0, 28);
-        border: 2px solid rgb(122, 0, 28);
-    }
-    
-    QCheckBox::indicator:checked:hover {
-        background-color: rgb(142, 0, 38);
-        border: 2px solid rgb(142, 0, 38);
-    }
-    
-    QCheckBox::indicator:checked:pressed {
-        background-color: rgb(80, 0, 19);
-        border: 2px solid rgb(80, 0, 19);
-    }
-    
-    QCheckBox:disabled {
-        color: rgb(180, 180, 180);
-    }
-    
-    QCheckBox::indicator:disabled {
-        background-color: rgb(230, 230, 230);
-        border: 2px solid rgb(200, 200, 200);
-    }
-
-/* ListWidget*/
-
-QListWidget{
-background-color: rgb(255,255,255);  /* Background color */
+	background: transparent;
+	color: #F1F5F9;
+	spacing: 6px;
 }
-
-
-
-
-/*STYLE CLASSES*/
-
-/*OutsideFrame*/
-QGroupBox[styleClass="outsideFrame"]{
-border: 2px solid rgb(122, 0, 28);
-background-color: rgb(240,240,240);  /* Background color */
-margin: 0px;
-}
-QGroupBox[styleClass="outsideFrame"] QGroupBox{
-background-color: rgb(240,240,240);  /* Background color */
-}
-QGroupBox[styleClass="outsideFrame"] QLabel{
-background-color: rgb(240,240,240);  /* Background color */
-}
-QGroupBox[styleClass="outsideFrame"] QSlider{
-background-color: rgb(240,240,240);  /* Background color */
-}
-QGroupBox[styleClass="outsideFrame"] QCheckBox{
-background-color: rgb(240,240,240);  /* Background color */
-}
-
-/*InsideFrame*/
-QGroupBox[styleClass="insideFrame"]{
-border: 0px solid rgb(0, 0, 0);
-padding: 10px;
-margin: 0px;
-margin-top: 16px;
-}
-QGroupBox[styleClass="insideFrame"]::title {
-    /* the section title (P9.3: replaces the old show/hide header button) */
-    subcontrol-origin: margin;
-	subcontrol-position: top left;
-	padding: 0px 4px;
-}
-
-/*Panel group strip (P9.3)*/
-QToolButton[styleClass="PanelGroup"] {
-	border: 1px solid transparent;
+QCheckBox::indicator {
+	width: 14px;
+	height: 14px;
+	border: 1px solid rgba(255, 255, 255, 0.25);
 	border-radius: 4px;
+	background-color: #0B0E14;
+}
+QCheckBox::indicator:hover {
+	border-color: rgba(208, 167, 111, 0.60);
+}
+QCheckBox::indicator:checked {
+	background-color: #D0A76F;
+	border-color: #D0A76F;
+	image: url(icons:check.svg);
+}
+QCheckBox:disabled {
+	color: #64748B;
+}
+QCheckBox::indicator:disabled {
+	background-color: rgba(255, 255, 255, 0.03);
+	border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- sliders ---------- */
+QSlider {
+	background: transparent;
+}
+QSlider::groove:horizontal {
+	height: 4px;
+	border-radius: 2px;
+	background-color: rgba(255, 255, 255, 0.10);
+}
+QSlider::sub-page:horizontal {
+	border-radius: 2px;
+	background-color: #D0A76F;
+}
+QSlider::handle:horizontal {
+	width: 12px;
+	height: 12px;
+	margin: -5px 0;
+	border-radius: 6px;
+	background-color: #F1F5F9;
+	border: 2px solid #D0A76F;
+}
+QSlider::handle:horizontal:hover {
+	background-color: #D0A76F;
+}
+QSlider::sub-page:horizontal:disabled {
+	background-color: #64748B;
+}
+
+/* ---------- scroll bars (thin, like the shop) ---------- */
+QScrollBar:vertical {
+	background: transparent;
+	width: 8px;
+	margin: 2px;
+}
+QScrollBar:horizontal {
+	background: transparent;
+	height: 8px;
+	margin: 2px;
+}
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+	background-color: rgba(255, 255, 255, 0.15);
+	border-radius: 2px;
+	min-height: 24px;
+	min-width: 24px;
+}
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+	background-color: rgba(208, 167, 111, 0.45);
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+	width: 0px;
+	height: 0px;
+}
+QScrollBar::add-page, QScrollBar::sub-page {
+	background: transparent;
+}
+QAbstractScrollArea {
+	background: transparent;
+	border: none;
+}
+
+/* ---------- menu bar, menus, tool bar ---------- */
+QMenuBar {
+	background-color: #0B0E14;
+	color: #94A3B8;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+QMenuBar::item {
+	background: transparent;
+	padding: 4px 10px;
+	border-radius: 6px;
+}
+QMenuBar::item:selected {
+	background-color: rgba(208, 167, 111, 0.14);
+	color: #D0A76F;
+}
+QMenuBar::item:disabled {
+	color: #64748B;
+}
+QMenu {
+	background-color: #131822;
+	color: #F1F5F9;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 8px;
 	padding: 4px;
 }
-QToolButton[styleClass="PanelGroup"]:hover {
-	border-color: rgb(122, 0, 28);
+QMenu::item {
+	padding: 5px 18px 5px 22px;
+	border-radius: 6px;
+	background: transparent;
 }
-QToolButton[styleClass="PanelGroup"]:checked {
-	background-color: rgb(255, 255, 255);
-	border: 1px solid rgb(122, 0, 28);
-	border-right: 3px solid rgb(122, 0, 28);
+QMenu::item:selected {
+	background-color: rgba(208, 167, 111, 0.14);
+	color: #D0A76F;
+}
+QMenu::item:disabled {
+	color: #64748B;
+}
+QMenu::separator {
+	height: 1px;
+	background: rgba(255, 255, 255, 0.08);
+	margin: 4px 6px;
+}
+QToolBar {
+	background-color: #0B0E14;
+	border: none;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	padding: 3px;
+	spacing: 3px;
+}
+QToolBar::separator {
+	width: 1px;
+	background: rgba(255, 255, 255, 0.08);
+	margin: 4px 6px;
+}
+QToolButton {
+	background: transparent;
+	color: #F1F5F9;
+	border: 1px solid transparent;
+	border-radius: 8px;
+	padding: 3px;
+}
+QToolButton:hover {
+	background-color: rgba(208, 167, 111, 0.14);
+	border-color: rgba(208, 167, 111, 0.40);
+	color: #D0A76F;
+}
+QToolButton:checked {
+	background-color: rgba(208, 167, 111, 0.14);
+	border-color: #D0A76F;
+}
+QToolButton:disabled {
+	color: #64748B;
 }
 
-/*verticalSubFrame*/
-QGroupBox[styleClass="verticalSubFrame"]{
-color:  rgb(80, 0, 19);  /* Text color */
-font-weight: normal;  /* Bold text */
-font-style: italic;
-border: 1px solid rgb(122, 0, 28);
-border-left: none;
-border-right: none;
-border-bottom: none;
-margin-top: 8px;
-padding-top:5px
+/* ---------- tabs ---------- */
+QTabWidget::pane {
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 10px;
+}
+QTabBar::tab {
+	background: transparent;
+	color: #94A3B8;
+	font-family: "Space Mono";
+	padding: 5px 12px;
+	border: none;
+	border-bottom: 2px solid transparent;
+}
+QTabBar::tab:selected {
+	color: #D0A76F;
+	border-bottom-color: #D0A76F;
+}
+QTabBar::tab:hover {
+	color: #F1F5F9;
+}
+
+/* ---------- canvas ---------- */
+QGraphicsView {
+	background-color: #0B0E14;
+	border: none;
+}
+
+/* ===================================== style classes ===================================== */
+
+/* outsideFrame: a panel section = surface card */
+QGroupBox[styleClass="outsideFrame"] {
+	background-color: #131822;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 14px;
+	margin: 0px;
+}
+QGroupBox[styleClass="outsideFrame"] QWidget {
+	background-color: transparent;
+}
+QGroupBox[styleClass="outsideFrame"] QLineEdit, QGroupBox[styleClass="outsideFrame"] QAbstractSpinBox,
+QGroupBox[styleClass="outsideFrame"] QComboBox, QGroupBox[styleClass="outsideFrame"] QPlainTextEdit,
+QGroupBox[styleClass="outsideFrame"] QListWidget {
+	background-color: #0B0E14;
+}
+QGroupBox[styleClass="outsideFrame"] QLineEdit:disabled, QGroupBox[styleClass="outsideFrame"] QAbstractSpinBox:disabled,
+QGroupBox[styleClass="outsideFrame"] QComboBox:disabled {
+	background-color: rgba(255, 255, 255, 0.03);
+}
+QGroupBox[styleClass="outsideFrame"] QPushButton {
+	background-color: #18202F;
+}
+QGroupBox[styleClass="outsideFrame"] QPushButton:hover, QGroupBox[styleClass="outsideFrame"] QPushButton:checked {
+	background-color: rgba(208, 167, 111, 0.14);
+}
+QGroupBox[styleClass="outsideFrame"] QPushButton:disabled {
+	background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* insideFrame: the section content, its title is the section title */
+QGroupBox[styleClass="insideFrame"] {
+	border: none;
+	padding: 10px;
+	margin: 0px;
+	margin-top: 18px;
+}
+QGroupBox[styleClass="insideFrame"]::title {
+	subcontrol-origin: margin;
+	subcontrol-position: top left;
+	padding: 2px 6px;
+	color: #D0A76F;
+	font-family: "Space Mono";
+	font-weight: bold;
+}
+
+/* verticalSubFrame: a sub group = hairline on top with a small muted title */
+QGroupBox[styleClass="verticalSubFrame"] {
+	color: #94A3B8;
+	font-weight: normal;
+	border: none;
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
+	margin-top: 8px;
+	padding-top: 6px;
 }
 QGroupBox[styleClass="verticalSubFrame"]::title {
-    /* Tells Qt to position the title in the margin area we created above */
-    subcontrol-origin: margin;
-	subcontrol-position: top center; 
-	padding: 0px 5px;
+	subcontrol-origin: margin;
+	subcontrol-position: top center;
+	padding: 0px 6px;
+	color: #94A3B8;
+	font-family: "Space Mono";
+	font-size: 8pt;
 }
 
-
-/*MenuButton*/
-QPushButton[styleClass="MenuButton"] {
-	background-color: rgb(122,0,28);  /* Background color */
-	border: 1px solid rgb(0, 0, 0);
-    color: rgb(255, 255, 255);  /* Text color */
-	font-size: 14px;
-    border-radius: 0px;
-	padding: 2px;
-}
-
-QPushButton[styleClass="MenuButton"]::hover {
-    background-color: rgb(142, 0, 38);  /* Background color when hovered */
-	color: rgb(245, 245, 245);
-    border-color:rgb(40, 40, 40);  /* Border color when hovered */
-}
-
-QPushButton[styleClass="MenuButton"]::pressed {
-   color:  rgb(80, 0, 19);  /* Background color when pressed */
-	border-color: rgb(0, 0, 0);
-}
-QPushButton[styleClass="MenuButton"]::clicked {
-   background-color: rgb(80,0,19);  /* Background color when pressed */
-	border-color:  rgb(0,0, 0);
-}
-
-QPushButton[styleClass="MenuButton"]::checked {
-    background-color: rgb(255,255,255);
-	color:  rgb(80, 0, 19);
-	border: 1px solid rgb(122, 0, 28);
-	border-top: none;
-	border-left: none;
-	border-right: none;
-	font-weight: bold;  /* Bold text */
-}
-
-QPushButton[styleClass="MenuButton"]::disabled {
-    background-color: rgb(180,180, 180);
-	border: 0px solid rgb(0, 0,0);
-}
-
-/*IconButton (P10): light buttons for the coloured pictograms*/
+/* IconButton: square pictogram tile */
 QPushButton[styleClass="IconButton"] {
-	background-color: rgb(255, 255, 255);
-	color: rgb(80, 0, 19);
-	border: 1px solid rgb(200, 170, 178);
-	border-radius: 5px;
+	background-color: #18202F;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 8px;
 	padding: 2px;
 }
 QPushButton[styleClass="IconButton"]:hover {
-	background-color: rgb(250, 236, 240);
-	border-color: rgb(122, 0, 28);
+	background-color: rgba(208, 167, 111, 0.14);
+	border-color: rgba(208, 167, 111, 0.40);
 }
 QPushButton[styleClass="IconButton"]:checked {
-	background-color: rgb(244, 212, 221);
-	border: 2px solid rgb(122, 0, 28);
-	font-weight: bold;
+	background-color: rgba(208, 167, 111, 0.20);
+	border: 2px solid #D0A76F;
 }
 QPushButton[styleClass="IconButton"]:disabled {
-	background-color: rgb(236, 236, 236);
-	color: rgb(150, 150, 150);
-	border-color: rgb(215, 215, 215);
+	background-color: rgba(255, 255, 255, 0.02);
+	border-color: rgba(255, 255, 255, 0.04);
+}
+
+/* PrimaryButton: gold, dark mono label */
+QPushButton[styleClass="PrimaryButton"], QGroupBox[styleClass="outsideFrame"] QPushButton[styleClass="PrimaryButton"] {
+	background-color: #D0A76F;
+	color: #020617;
+	border: 1px solid #D0A76F;
+	border-radius: 10px;
+	font-family: "Space Mono";
+	font-weight: bold;
+	padding: 3px 10px;
+}
+QPushButton[styleClass="PrimaryButton"]:hover, QGroupBox[styleClass="outsideFrame"] QPushButton[styleClass="PrimaryButton"]:hover {
+	background-color: #DDB984;
+	border-color: #E6C995;
+	color: #020617;
+}
+QPushButton[styleClass="PrimaryButton"]:pressed, QGroupBox[styleClass="outsideFrame"] QPushButton[styleClass="PrimaryButton"]:pressed {
+	background-color: #B98F58;
+}
+QPushButton[styleClass="PrimaryButton"]:disabled, QGroupBox[styleClass="outsideFrame"] QPushButton[styleClass="PrimaryButton"]:disabled {
+	background-color: rgba(208, 167, 111, 0.25);
+	border-color: transparent;
+	color: rgba(2, 6, 23, 0.6);
+}
+
+/* PanelGroup: the group strip */
+QToolButton[styleClass="PanelGroup"] {
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 10px;
+	padding: 5px;
+}
+QToolButton[styleClass="PanelGroup"]:hover {
+	background-color: rgba(208, 167, 111, 0.10);
+	border-color: rgba(208, 167, 111, 0.30);
+}
+QToolButton[styleClass="PanelGroup"]:checked {
+	background-color: rgba(208, 167, 111, 0.16);
+	border: 1px solid rgba(208, 167, 111, 0.50);
+	border-right: 3px solid #D0A76F;
+}
+
+/* SectionTab: the vertical section tabs */
+QPushButton[styleClass="SectionTab"] {
+	background-color: transparent;
+	color: #94A3B8;
+	font-family: "Space Mono";
+	border: 1px solid transparent;
+	border-radius: 8px;
+	padding: 2px;
+}
+QPushButton[styleClass="SectionTab"]:hover {
+	background-color: rgba(255, 255, 255, 0.04);
+	color: #F1F5F9;
+}
+QPushButton[styleClass="SectionTab"]:checked {
+	background-color: rgba(208, 167, 111, 0.14);
+	border: 1px solid rgba(208, 167, 111, 0.40);
+	color: #D0A76F;
+	font-weight: bold;
 }
 </string>
   </property>
@@ -2952,44 +3134,6 @@ QPushButton[styleClass="IconButton"]:disabled {
                          <verstretch>50</verstretch>
                         </sizepolicy>
                        </property>
-                       <property name="styleSheet">
-                        <string notr="true">QPushButton {
-      	background-color: rgb(220,120,20);  /* Background color */
-      	border: 2px solid rgb(0, 0, 0);
-          color: rgb(255, 255, 255);  /* Text color */
-          font-weight: bold;
-          border-radius: 5px;  /* Rounded edges */
-      	padding: 2px;
-      }
-
-      QPushButton:hover {
-          background-color: rgb(230,115,22);  /* Background color when hovered */
-      	color: rgb(245, 245, 245);
-          border-color:rgb(40, 40, 40);  /* Border color when hovered */
-      }
-
-      QPushButton:pressed {
-         color:  rgb(80, 0, 19);  /* Background color when pressed */
-      	border-color: rgb(0, 0, 0);
-      }
-      QPushButton:clicked {
-         background-color: rgb(80,0,19);  /* Background color when pressed */
-      	border-color:  rgb(0,0, 0);
-      }
-
-      QPushButton:checked {
-          background-color: rgb(255,255,255);
-      	color:  rgb(80, 0, 19);
-      	border: 2px solid rgb(122, 0, 28);
-      	font-weight: bold;  /* Bold text */
-      }
-
-      QPushButton:disabled {
-          background-color: rgb(180,180, 180);
-      	border: 1px solid rgb(0, 0,0);
-      	font-weight: normal;
-      }</string>
-                       </property>
                        <property name="icon">
                         <iconset>
                          <normaloff>icons/imprint-colors.svg</normaloff>
@@ -3916,22 +4060,6 @@ QPushButton[styleClass="IconButton"]:disabled {
                   </item>
                   <item row="1" column="0">
                    <widget class="QGroupBox" name="groupBox_11">
-                    <property name="styleSheet">
-                     <string notr="true">QGroupBox{
-      color:  rgb(80, 0, 19);  /* Text color */
-      font-weight: normal;  /* Bold text */
-      font-style: italic;
-      border: 1px solid rgb(122, 0, 28);
-      margin-top: 7px;
-      padding-top:5px
-      }
-      QGroupBox::title {
-          /* Tells Qt to position the title in the margin area we created above */
-          subcontrol-origin: margin;
-      	subcontrol-position: top center; 
-      	padding: 0px 5px;
-      }</string>
-                    </property>
                     <property name="title">
                      <string>Properties</string>
                     </property>
@@ -4410,22 +4538,6 @@ QPushButton[styleClass="IconButton"]:disabled {
                   </item>
                   <item row="2" column="0">
                    <widget class="QGroupBox" name="groupBox_12">
-                    <property name="styleSheet">
-                     <string notr="true">QGroupBox{
-      color:  rgb(80, 0, 19);  /* Text color */
-      font-weight: normal;  /* Bold text */
-      font-style: italic;
-      border: 1px solid rgb(122, 0, 28);
-      margin-top: 7px;
-      padding-top:5px
-      }
-      QGroupBox::title {
-          /* Tells Qt to position the title in the margin area we created above */
-          subcontrol-origin: margin;
-      	subcontrol-position: top center; 
-      	padding: 0px 5px;
-      }</string>
-                    </property>
                     <property name="title">
                      <string>Overlays</string>
                     </property>
@@ -4527,44 +4639,6 @@ QPushButton[styleClass="IconButton"]:disabled {
                       <widget class="QPushButton" name="imprint_selected_tg_overlays_button">
                        <property name="enabled">
                         <bool>false</bool>
-                       </property>
-                       <property name="styleSheet">
-                        <string notr="true">QPushButton {
-      	background-color: rgb(220,120,20);  /* Background color */
-      	border: 2px solid rgb(0, 0, 0);
-          color: rgb(255, 255, 255);  /* Text color */
-          font-weight: bold;
-          border-radius: 5px;  /* Rounded edges */
-      	padding: 2px;
-      }
-
-      QPushButton:hover {
-          background-color: rgb(230,115,22);  /* Background color when hovered */
-      	color: rgb(245, 245, 245);
-          border-color:rgb(40, 40, 40);  /* Border color when hovered */
-      }
-
-      QPushButton:pressed {
-         color:  rgb(80, 0, 19);  /* Background color when pressed */
-      	border-color: rgb(0, 0, 0);
-      }
-      QPushButton:clicked {
-         background-color: rgb(80,0,19);  /* Background color when pressed */
-      	border-color:  rgb(0,0, 0);
-      }
-
-      QPushButton:checked {
-          background-color: rgb(255,255,255);
-      	color:  rgb(80, 0, 19);
-      	border: 2px solid rgb(122, 0, 28);
-      	font-weight: bold;  /* Bold text */
-      }
-
-      QPushButton:disabled {
-          background-color: rgb(180,180, 180);
-      	border: 1px solid rgb(0, 0,0);
-      	font-weight: normal;
-      }</string>
                        </property>
                        <property name="icon">
                         <iconset>
@@ -4765,6 +4839,9 @@ QPushButton[styleClass="IconButton"]:disabled {
                       <width>16777215</width>
                       <height>30</height>
                      </size>
+                    </property>
+                    <property name="styleClass" stdset="0">
+                     <string>PrimaryButton</string>
                     </property>
                    </widget>
                   </item>
@@ -5259,6 +5336,9 @@ QPushButton[styleClass="IconButton"]:disabled {
                       <width>16777215</width>
                       <height>30</height>
                      </size>
+                    </property>
+                    <property name="styleClass" stdset="0">
+                     <string>PrimaryButton</string>
                     </property>
                    </widget>
                   </item>
@@ -5970,6 +6050,9 @@ QPushButton[styleClass="IconButton"]:disabled {
                       <height>30</height>
                      </size>
                     </property>
+                    <property name="styleClass" stdset="0">
+                     <string>PrimaryButton</string>
+                    </property>
                    </widget>
                   </item>
                  </layout>
@@ -6229,6 +6312,9 @@ QPushButton[styleClass="IconButton"]:disabled {
                       <width>16777215</width>
                       <height>30</height>
                      </size>
+                    </property>
+                    <property name="styleClass" stdset="0">
+                     <string>PrimaryButton</string>
                     </property>
                    </widget>
                   </item>

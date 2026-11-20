@@ -9,6 +9,7 @@ import math
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 import icons
+import theme
 
 # key, label, icon, object name of the Color-section button
 TOOLS = (
@@ -100,7 +101,7 @@ class ToolController:
                              QtGui.QColor("#BBBBBB"))
         else:
             painter.fillRect(swatch, QtGui.QColor(*rgba[:3]))
-        painter.setPen(QtGui.QColor("#" + icons.APP))
+        painter.setPen(QtGui.QColor(theme.TEXT_MUTED))
         painter.drawRect(swatch)
         painter.end()
         self.indicator.setPixmap(pixmap)
@@ -344,11 +345,13 @@ class ToolWheel(QtWidgets.QWidget):
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        app = QtGui.QColor("#" + icons.APP)
+        gold = QtGui.QColor(theme.GOLD)  # Atelier look: dark surface, gold accents
         c = self.centre
         outer = QtCore.QRectF(c.x() - self.RADIUS, c.y() - self.RADIUS, 2 * self.RADIUS, 2 * self.RADIUS)
-        painter.setPen(QtGui.QPen(app, 1.5))
-        painter.setBrush(QtGui.QColor(255, 255, 255, 235))
+        painter.setPen(QtGui.QPen(theme.GOLD_40, 1.5))
+        surface = QtGui.QColor(theme.SURFACE)
+        surface.setAlpha(240)
+        painter.setBrush(surface)
         painter.drawEllipse(outer)
         step = 360 / len(TOOLS)
         if self.highlight is not None:  # highlighted sector (Qt angles: 0 = 3 o'clock, counter-clockwise)
@@ -356,9 +359,10 @@ class ToolWheel(QtWidgets.QWidget):
             path = QtGui.QPainterPath(c)
             path.arcTo(outer, start, step)
             path.closeSubpath()
-            painter.setBrush(app)
+            painter.setPen(QtGui.QPen(gold, 1.5))
+            painter.setBrush(QtGui.QColor(208, 167, 111, 60))
             painter.drawPath(path)
-        painter.setPen(QtGui.QPen(QtGui.QColor(app.red(), app.green(), app.blue(), 90), 1))
+        painter.setPen(QtGui.QPen(theme.FROST, 1))
         for i in range(len(TOOLS)):  # sector borders
             a = math.radians(i * step - step / 2 - 90)
             painter.drawLine(QtCore.QPointF(c.x() + self.INNER * math.cos(a), c.y() + self.INNER * math.sin(a)),
@@ -373,12 +377,12 @@ class ToolWheel(QtWidgets.QWidget):
             on = i == self.highlight
             pix = icons.icon(icon_name).pixmap(48, 48)
             painter.drawPixmap(QtCore.QRectF(p.x() - 12, p.y() - 18, 24, 24), pix, QtCore.QRectF(pix.rect()))
-            painter.setPen(QtGui.QColor("white") if on else app)
+            painter.setPen(gold if on else QtGui.QColor(theme.TEXT_HIGH))
             painter.drawText(QtCore.QRectF(p.x() - 45, p.y() + 6, 90, 16), QtCore.Qt.AlignmentFlag.AlignCenter,
                              f"{label.split()[0]} ({key})")
         inner = QtCore.QRectF(c.x() - self.INNER, c.y() - self.INNER, 2 * self.INNER, 2 * self.INNER)
-        painter.setPen(QtGui.QPen(app, 1.5))
-        painter.setBrush(QtGui.QColor(245, 245, 245))
+        painter.setPen(QtGui.QPen(theme.GOLD_40, 1.5))
+        painter.setBrush(QtGui.QColor(theme.BG))
         painter.drawEllipse(inner)
         x = icons.icon("close").pixmap(48, 48)
         painter.drawPixmap(QtCore.QRectF(c.x() - 10, c.y() - 10, 20, 20), x, QtCore.QRectF(x.rect()))

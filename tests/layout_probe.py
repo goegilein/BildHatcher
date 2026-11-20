@@ -16,6 +16,8 @@ os.environ["BILDHATCHER_USER_DIR"] = tempfile.mkdtemp()
 from PyQt6 import QtWidgets  # noqa: E402
 
 app = QtWidgets.QApplication(sys.argv)
+import theme  # noqa: E402
+theme.apply(app)
 import main  # noqa: E402
 
 gui = main.create_main_window()

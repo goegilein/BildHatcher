@@ -1601,18 +1601,18 @@ class TextGeometryOverlayManager:
             # Default styling for transparent / no color
             button.setStyleSheet(
                 "QPushButton {"
-                "  background-color: #f0f0f0;"
-                "  color: #333333;"
-                "  border: 1px solid #cccccc;"
+                "  background-color: #18202F;"
+                "  color: #CBD5E1;"
+                "  border: 1px solid rgba(255, 255, 255, 0.10);"
                 "  font-weight: bold;"
-                "  border-radius: 4px;"
+                "  border-radius: 8px;"
                 "  padding: 4px;"
                 "}"
                 "QPushButton:hover {"
-                "  background-color: #e4e4e4;"
+                "  border-color: rgba(208, 167, 111, 0.40);"
                 "}"
             )
-            self._recolor_button_icon(button, "333333")
+            self._recolor_button_icon(button, "CBD5E1")
             return
 
         r, g, b = color.red(), color.green(), color.blue()
@@ -1642,7 +1642,7 @@ class TextGeometryOverlayManager:
             f"  color: {text_color};"
             f"  border: 1px solid rgb({border_r}, {border_g}, {border_b});"
             f"  font-weight: bold;"
-            f"  border-radius: 4px;"
+            f"  border-radius: 8px;"
             f"  padding: 4px;"
             f"}}"
             f"QPushButton:hover {{"

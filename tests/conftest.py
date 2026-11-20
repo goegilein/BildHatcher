@@ -24,6 +24,8 @@ from PyQt6 import QtWidgets  # noqa: E402
 @pytest.fixture(scope="session")
 def qapp():
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    import theme
+    theme.apply(app)
     yield app
 
 
