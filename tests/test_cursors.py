@@ -40,7 +40,7 @@ def test_tools_set_their_cursor_with_the_hot_spot_on_the_tip(app_components):
     load_image(c, make_test_image())
     gui, colorer = c.gui, c.image_colorer
     viewport = gui.image_canvas.viewport()
-    for button, hot in ((gui.toggle_draw_button, (1, 30)), (gui.flood_fill_button, (1, 30)),
+    for button, hot in ((gui.toggle_draw_button, (1, 30)), (gui.flood_fill_button, (5, 26)),
                         (gui.replace_color_button, (1, 1)), (gui.pick_color_from_image_button, (1, 30))):
         button.click()
         cursor = viewport.cursor()

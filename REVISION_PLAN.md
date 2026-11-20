@@ -291,7 +291,7 @@ User feedback on Phase 9: the panel width changed per group; several sections (S
 
 ### Phase 11 – Extras after the revision  `[~]` (2026-11-20)
 The plan is complete; further wishes of the user are logged here.
-- [x] **P11.1 Tool cursors.** "No tool" pictogram is a computer mouse. Over the image the mouse shows the colour tool, its tip on the hot spot = the pixel that gets used (`Tools.CanvasCursors`, pictures `GUI_Files/icons/cursor-*.svg` from `tools/make_icons.py`, white halo for any background): draw = pencil plus the outline of the pixels the pen covers (scene item in image pixels, scales with the zoom; rule `Tools.pen_footprint`, checked against the real rendering), fill = tipped bucket whose paint (active colour) runs into a point, replace = plain triangle pointer in the active colour, pick = pipette. Note: the square pen caps turn with a diagonal stroke, so diagonal strokes are wider than the outline; a single click without moving paints nothing (Qt draws no one-point path) – reported to the user.
+- [x] **P11.1 Tool cursors.** "No tool" pictogram is a computer mouse. Over the image the mouse shows the colour tool, its tip on the hot spot = the pixel that gets used (`Tools.CanvasCursors`, pictures `GUI_Files/icons/cursor-*.svg` from `tools/make_icons.py`, white halo for any background): draw = pencil plus the outline of the pixels the pen covers (scene item in image pixels, scales with the zoom; rule `Tools.pen_footprint`, checked against the real rendering), fill = slightly tipped bucket, a little paint (active colour) spills over the left rim into a point (hot spot pixel 5, 26), replace = plain triangle pointer in the active colour with a drop of it at the bottom right corner, pick = pipette. Note: the square pen caps turn with a diagonal stroke, so diagonal strokes are wider than the outline; a single click without moving paints nothing (Qt draws no one-point path) – reported to the user.
 
 ## 6. Open questions
 
@@ -388,3 +388,4 @@ The plan is complete; further wishes of the user are logged here.
 | 2026-11-19 | P10.5 / P10.6 | Rotate pictogram after the user's reference; font preview fixed, spin arrows always visible and styled, single-select sections, colour-undo button removed, imprint actions in the toolbar. 95 tests. |
 | 2026-11-19 | P10.6 | Font hover preview really fixed (scene selection as target, own hover tracking for the Windows 11 style). 95 tests. |
 | 2026-11-20 | P11.1 | Tool cursors with pixel-exact hot spots, pen outline, mouse pictogram for "no tool". 99 tests. |
+| 2026-11-20 | P11.1 | Fill / replace cursors redrawn after the user's remarks (classic tipped bucket, drop on the pointer). 99 tests. |

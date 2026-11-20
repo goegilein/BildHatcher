@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-<polygon points="23.59,18.13 13.63,9.77 21.21,3.07 28.87,9.5" fill="#CFD8DC" stroke="#37474F" stroke-width="1.6" stroke-linejoin="round"/>
-<path d="M 23.59 18.13 Q 35 -5.59 13.63 9.77" fill="none" stroke="#37474F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-<polygon points="23.09,18.63 14.13,9.27 1.5,30.5" fill="currentColor" stroke="#37474F" stroke-width="1.2" stroke-linejoin="round"/>
-<polyline points="23.59,18.13 13.63,9.77" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 10.94 13.3 Q 14.46 -2.59 23.06 6.3" fill="none" stroke="#37474F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="10.94,13.3 23.06,6.3 28.26,18.31 18.74,23.81" fill="#CFD8DC" stroke="#37474F" stroke-width="1.6" stroke-linejoin="round"/>
+<polyline points="10.94,13.3 23.06,6.3" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 14.14 11.4 C 9.44 11.1 4.3 13.5 5.5 26.5 C 6.9 17.5 11.54 16.3 13.14 15.9 Z" fill="currentColor" stroke="#37474F" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

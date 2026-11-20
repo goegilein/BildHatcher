@@ -110,7 +110,7 @@ class ToolController:
 
 
 # P11: canvas cursors – (cursor picture in GUI_Files/icons, hot spot = the pixel the tip points at)
-CURSORS = {"Draw": ("cursor-draw", (1, 30)), "Fill": ("cursor-fill", (1, 30)),
+CURSORS = {"Draw": ("cursor-draw", (1, 30)), "Fill": ("cursor-fill", (5, 26)),
            "Replace": ("cursor-replace", (1, 1)), "Pick": ("cursor-pick", (1, 30))}
 CURSOR_SIZE = 32
 TRANSPARENT_PAINT = "E0E0E0"  # paint colour shown for the transparent "colour"

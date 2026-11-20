@@ -722,25 +722,34 @@ def cursor_svg(*parts):
 CURSOR_TIP = (1.5, 30.5)  # the tip of draw / fill / pick: centre of pixel (1, 30)
 
 
+CURSOR_FILL_TIP = (5.5, 26.5)  # the paint's point: centre of pixel (5, 26)
+
+
 def cursor_fill():
-    """Tipped bucket, the poured paint narrows to a sharp point at the hot spot."""
-    origin, angle = (21.5, 10.5), 220
-    body = place([(-6.5, -4.5), (6.5, -4.5), (5, 5.5), (-5, 5.5)], origin, angle)
-    lip = place([(-6.5, -4.5), (6.5, -4.5)], origin, angle)
-    handle = place([(-6.5, -4.5), (0, 21), (6.5, -4.5)], origin, angle)  # the bail hangs over the bottom
-    tip_x, tip_y = CURSOR_TIP
-    stream = [(lip[0][0] - 0.5, lip[0][1] + 0.5), (lip[1][0] + 0.5, lip[1][1] - 0.5), (tip_x, tip_y)]
+    """Slightly tipped bucket (like the classic paint bucket): a little paint spills over the left rim and runs
+    down into a sharp point at the hot spot."""
+    origin, angle = (20, 15), -30
+    body = place([(-7, -6), (7, -6), (5.5, 7), (-5.5, 7)], origin, angle)
+    lip = place([(-7, -6), (7, -6)], origin, angle)
+    handle = place([(-7, -6), (4, -18), (7, -6)], origin, angle)
+    tx, ty = CURSOR_FILL_TIP
+    spill = (f"M {f(lip[0][0] + 3.2)} {f(lip[0][1] - 1.9)} C {f(lip[0][0] - 1.5)} {f(lip[0][1] - 2.2)} "
+             f"{f(tx - 1.2)} {f(ty - 13)} {f(tx)} {f(ty)} "
+             f"C {f(tx + 1.4)} {f(ty - 9)} {f(lip[0][0] + 0.6)} {f(lip[0][1] + 3)} {f(lip[0][0] + 2.2)} "
+             f"{f(lip[0][1] + 2.6)} Z")
     return cursor_svg(
-        polygon(body, GREY, INK, 1.6),
         path(f"M {f(handle[0][0])} {f(handle[0][1])} Q {f(handle[1][0])} {f(handle[1][1])} "
              f"{f(handle[2][0])} {f(handle[2][1])}", "none", INK, 1.6),
-        polygon(stream, CURRENT, INK, 1.2),
-        line(lip, CURRENT, 2.6))
+        polygon(body, GREY, INK, 1.6),
+        line(lip, CURRENT, 2.8),
+        path(spill, CURRENT, INK, 1.2))
 
 
 def cursor_replace():
-    """Plain triangular pointer (no shaft) in the replace colour, tip at the hot spot (pixel 1, 1)."""
-    return cursor_svg(polygon([(1.5, 1.5), (1.5, 19), (13.5, 12.5)], CURRENT, INK, 1.4))
+    """Plain triangular pointer (no shaft) in the replace colour, tip at the hot spot (pixel 1, 1); a drop of the
+    colour sits at its bottom right corner."""
+    return cursor_svg(polygon([(1.5, 1.5), (1.5, 19), (13.5, 12.5)], CURRENT, INK, 1.4),
+                      drop(17, 21, 4.2, CURRENT, INK, 1.3))
 
 
 ICONS = {
