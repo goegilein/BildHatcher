@@ -76,7 +76,7 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | test-structure | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | export | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | generate-jcode | fluent-emoji-flat:robot | Fluent Emoji Flat (Microsoft, MIT) |
-| tool-none | tabler:click | Tabler Icons (MIT) |
+| tool-none | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | close | tabler:x | Tabler Icons (MIT) |
 | size-reset | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | center-hide | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
@@ -92,3 +92,7 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | imprint-overlays | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | spin-up | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | spin-down | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| cursor-draw | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| cursor-fill | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| cursor-replace | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| cursor-pick | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |

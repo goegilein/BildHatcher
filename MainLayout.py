@@ -280,6 +280,7 @@ def build(gui, c):
     panel = build_panel(gui, on_hidden=reset_tools)
     c.tools = Tools.ToolController(gui, c.image_colorer)  # P9.10: hotkeys D F R P C T + indicator
     c.tools.add_indicator(gui.toolBar, before=c.tool_slot)
+    c.canvas_cursors = Tools.CanvasCursors(gui, c.image_colorer, c.event_handler)  # P11: tool cursors, pen outline
     c.tool_wheel = Tools.ToolWheel(c.tools, gui.image_canvas.viewport(), c.event_handler)  # P9.11
     tg = c.overlay_manager  # colour buttons: icons in the contrast colour of the current colour (P9.8)
     tg._style_color_button(gui.fill_color_button, tg.current_fill_color)

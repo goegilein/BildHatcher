@@ -588,7 +588,10 @@ class FontPreviewFilter(QtCore.QObject):
 
     def eventFilter(self, obj, event):
         kind = event.type()
-        view = self.combo_box.view()
+        try:
+            view = self.combo_box.view()
+        except RuntimeError:  # the combo box is already deleted (window teardown)
+            return False
         if obj is view and kind == QtCore.QEvent.Type.Show:
             self.start_preview()
         elif obj is view and kind == QtCore.QEvent.Type.Hide and self.previewing:

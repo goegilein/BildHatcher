@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+<polygon points="23.59,18.13 13.63,9.77 21.21,3.07 28.87,9.5" fill="#CFD8DC" stroke="#37474F" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 23.59 18.13 Q 35 -5.59 13.63 9.77" fill="none" stroke="#37474F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="23.09,18.63 14.13,9.27 1.5,30.5" fill="currentColor" stroke="#37474F" stroke-width="1.2" stroke-linejoin="round"/>
+<polyline points="23.59,18.13 13.63,9.77" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

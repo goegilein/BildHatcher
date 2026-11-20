@@ -109,6 +109,143 @@ class ToolController:
         self.indicator.setToolTip(f"Active tool: {tool or 'none'} · color: {colour}\nHotkeys: {keys}")
 
 
+# P11: canvas cursors – (cursor picture in GUI_Files/icons, hot spot = the pixel the tip points at)
+CURSORS = {"Draw": ("cursor-draw", (1, 30)), "Fill": ("cursor-fill", (1, 30)),
+           "Replace": ("cursor-replace", (1, 1)), "Pick": ("cursor-pick", (1, 30))}
+CURSOR_SIZE = 32
+TRANSPARENT_PAINT = "E0E0E0"  # paint colour shown for the transparent "colour"
+
+
+def pen_footprint(x, y, width):
+    """Image pixels a pen stroke of `width` covers around pixel (x, y): (left, top, size).
+
+    The pen draws through pixel centres with square caps and no antialiasing; that covers a width x width square
+    starting (width - 1) // 2 pixels left of / above the pixel (measured, see tests)."""
+    width = max(int(width), 1)
+    offset = (width - 1) // 2
+    return x - offset, y - offset, width
+
+
+def make_cursor(name, hot, paint_hex="000000", ratio=1.0):
+    """QCursor from GUI_Files/icons/<name>.svg (currentColor = paint), with a white halo so it shows on any image."""
+    from PyQt6.QtSvg import QSvgRenderer
+    source = (icons.ICON_DIR / f"{name}.svg").read_text(encoding="utf-8").replace("currentColor", f"#{paint_hex}")
+    renderer = QSvgRenderer(QtCore.QByteArray(source.encode("utf-8")))
+    side = int(round(CURSOR_SIZE * ratio))
+
+    def blank():
+        pixmap = QtGui.QPixmap(side, side)
+        pixmap.fill(QtCore.Qt.GlobalColor.transparent)
+        return pixmap
+    shape = blank()
+    painter = QtGui.QPainter(shape)
+    renderer.render(painter, QtCore.QRectF(0, 0, side, side))
+    painter.end()
+    halo = shape.copy()
+    painter = QtGui.QPainter(halo)
+    painter.setCompositionMode(QtGui.QPainter.CompositionMode.CompositionMode_SourceIn)
+    painter.fillRect(halo.rect(), QtGui.QColor("white"))
+    painter.end()
+    result = blank()
+    painter = QtGui.QPainter(result)
+    step = max(1, int(round(ratio)))
+    for dx in (-step, 0, step):
+        for dy in (-step, 0, step):
+            if dx or dy:
+                painter.drawPixmap(dx, dy, halo)
+    painter.drawPixmap(0, 0, shape)
+    painter.end()
+    result.setDevicePixelRatio(ratio)
+    return QtGui.QCursor(result, hot[0], hot[1])
+
+
+class CanvasCursors:
+    """P11: the mouse over the image shows the active colour tool (draw / fill / replace / pick) with its tip
+    exactly on the pixel that gets used; drawing also shows the outline of the pixels the pen will cover
+    (an outline in image pixels, so it scales with the zoom)."""
+
+    def __init__(self, gui, colorer, event_handler):
+        self.gui = gui
+        self.colorer = colorer
+        self.viewport = gui.image_canvas.viewport()
+        self.tool = None
+        self.footprint = None   # (outer white, inner dark) outline items, children of the image item
+        self.last_pos = None
+        colorer.state_callbacks.append(self.update)
+        gui.pen_width_spinbox.valueChanged.connect(lambda *_: self.move_footprint(self.last_pos))
+        event_handler.add_canvas_event_filter(self.on_canvas_event)
+        self.update()
+
+    # --- cursor ---
+    def paint_hex(self):
+        rgba = self.colorer.active_color
+        return TRANSPARENT_PAINT if rgba[3] == 0 else "{:02X}{:02X}{:02X}".format(*rgba[:3])
+
+    def update(self):
+        tool = self.colorer.active_tool
+        if tool in CURSORS:
+            name, hot = CURSORS[tool]
+            self.viewport.setCursor(make_cursor(name, hot, self.paint_hex(), self.viewport.devicePixelRatioF()))
+        elif self.tool in CURSORS:  # tool switched off: back to the arrow (masks set their own cursor)
+            if tool == "":
+                self.viewport.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+        self.tool = tool
+        self.move_footprint(self.last_pos)
+
+    # --- pen outline ---
+    def _footprint_items(self):
+        alive = self.footprint is not None
+        if alive:
+            try:
+                alive = self.footprint[0].scene() is not None and self.footprint[0].parentItem() is self.gui.image_item
+            except RuntimeError:  # deleted with the scene
+                alive = False
+        if not alive:
+            items = []
+            for color, width in (("white", 3), ("#263238", 1)):
+                item = QtWidgets.QGraphicsPathItem(self.gui.image_item)
+                pen = QtGui.QPen(QtGui.QColor(color), width)
+                pen.setCosmetic(True)  # always thin on screen; the outlined square itself is in image pixels
+                pen.setJoinStyle(QtCore.Qt.PenJoinStyle.MiterJoin)
+                item.setPen(pen)
+                item.setZValue(1000)
+                item.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
+                items.append(item)
+            self.footprint = tuple(items)
+        return self.footprint
+
+    def move_footprint(self, viewport_pos):
+        """Outline the pixels the pen covers under `viewport_pos` (None: hide)."""
+        show = viewport_pos is not None and self.tool == "Draw" and self.gui.image_item.pixmap() is not None \
+            and not self.gui.image_item.pixmap().isNull()
+        if not show:
+            if self.footprint is not None:
+                try:
+                    for item in self.footprint:
+                        item.hide()
+                except RuntimeError:
+                    self.footprint = None
+            return
+        scene_pos = self.gui.image_canvas.mapToScene(viewport_pos)
+        pos = self.gui.image_item.mapFromScene(scene_pos)
+        left, top, size = pen_footprint(math.floor(pos.x()), math.floor(pos.y()), self.gui.pen_width_spinbox.value())
+        path = QtGui.QPainterPath()
+        path.addRect(QtCore.QRectF(left, top, size, size))
+        for item in self._footprint_items():
+            item.setPath(path)
+            item.show()
+
+    def on_canvas_event(self, event):
+        kind = event.type()
+        if kind in (QtCore.QEvent.Type.MouseMove, QtCore.QEvent.Type.MouseButtonPress):
+            self.last_pos = event.position().toPoint()
+            self.move_footprint(self.last_pos)
+        elif kind == QtCore.QEvent.Type.Leave:
+            self.last_pos = None
+            self.move_footprint(None)
+        return False
+
+
 class ToolWheel(QtWidgets.QWidget):
     """P9.11: radial menu of TOOLS over the canvas.
 

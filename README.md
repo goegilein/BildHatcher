@@ -52,7 +52,7 @@ UPDATE_GOLDEN=1 python -m pytest tests/test_characterization.py
 |---|---|
 | `main.py` | Starts the app; `create_main_window()` / `create_components()` build the UI (also used by the tests) |
 | `MainLayout.py` | Toolbar and settings panel (groups, sections, pictograms); section contents come from the .ui file |
-| `Tools.py` | Hotkeys, active-tool indicator and tool wheel for the colour tools |
+| `Tools.py` | Hotkeys, active-tool indicator, tool wheel and canvas cursors (pen outline) for the colour tools |
 | `icons.py` | Pictograms for the code-built parts; the icons live in `GUI_Files/icons/<meaning>.svg` (origins and licences: `GUI_Files/icons/SOURCES.md`) |
 | `core/` | Processing without Qt: `image_doc` (RGBA image model), `hatching` (hatch patterns), `fill` (flood fill), `toolpath` (layer/polyline model), `postprocess`, `gcode`, `machine` (machine profiles) |
 | `ImageControlling.py` | Image list, load/save, size, rotate/mirror/crop, upscaling, zoom/pan |

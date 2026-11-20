@@ -707,6 +707,42 @@ def color_profile():
     return svg(database(2, 2, 13, 17), drop(18.5, 17.8, 3.6, SUN))
 
 
+def mouse_device():
+    """Computer mouse: no tool selected."""
+    return svg(rect(6, 2.5, 12, 19, GREY, INK, 1.6, 6), line([(12, 2.8), (12, 9)], INK, 1.4),
+               line([(6.2, 9), (17.8, 9)], INK, 1.4), rect(11, 4.6, 2, 3.2, BLUE, "none", 0, 1))
+
+
+# --- canvas cursors (P11): 32 x 32, the hot spot is the centre of pixel CURSOR_HOT[name]; paint in currentColor
+def cursor_svg(*parts):
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">\n'
+            + "\n".join(p for p in parts if p) + "\n</svg>\n")
+
+
+CURSOR_TIP = (1.5, 30.5)  # the tip of draw / fill / pick: centre of pixel (1, 30)
+
+
+def cursor_fill():
+    """Tipped bucket, the poured paint narrows to a sharp point at the hot spot."""
+    origin, angle = (21.5, 10.5), 220
+    body = place([(-6.5, -4.5), (6.5, -4.5), (5, 5.5), (-5, 5.5)], origin, angle)
+    lip = place([(-6.5, -4.5), (6.5, -4.5)], origin, angle)
+    handle = place([(-6.5, -4.5), (0, 21), (6.5, -4.5)], origin, angle)  # the bail hangs over the bottom
+    tip_x, tip_y = CURSOR_TIP
+    stream = [(lip[0][0] - 0.5, lip[0][1] + 0.5), (lip[1][0] + 0.5, lip[1][1] - 0.5), (tip_x, tip_y)]
+    return cursor_svg(
+        polygon(body, GREY, INK, 1.6),
+        path(f"M {f(handle[0][0])} {f(handle[0][1])} Q {f(handle[1][0])} {f(handle[1][1])} "
+             f"{f(handle[2][0])} {f(handle[2][1])}", "none", INK, 1.6),
+        polygon(stream, CURRENT, INK, 1.2),
+        line(lip, CURRENT, 2.6))
+
+
+def cursor_replace():
+    """Plain triangular pointer (no shaft) in the replace colour, tip at the hot spot (pixel 1, 1)."""
+    return cursor_svg(polygon([(1.5, 1.5), (1.5, 19), (13.5, 12.5)], CURRENT, INK, 1.4))
+
+
 ICONS = {
     # --- Images ---
     "image-add": lambda: svg(picture(2, 3.5, 15, 12.5), PLUS),
@@ -802,6 +838,12 @@ ICONS = {
     # --- spin box arrows (stylesheet) ---
     "spin-up": lambda: spin_arrow(True),
     "spin-down": lambda: spin_arrow(False),
+    # --- tools (P11) ---
+    "tool-none": mouse_device,
+    "cursor-draw": lambda: cursor_svg(pencil(CURSOR_TIP, -45, 30, 6.4)),
+    "cursor-fill": cursor_fill,
+    "cursor-replace": cursor_replace,
+    "cursor-pick": lambda: cursor_svg(pipette(CURSOR_TIP, -45)),
 }
 
 
