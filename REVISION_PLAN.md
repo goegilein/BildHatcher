@@ -396,3 +396,4 @@ The plan is complete; further wishes of the user are logged here.
 | 2026-11-20 | P11.2 | Atelier style after piupulaser.de (stylesheet, fonts, themed pictograms, theme.py, apply_style tool); legacy style kept. 103 tests. |
 | 2026-11-22 | P11.3 | Bright mode (palette template, second pictogram set, live switch in Modes), buttons more visible in dark mode. 106 tests. |
 | 2026-11-22 | P11.4 / merge | main merged into code_rev_2.0, its fixes ported (drive lengths, last folder, Scale2x); 110 tests. Ready for the PR into main. |
+| 2026-11-22 | – | `Ideas_v3.0.md`: loose ideas for v3.0 (BildHatcher as a module next to the machine control; PySide6, core package, plugin UI, machine control as own process). |
