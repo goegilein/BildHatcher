@@ -1,8 +1,9 @@
-PyQt6
-numpy
-Pillow
-opencv-python
-scikit-learn
-pyqtgraph
-PyOpenGL
-ezdxf
+# Runtime dependencies (pinned to the versions the revision is developed/tested with)
+PyQt6==6.11.0
+numpy==2.5.0
+Pillow==12.2.0
+opencv-python==4.13.0.92
+scikit-learn==1.9.0
+pyqtgraph==0.14.0
+PyOpenGL==3.1.10
+ezdxf==1.4.4

@@ -3,6 +3,8 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtGui import QPainterPath, QPen, QBrush, QColor, QFont, QFontDatabase
 from PyQt6.QtWidgets import QGraphicsItem
 from UndoRedo import TGAddOverlayAction, TGDeleteOverlayAction, TGTransformOverlayAction, TGImprintOverlaysAction
+import icons
+import theme
 
 
 def select_color() -> QtGui.QColor:
@@ -556,41 +558,71 @@ class OverlayStore:
 
 
 class FontPreviewFilter(QtCore.QObject):
-    """Event filter for font family combobox to preview fonts on hover."""
-    
+    """Previews fonts on the selected text overlay while hovering them in the font dropdown.
+
+    Installed on the dropdown's view (Show starts the preview, Hide ends it) and on its viewport (mouse moves):
+    the Windows 11 style has no list mouse tracking, so hovering never changes the current row and the combo box's
+    `highlighted` signal only follows the keyboard – the hovered row is taken from the mouse position instead."""
+
     def __init__(self, combo_box: QtWidgets.QComboBox, tg_manager: 'TextGeometryOverlayManager'):
-        super().__init__()
+        super().__init__(combo_box)
         self.combo_box = combo_box
         self.tg_manager = tg_manager
-        self.original_font = None
+        self.originals = {}  # text overlay -> its font family when the dropdown opened
+        self.shown = None  # the family currently previewed
         self.original_index = -1
         self.previewing = False
-        
+
     def start_preview(self):
-        """Called when dropdown opens - save original state."""
-        active_item = self.tg_manager.overlay_store.active_item
-        if isinstance(active_item, TextFieldOverlay):
-            self.original_font = active_item.font.family()
-            self.original_index = self.combo_box.currentIndex()
-            self.previewing = True
-            
+        """Dropdown opens: remember the fonts of the overlays the font choice applies to."""
+        self.originals = {item: item.font.family() for item in self.tg_manager.font_targets()}
+        self.shown = None
+        self.original_index = self.combo_box.currentIndex()
+        self.previewing = bool(self.originals)
+
+    def install(self):
+        view = self.combo_box.view()
+        view.installEventFilter(self)
+        view.viewport().setMouseTracking(True)
+        view.viewport().installEventFilter(self)
+        self.combo_box.highlighted.connect(self.preview_font)  # keyboard
+
+    def eventFilter(self, obj, event):
+        kind = event.type()
+        try:
+            view = self.combo_box.view()
+        except RuntimeError:  # the combo box is already deleted (window teardown)
+            return False
+        if obj is view and kind == QtCore.QEvent.Type.Show:
+            self.start_preview()
+        elif obj is view and kind == QtCore.QEvent.Type.Hide and self.previewing:
+            self.end_preview()
+        elif obj is view.viewport() and kind == QtCore.QEvent.Type.MouseMove and self.previewing:
+            index = view.indexAt(event.position().toPoint())
+            if index.isValid():
+                self.preview_font(index.row())
+        return False
+
     def preview_font(self, index: int):
-        """Preview font at given index during hover."""
-        if not self.previewing:
+        """Show the hovered font on the overlays."""
+        if not self.previewing or index < 0:
             return
-        font_family = self.combo_box.itemText(index)
-        active_item = self.tg_manager.overlay_store.active_item
-        if isinstance(active_item, TextFieldOverlay):
-            active_item.set_font_family(font_family)
-            
+        family = self.combo_box.itemText(index)
+        if family == self.shown:
+            return
+        self.shown = family
+        for item in self.originals:
+            item.set_font_family(family)
+        self.tg_manager.refresh_scene()
+
     def end_preview(self):
-        """Called when dropdown closes - revert if no selection was made."""
+        """Dropdown closes: without a new choice the overlays get their fonts back."""
         if self.combo_box.currentIndex() == self.original_index:
-            # No selection was made, revert to original font
-            active_item = self.tg_manager.overlay_store.active_item
-            if isinstance(active_item, TextFieldOverlay) and self.original_font:
-                active_item.set_font_family(self.original_font)
+            for item, family in self.originals.items():
+                item.set_font_family(family)
+            self.tg_manager.refresh_scene()
         self.previewing = False
+        self.originals = {}
 
 
 class TextGeometryOverlayManager:
@@ -628,7 +660,9 @@ class TextGeometryOverlayManager:
 
         #geometry type combobox
         self.geometry_type_combobox = gui.geometry_type_combobox 
-        self.geometry_type_combobox.addItems(["Line", "Rectangle", "Triangle", "Ellipse"])
+        for text, icon_name in (("Line", "geo-line"), ("Rectangle", "geo-rect"), ("Triangle", "geo-triangle"),
+                                ("Ellipse", "geo-ellipse")):
+            self.geometry_type_combobox.addItem(icons.icon(icon_name), text)
         self.geometry_type_combobox.currentTextChanged.connect(lambda text: self.set_geometry_type(text.lower()))
 
         #font family combobox
@@ -636,16 +670,10 @@ class TextGeometryOverlayManager:
         self.font_family_combobox.addItems(TextFieldOverlay.available_fonts())
         self.font_family_combobox.currentTextChanged.connect(self._on_font_family_changed)
         
-        # Setup font preview filter for hover preview
+        # Font preview: hovering a font in the open dropdown shows it on the selected text overlay; closing the
+        # dropdown without choosing restores the font (the popup view's show / hide events start and end it)
         self.font_preview_filter = FontPreviewFilter(self.font_family_combobox, self)
-        # Connect to highlighted signal for preview on hover
-        self.font_family_combobox.highlighted.connect(self.font_preview_filter.preview_font)
-        # Override showPopup to save state
-        self._original_show_popup = self.font_family_combobox.showPopup
-        self.font_family_combobox.showPopup = self._show_popup_with_preview
-        # Override hidePopup to restore original font if needed
-        self._original_hide_popup = self.font_family_combobox.hidePopup
-        self.font_family_combobox.hidePopup = self._hide_popup_with_preview
+        self.font_preview_filter.install()
 
         #font size spinbox
         self.font_size_spinbox = gui.font_size_spinbox
@@ -723,6 +751,7 @@ class TextGeometryOverlayManager:
         # Initialize button styles
         self._style_color_button(self.fill_color_button, self.current_fill_color)
         self._style_color_button(self.outline_color_button, self.current_outline_color)
+        theme.on_change(self._on_theme_changed)  # P11.3
 
         # Wire up event handler if available
         if event_handler:
@@ -956,16 +985,6 @@ class TextGeometryOverlayManager:
                 self.mode = self.MODE_IDLE
                 self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
-    def _show_popup_with_preview(self):
-        """Wrapper for showPopup that initializes font preview."""
-        self.font_preview_filter.start_preview()
-        self._original_show_popup()
-
-    def _hide_popup_with_preview(self):
-        """Wrapper for hidePopup that finalizes font preview."""
-        self.font_preview_filter.end_preview()
-        self._original_hide_popup()
-
     def set_geometry_type(self, geom_type: str):
         """Set the current geometry type to draw."""
         if geom_type in GeometryOverlay.VALID_SHAPES:
@@ -1158,8 +1177,7 @@ class TextGeometryOverlayManager:
         # copy buffer so python owns the data
         arr = np.frombuffer(ptr, np.uint8).reshape((height, width, 4)).copy()
         
-        # Drop alpha as we work in RGB only
-        self.data_handler.image_matrix = arr[:,:,:3]
+        self.data_handler.image_matrix = arr  # RGBA; the data handler binarizes the alpha
 
         after_matrix = self.data_handler.image_matrix.copy()
         if self.undo_manager and before_matrix is not None:
@@ -1175,14 +1193,6 @@ class TextGeometryOverlayManager:
             )
             self.undo_manager.push_action(action)
 
-        # Update the active list item's ImgObj in gui if one exists
-        images_list_widget = getattr(self.gui, "images_ListWidget", None)
-        if images_list_widget is not None and images_list_widget.currentItem() is not None:
-            active_item = images_list_widget.currentItem()
-            img_obj = active_item.data(QtCore.Qt.ItemDataRole.UserRole)
-            if img_obj is not None:
-                img_obj.image_matrix = self.data_handler.image_matrix.copy()
-                active_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
 
     def _update_overlay_list(self):
         """Refresh the overlay list widget display."""
@@ -1242,12 +1252,19 @@ class TextGeometryOverlayManager:
         if not self.font_family_combobox:
             return
         family = self.font_family_combobox.currentText()
+        for item in self.font_targets():
+            item.set_font_family(family)
+        self.refresh_scene()
+
+    def font_targets(self):
+        """The text overlays a font choice applies to: the selected ones, else the active one."""
         selected_items = self.gui.image_scene.selectedItems() if hasattr(self.gui, "image_scene") else []
         text_items = [item for item in selected_items if isinstance(item, TextFieldOverlay)]
         if not text_items and isinstance(self.overlay_store.active_item, TextFieldOverlay):
             text_items = [self.overlay_store.active_item]
-        for item in text_items:
-            item.set_font_family(family)
+        return text_items
+
+    def refresh_scene(self):
         if hasattr(self.gui, "image_scene"):
             self.gui.image_scene.update()
 
@@ -1570,6 +1587,21 @@ class TextGeometryOverlayManager:
             if w is not None:
                 w.blockSignals(block)
 
+    def _on_theme_changed(self):
+        """Bright / dark mode switch: icons drawn by this code."""
+        for i, icon_name in enumerate(("geo-line", "geo-rect", "geo-triangle", "geo-ellipse")):
+            if i < self.geometry_type_combobox.count():
+                self.geometry_type_combobox.setItemIcon(i, icons.icon(icon_name))
+        self._style_color_button(self.fill_color_button, self.current_fill_color)
+        self._style_color_button(self.outline_color_button, self.current_outline_color)
+
+    @staticmethod
+    def _recolor_button_icon(button, hex_color):
+        """P9.8: the pictogram of a colour button follows its (contrast) text colour."""
+        icon_name = button.property("iconName")
+        if icon_name:
+            button.setIcon(icons.icon(icon_name, hex_color))
+
     def _style_color_button(self, button, color: QtGui.QColor):
         """Update a color button's background to the chosen color, with a high-contrast complementary text color."""
         if button is None:
@@ -1577,19 +1609,8 @@ class TextGeometryOverlayManager:
 
         if color is None or color.alpha() == 0:
             # Default styling for transparent / no color
-            button.setStyleSheet(
-                "QPushButton {"
-                "  background-color: #f0f0f0;"
-                "  color: #333333;"
-                "  border: 1px solid #cccccc;"
-                "  font-weight: bold;"
-                "  border-radius: 4px;"
-                "  padding: 4px;"
-                "}"
-                "QPushButton:hover {"
-                "  background-color: #e4e4e4;"
-                "}"
-            )
+            button.setStyleSheet("")  # no colour: the theme's button look (P11.3: dark or bright)
+            self._recolor_button_icon(button, icons.ink())
             return
 
         r, g, b = color.red(), color.green(), color.blue()
@@ -1605,6 +1626,9 @@ class TextGeometryOverlayManager:
         else:
             text_color = f"rgb({cr}, {cg}, {cb})"
 
+        rgb_text = [int(v) for v in text_color[4:-1].split(",")]
+        self._recolor_button_icon(button, "".join(f"{v:02X}" for v in rgb_text))
+
         # Subtle dark border
         border_r = max(0, r - 30)
         border_g = max(0, g - 30)
@@ -1616,7 +1640,7 @@ class TextGeometryOverlayManager:
             f"  color: {text_color};"
             f"  border: 1px solid rgb({border_r}, {border_g}, {border_b});"
             f"  font-weight: bold;"
-            f"  border-radius: 4px;"
+            f"  border-radius: 8px;"
             f"  padding: 4px;"
             f"}}"
             f"QPushButton:hover {{"

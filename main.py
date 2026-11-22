@@ -1,11 +1,12 @@
 import sys
 import json
+import logging
+import logging.handlers
 from pathlib import Path
+from types import SimpleNamespace
 from PyQt6 import QtWidgets, uic
-from PyQt6.QtCore import QLocale
-from PyQt6.QtGui import (QImage, QPixmap, QPainter, QPen, QColor, 
-                         QPainterPath, QBrush)
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
+from PyQt6.QtGui import QPainter
+from PyQt6.QtWidgets import QGraphicsItem
 import ImageControlling
 import ImageEditing
 import NCDataGeneration
@@ -14,59 +15,125 @@ import Parsing
 import TestStructures
 import DataHandling
 import Settings
+import ColorProfile
+import MainLayout
+import theme
+import Preferences
 import AutomatedProcessing
 import EventHandling
 import TextandGeometries
-from PathManager import get_gui_file_path, get_settings_path
-import CustomUiElements #this import is necessary to register custom ui elements for compilation
+from PathManager import get_gui_file_path, get_base_dir, USER_DIR
+import CustomUiElements  # noqa: F401  # this import is necessary to register custom ui elements for compilation
 
-# Load version - handle both frozen and non-frozen environments
-if getattr(sys, 'frozen', False):
-    # Running as compiled executable from PyInstaller
-    BASE_DIR = Path(sys._MEIPASS)
-else:
-    # Running as normal Python script
-    BASE_DIR = Path(__file__).resolve().parent
+log = logging.getLogger(__name__)
 
-try:
-    with open(BASE_DIR / "version.json") as f:
-        version_data = json.load(f)
-        version = f"{version_data['major']}.{version_data['minor']}.{version_data['patch']}"
-except FileNotFoundError:
-    print(f"Warning: version.json not found at {BASE_DIR / 'version.json'}")
-    version = "unknown"
-except Exception as e:
-    print(f"Error loading version.json: {e}")
-    version = "unknown"
-
-
-#Define paths using PathManager
+# Define paths using PathManager
 MAIN_GUI_PATH = get_gui_file_path("BildHatcher.ui")
 
-if __name__ == "__main__":
 
-    #load the GUI
-    app = QtWidgets.QApplication(sys.argv)
+LOG_FILE = USER_DIR / "bildhatcher.log"
 
+
+def setup_logging(level=logging.INFO):
+    """Console + rotating log file (the built app has no console)."""
+    handlers = [logging.StreamHandler()]
+    try:
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=1_000_000, backupCount=1, encoding="utf-8"))
+    except OSError:
+        pass
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+        handlers=handlers,
+    )
+
+
+def show_unhandled_exception(exc_type, exc, tb):
+    """sys.excepthook: log and show the error instead of letting PyQt abort the application."""
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc, tb)
+        return
+    log.critical("Unhandled exception", exc_info=(exc_type, exc, tb))
+    if QtWidgets.QApplication.instance() is not None:
+        QtWidgets.QMessageBox.critical(
+            None, "Unexpected Error",
+            f"{exc_type.__name__}: {exc}\n\nThe action was not completed. Details are in the log file:\n{LOG_FILE}")
+
+
+def load_version():
+    """Read version.json (works for source and PyInstaller builds)."""
+    version_file = get_base_dir() / "version.json"
+    try:
+        with open(version_file) as f:
+            data = json.load(f)
+        return f"{data['major']}.{data['minor']}.{data['patch']}"
+    except Exception as e:
+        log.warning("Could not read %s: %s", version_file, e)
+        return "unknown"
+
+
+def create_main_window():
+    """Load the main window from the .ui file and set up the image canvas."""
     gui = uic.loadUi(MAIN_GUI_PATH)
-    
-    #create the image canvas. has to be done programmatically as there is no QtDesigner element for it
+    if QtWidgets.QApplication.instance().styleSheet():
+        gui.setStyleSheet("")  # the app-wide theme (theme.apply) already has the .ui's stylesheet: style once
+
+    # create the image canvas. has to be done programmatically as there is no QtDesigner element for it
     gui.image_scene = QtWidgets.QGraphicsScene()
     gui.image_canvas.setScene(gui.image_scene)
     gui.image_item = QtWidgets.QGraphicsPixmapItem()
     gui.image_scene.addItem(gui.image_item)
 
-    # --- CRITICAL FOR PIXEL ART LOOK ---
-    # 1. Disable Antialiasing (No smooth edges)
-    # 2. Disable SmoothPixmapTransform (Show pixels as sharp blocks when zoomed in)
+    # Pixel art look: no antialiasing, no smooth pixmap transform (sharp pixels when zoomed in)
     gui.image_canvas.setRenderHint(QPainter.RenderHint.Antialiasing, False)
     gui.image_canvas.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
 
-    # cut all children (overlay drawings) of the image item at its edges.
+    # cut all children (overlay drawings) of the image item at its edges. The shape must be the full rectangle,
+    # otherwise transparent pixels would clip away overlays and the checkerboard drawn on them.
+    gui.image_item.setShapeMode(QtWidgets.QGraphicsPixmapItem.ShapeMode.BoundingRectShape)
     gui.image_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape, True)
-    
-    # Set window title with version
-    gui.setWindowTitle(f"BildHatcher - v{version}")
+    gui.image_canvas.checkerboard_item = gui.image_item  # checkerboard behind transparent pixels
+    return gui
+
+
+def create_components(gui):
+    """Wire up all controllers on an already created main window. Returns them as a namespace."""
+    c = SimpleNamespace()
+    c.data_handler = DataHandling.DataHandler(gui)
+    c.color_profiles = ColorProfile.ColorProfileController(c.data_handler, gui)  # P8.5: one active DB profile
+    c.data_handler.color_profiles = c.color_profiles
+    c.event_handler = EventHandling.EventHandler(gui)
+    c.image_controller = ImageControlling.BaseFunctions(c.data_handler, gui)
+    c.image_sizer = ImageControlling.ImageMover(c.data_handler, c.event_handler, gui)
+    c.image_adjuster = ImageEditing.ImageAdjuster(c.data_handler, gui)
+    c.image_colorer = ImageEditing.ImageColorer(c.data_handler, c.event_handler, gui)
+    c.overlay_store = TextandGeometries.OverlayStore(gui.image_item)
+    c.overlay_manager = TextandGeometries.TextGeometryOverlayManager(c.data_handler, c.overlay_store, gui, c.event_handler)
+
+    # Setup Undo / Redo direct QActions on menubar and keyboard shortcuts (Ctrl+Z, Ctrl+Y)
+    menubar = getattr(gui, "menubar", None) or gui.menuBar()
+    if menubar and hasattr(c.data_handler, "undo_manager"):
+        c.data_handler.undo_manager.setup_menubar(menubar)
+
+    c.image_hatcher = NCDataGeneration.Hatcher(c.data_handler, gui)
+    c.hatch_line_plotter = Plotting.HatchLinePlotter(c.data_handler, gui)
+    c.test_structure = TestStructures.Teststructures(c.data_handler, gui)
+    c.parser = Parsing.Parser(c.data_handler, gui)
+    c.settings = Settings.Settings(gui)
+    c.automated_processor = AutomatedProcessing.AutomatedProcessor(c.data_handler, c.image_hatcher, c.parser, gui)
+    return c
+
+
+def main():
+    setup_logging()
+    sys.excepthook = show_unhandled_exception
+    app = QtWidgets.QApplication(sys.argv)
+    theme.apply(app, Preferences.get("theme", "dark"))  # Atelier look (P11.3: dark / bright, remembered)
+
+    gui = create_main_window()
+    gui.setWindowTitle(f"BildHatcher - v{load_version()}")
 
     def close_confirm(event):
         reply = QtWidgets.QMessageBox.question(
@@ -82,27 +149,12 @@ if __name__ == "__main__":
             event.ignore()
 
     gui.closeEvent = close_confirm
-    
     gui.show()
-        
-    data_handler= DataHandling.DataHandler(gui)
-    event_handler = EventHandling.EventHandler(gui)
-    image_controller = ImageControlling.BaseFunctions(data_handler, gui)
-    image_sizer = ImageControlling.ImageMover(data_handler, event_handler, gui)
-    image_adjuster = ImageEditing.ImageAdjuster(data_handler, gui)
-    image_colorer = ImageEditing.ImageColorer(data_handler, event_handler, gui)
-    overlay_store = TextandGeometries.OverlayStore(gui.image_item)
-    overlay_manager = TextandGeometries.TextGeometryOverlayManager(data_handler, overlay_store, gui, event_handler)
 
-    # Setup Undo / Redo direct QActions on menubar and keyboard shortcuts (Ctrl+Z, Ctrl+Y)
-    menubar = getattr(gui, "menubar", None) or gui.menuBar()
-    if menubar and hasattr(data_handler, "undo_manager"):
-        data_handler.undo_manager.setup_menubar(menubar)
-
-    image_hatcher = NCDataGeneration.Hatcher(data_handler, gui)
-    hatch_line_plotter = Plotting.HatchLinePlotter(data_handler, gui)
-    test_structure = TestStructures.Teststructures(data_handler, gui)
-    parser = Parsing.Parser(data_handler,gui)
-    settings = Settings.Settings(gui)
-    autmated_processor = AutomatedProcessing.AutomatedProcessor(data_handler, image_hatcher, parser, gui)
+    components = create_components(gui)  # keep references alive for the app lifetime
+    components.panel = MainLayout.build(gui, components)  # P8.6/P8.7, P9.3-P9.5: toolbar and settings panel
     sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

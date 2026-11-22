@@ -2,14 +2,20 @@ from contextlib import nullcontext
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtCore import QRectF
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+import icons
+import theme
 import cv2
-from sklearn.cluster import KMeans
 import numpy as np
-import collections
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
 from HelperClasses import DBColorPalette
 import random
 from UndoRedo import ColorOverlayAction, ImprintColorOverlaysAction, ImageMatrixAction
+from core import fill, image_doc, palette
+import ColorProfile
+from Masks import MaskTools
+import logging
+
+log = logging.getLogger(__name__)
 
 class ImageAdjuster:
     def __init__(self, data_handler, gui):
@@ -18,15 +24,20 @@ class ImageAdjuster:
         self.undo_manager = getattr(data_handler, "undo_manager", None)
         self.image_matrix_base = None
         self.image_matrix_original = None
-        self.image_current = None
         self.inverted_colors = False
         self.last_adjustment = "None"
         self.sharpness_old = 0
         self.brightness_old = 0
         self.contrast_old = 0
         self.masked_pixels_list = []
-        self.dont_update = False 
-        self.pre_slider_matrix = None 
+        self.dont_update = False
+        self.pre_slider_matrix = None
+        self._last_output = None  # image array last written by this adjuster (B33)
+        # coalesce slider ticks: the full-resolution image is recomputed at most every 40 ms
+        self._slider_timer = QtCore.QTimer()
+        self._slider_timer.setSingleShot(True)
+        self._slider_timer.setInterval(40)
+        self._slider_timer.timeout.connect(self.update_bright_cont_sharp)
 
         self.data_handler.add_image_changed_callback(self.reset_cached_image)
 
@@ -56,7 +67,7 @@ class ImageAdjuster:
         self.sharpness_slider = gui.sharpness_slider
         self.sharpness_slider.setRange(-10, 10)
         self.sharpness_slider.setValue(0)
-        self.sharpness_slider.valueChanged.connect(self.update_bright_cont_sharp)
+        self.sharpness_slider.valueChanged.connect(self._slider_timer.start)
         self.sharpness_slider.sliderPressed.connect(self._on_slider_pressed)
         self.sharpness_slider.sliderReleased.connect(lambda: self._on_slider_released("Sharpness"))
 
@@ -65,7 +76,7 @@ class ImageAdjuster:
         self.brightness_slider = gui.brightness_slider
         self.brightness_slider.setRange(-100, 100)
         self.brightness_slider.setValue(0)
-        self.brightness_slider.valueChanged.connect(self.update_bright_cont_sharp)
+        self.brightness_slider.valueChanged.connect(self._slider_timer.start)
         self.brightness_slider.sliderPressed.connect(self._on_slider_pressed)
         self.brightness_slider.sliderReleased.connect(lambda: self._on_slider_released("Brightness"))
 
@@ -74,7 +85,7 @@ class ImageAdjuster:
         self.contrast_slider = gui.contrast_slider
         self.contrast_slider.setRange(-100, 100)
         self.contrast_slider.setValue(0)
-        self.contrast_slider.valueChanged.connect(self.update_bright_cont_sharp)
+        self.contrast_slider.valueChanged.connect(self._slider_timer.start)
         self.contrast_slider.sliderPressed.connect(self._on_slider_pressed)
         self.contrast_slider.sliderReleased.connect(lambda: self._on_slider_released("Contrast"))
 
@@ -93,6 +104,9 @@ class ImageAdjuster:
             self.pre_slider_matrix = self.data_handler.image_matrix.copy()
 
     def _on_slider_released(self, name):
+        if self._slider_timer.isActive():  # apply the final value before recording the undo step
+            self._slider_timer.stop()
+            self.update_bright_cont_sharp()
         if self.pre_slider_matrix is not None and self.data_handler.image_matrix is not None:
             post_matrix = self.data_handler.image_matrix.copy()
             if self.undo_manager and not np.array_equal(self.pre_slider_matrix, post_matrix):
@@ -109,42 +123,37 @@ class ImageAdjuster:
 
     ## METHODS
 
+    def _base(self, kind):
+        """Image the adjustment `kind` starts from (B33): its previous base as long as the current image is still
+        this adjuster's own last result of `kind` (moving a slider again, re-quantizing with another colour count);
+        otherwise the current image - so edits made in between are kept and nothing is applied twice."""
+        current = self.data_handler.image_matrix
+        if current is None:
+            self.image_matrix_base = None
+            return None
+        if not (self.last_adjustment == kind and current is self._last_output and self.image_matrix_base is not None):
+            self.image_matrix_base = current.copy()
+            if kind == "brightness":
+                # the new base already contains the effect of all sliders that were not moved now -> show them at 0
+                for slider, attr in ((self.sharpness_slider, "sharpness_old"), (self.brightness_slider, "brightness_old"),
+                                     (self.contrast_slider, "contrast_old")):
+                    if slider.value() == getattr(self, attr):
+                        slider.blockSignals(True)
+                        slider.setValue(0)
+                        slider.blockSignals(False)
+                        setattr(self, attr, 0)
+        return self.image_matrix_base
+
+    def _write(self, kind, image):
+        self.set_handler_data(image)
+        self.last_adjustment = kind
+        self._last_output = self.data_handler.image_matrix
+
     def reset_cached_image(self):
         """Invalidate adjustment state when a different image becomes active."""
         self.image_matrix_base = None
         self.image_matrix_original = None
-        self.image_current = None
         self.last_adjustment = "None"
-
-    def update_current_image(self, *args):
-        self.get_handler_data()
-        if self.image_matrix_base is None:
-            return
-        try:
-            # Ensure the color count is a valid integer
-            num_colors = self.color_count_spinbox.value()
-            if num_colors > 256:
-                self.color_count_spinbox.setValue(256)
-            if num_colors <= 0:
-                return  # Invalid number of colors; do not proceed
-        except ValueError:
-            return  # Non-integer input; do not proceed
-        
-        # Always start with original image and do masking first
-        self.image_current = Image.fromarray(self.image_matrix_base.copy())
-
-        # Apply adjustments first
-        self.image_current = self.update_bright_cont_sharp()
-
-        # Apply image quantization
-        self.image_current = self.quantize_image_color()
-
-        # Invert image colors if active
-        if self.inverted_colors:
-            self.image_current = Image.eval(self.image_current, lambda x: 255 - x)
-        
-        # Update image data in handler
-        self.set_handler_data(np.array(self.image_current))
 
     def update_bright_cont_sharp(self):
         """Apply sharpening and brightness adjustments based on slider values."""
@@ -152,16 +161,10 @@ class ImageAdjuster:
         if self.dont_update:
             return
 
-        #only get new image if last adjustment was not brightness
-        if self.last_adjustment == "brightness":
-            pass
-        else:
-            self.get_handler_data()
-        if self.image_matrix_base is None:
+        if self._base("brightness") is None:
             return
-        else:
-            image = Image.fromarray(self.image_matrix_base.copy())
-        
+        image = Image.fromarray(image_doc.rgb_filled(self.image_matrix_base))
+
         try:
             # Apply sharpening/blurring
             sharpness_value = self.sharpness_slider.value()
@@ -184,13 +187,10 @@ class ImageAdjuster:
             image = enhancer_contrast.enhance(contrast_factor)
             self.contrast_old = contrast_value
 
-            # Update the last adjustment type and return
-            self.last_adjustment = "brightness"
-            self.set_handler_data(np.array(image))
+            self._write("brightness", image_doc.with_rgb(self.image_matrix_base, np.array(image)))
 
-        except Exception as e:
-            print(f"Error applying adjustments: {e}")
-
+        except Exception:
+            log.exception("Error applying adjustments")
     def quantize_image_color(self):
 
         if self.dont_update:
@@ -212,15 +212,14 @@ class ImageAdjuster:
         except ValueError:
             return  # Non-integer input; do not proceed
         
-        if self.last_adjustment == "quantize":
-            pass
-        else:
-            self.get_handler_data()
-        if self.image_matrix_base is None:
+        if self._base("quantize") is None:
             return
-        else:
-            image = Image.fromarray(self.image_matrix_base.copy())
-        
+        opaque = image_doc.opaque_mask(self.image_matrix_base)
+        if not opaque.any():
+            return
+        # all opaque pixels as a 1 x N image, so every quantizer only sees real colours
+        image = Image.fromarray(self.image_matrix_base[opaque][None, :, :3])
+
         try:
             num_colors = self.color_count_spinbox.value()
             quantize_method = self.quantize_method_combobox.currentText()
@@ -228,14 +227,8 @@ class ImageAdjuster:
                 image_matrix = np.array(image)
                 # Flatten the image into a list of pixels
                 pixels = image_matrix.reshape((-1, 3))
-                 # Cluster pixels into dominant colors
-                kmeans = KMeans(n_clusters=num_colors, random_state=42, n_init='auto')
-                kmeans.fit(pixels)
-                new_colors = kmeans.cluster_centers_.astype("uint8")
-                labels = kmeans.labels_
-
-                # Recreate the image using the new colors
-                simplified_image = new_colors[labels].reshape(image_matrix.shape)
+                # P6.2/P8.2: k-means on the distinct colours (weighted by count) in the perceptual CIELAB space
+                simplified_image = palette.kmeans_quantize(pixels, num_colors).reshape(image_matrix.shape)
                 image = Image.fromarray(simplified_image)
 
             elif quantize_method == "GRAYSCALE":
@@ -250,13 +243,12 @@ class ImageAdjuster:
                 image = image.quantize(colors=num_colors, method=quantize_method)
                 image = image.convert('RGB')  # Convert back to RGB for display
 
-            # Update the last adjustment type and return the quantized image
-            self.last_adjustment = "quantize"
-            self.set_handler_data(np.array(image))
+            result = self.image_matrix_base.copy()
+            result[opaque, :3] = np.array(image)[0]
+            self._write("quantize", result)
 
-        except Exception as e:
-            print(f"Error changing color scheme: {e}")
-    
+        except Exception:
+            log.exception("Error changing color scheme")
     def convolute_image(self, median_blur=5, sigma_color=100, sigma_space=100):
 
         """
@@ -264,14 +256,9 @@ class ImageAdjuster:
         """
         ctx = self.undo_manager.record_image_matrix("Convolute Image") if self.undo_manager else nullcontext()
         with ctx:
-            if self.last_adjustment == "convoluted":
-                pass
-            else:
-                self.get_handler_data()
-            if self.image_matrix_base is None:
+            if self._base("convoluted") is None:
                 return
-            else:
-                image_matrix = self.image_matrix_base.copy()
+            image_matrix = self.image_matrix_base.copy()
 
             # Show warning if median_blur is not odd
             if median_blur % 2 == 0:
@@ -281,35 +268,25 @@ class ImageAdjuster:
                 )
                 return
             
-            # Ensure the input image is in the right format
-            if image_matrix.shape[2] == 3 and image_matrix.dtype != np.uint8:
-                image_matrix = image_matrix.astype(np.uint8)
-
-            # Apply edge-preserving smoothing
-            smoothed = cv2.bilateralFilter(image_matrix, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
+            # Apply edge-preserving smoothing (on RGB with white background, alpha is kept)
+            smoothed = cv2.bilateralFilter(image_doc.rgb_filled(image_matrix), d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
 
             # Optional extra smoothing to reduce small pixel noise
             smoothed = cv2.medianBlur(smoothed, median_blur)
 
-            # Convert to PIL image for return
-            #return Image.fromarray(simplified_image)
-            self.last_adjustment = "convoluted"
-            self.set_handler_data(smoothed)
+            self._write("convoluted", image_doc.with_rgb(image_matrix, smoothed))
 
     def invert_colors(self):
         try:
             ctx = self.undo_manager.record_image_matrix("Invert Colors") if self.undo_manager else nullcontext()
             with ctx:
                 self.inverted_colors = not self.inverted_colors
-                if self.image_current is None and self.data_handler.image_matrix is not None:
-                    self.image_current = Image.fromarray(self.data_handler.image_matrix.copy())
-                if self.image_current is not None:
-                    self.image_current = Image.eval(self.image_current, lambda x: 255 - x)
+                image = self.data_handler.image_matrix
+                if image is not None:
                     self.last_adjustment = "invert"
-                    self.set_handler_data(np.array(self.image_current))
-        except Exception as e:
-            print(f"Error inverting colors: {e}")
-    
+                    self.set_handler_data(image_doc.with_rgb(image, 255 - image[..., :3]))
+        except Exception:
+            log.exception("Error inverting colors")
     def restore_original_color(self):
         try:
             ctx = self.undo_manager.record_image_matrix("Restore Colors") if self.undo_manager else nullcontext()
@@ -338,20 +315,15 @@ class ImageAdjuster:
 
                 self.dont_update = False  # Prevents unnecessary updates during restoration
 
-        except Exception as e:
-            print(f"Error restoring original color: {e}")
-
+        except Exception:
+            log.exception("Error restoring original color")
     def set_handler_data(self, image_matrix):
         self.data_handler.image_matrix= image_matrix
-
-    def get_handler_data(self):
-        self.image_matrix_base = self.data_handler.image_matrix.copy()
 
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import cv2
 import numpy as np
-import collections
 from PyQt6.QtCore import QRect, QRectF
 from PyQt6.QtGui import (QImage, QPixmap, QPainter, QPen, QColor, 
                          QPainterPath, QBrush)
@@ -361,7 +333,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QLabel, QSlider)
 from PyQt6.QtCore import Qt, QPointF
 
-class ImageColorer(QtCore.QObject):
+class ImageColorer(MaskTools, QtCore.QObject):
     
     def __init__(self, data_handler, event_handler, gui):
         super().__init__()  # Call the superclass constructor
@@ -369,12 +341,13 @@ class ImageColorer(QtCore.QObject):
         self.event_handler = event_handler
         self.gui = gui
         self.undo_manager = getattr(data_handler, "undo_manager", None)
-        self.active_color = [255, 255, 255]
+        self.active_color = [255, 255, 255, 255]  # RGBA, alpha 0 = transparent (erases)
+        self.state_callbacks = []  # P9.10: called after the active tool or colour changed (toolbar indicator)
 
         #Flags and variables for contouring
         self.contours_visible = False
         self.contours_list = []
-        self.contour_pixels = []
+        self.contour_mask = None  # bool (H, W): pixels of the last found contours
         self.contour_overlay_item = None
 
         # toggle flags for coloring and masking
@@ -384,15 +357,6 @@ class ImageColorer(QtCore.QObject):
         self.replace_color_on = False
         self.mask_drawing_on = False
 
-        # Mask Moving functionality
-        self.move_mask_on = False
-        self.detached_mask_index = -1  # Tracks which mask is currently floating
-        self.moving_mask_item = None
-        self.white_cutout_item = None
-        
-        self.mask_drag_start_canvas = None
-        self.moving_item_start_pos = None
-        self.mask_boundary_start_pos = None
 
         #Setup for pixel drawing
         self.pen_size = 1 # 1 pixel width
@@ -423,7 +387,7 @@ class ImageColorer(QtCore.QObject):
         self.flood_fill_mode_combobox = gui.flood_fill_mode_combobox
         self.fill_options_grid_layout = gui.fill_options_grid_layout
         self.flood_fill_parameter_value = 0
-        self.limit_color = [0, 0, 0]
+        self.limit_color = [0, 0, 0, 255]
         self.limit_color_choose_on = False
         self.limit_color_source_dropdown = None
         self.limit_color_indicator = None
@@ -457,19 +421,18 @@ class ImageColorer(QtCore.QObject):
         self.restore_uncolored_image_button = gui.restore_uncolored_image_button
         self.restore_uncolored_image_button.clicked.connect(self.restore_uncolored_image)
 
-        self.undo_color_button = gui.undo_color_button
-        self.undo_color_button.clicked.connect(self.undo_coloring)
-
         #Add button to imprint color edits
         self.imprint_color_overlays_button = gui.imprint_color_overlays_button
         self.imprint_color_overlays_button.clicked.connect(self.imprint_color_overlays)
 
         # Add Show Contours toggle button
         self.draw_contour_button = gui.draw_contour_button
+        self.draw_contour_button.setCheckable(True)  # P9.7: checked while the contours are shown
         self.draw_contour_button.clicked.connect(self.toggle_contours)
 
         #Add combobox for contour mode
         self.contouring_mode_combobox = gui.contouring_mode_combobox
+        self.contouring_mode_combobox.addItem("color regions")  # P6.7
         self.contouring_mode_combobox.currentTextChanged.connect(self.find_image_contours)
 
         #Add spinbox for contour sensitivity
@@ -488,80 +451,24 @@ class ImageColorer(QtCore.QObject):
         self.contour_space_spinbox.setValue(1)
         self.contour_space_spinbox.valueChanged.connect(self.find_image_contours)
 
-        # Add button and labels for database recoloring
+        # database recolouring with the active colour profile (P8.5; P9.7: the profile is named in the tooltip)
         self.recolor_from_database_button = gui.recolor_from_database_button
         self.recolor_from_database_button.clicked.connect(self.recolor_color_from_db)
-        self.recolor_laser_label = gui.recolor_laser_label
-        self.recolor_material_label = gui.recolor_material_label
-        self.recolor_type_label = gui.recolor_type_label
+        self.data_handler.color_profiles.callbacks.append(self.show_color_profile)
+        self.show_color_profile(self.data_handler.color_profile)
 
         # Add button to clean up image colors
         self.clean_up_image_colors_button = gui.clean_up_image_colors_button
         self.clean_up_image_colors_button.clicked.connect(self.clean_up_image_colors)
 
-        # Add mask drawing functionality
-        self.mask_drawing_on = False
-        self.mask_shape_mode = "rectangle"  # Can be "rectangle", "ellipse", or "polygon"
-        self.data_handler.masks_list = []  # List of mask matrices
-        self.data_handler.mask_info = []  # List storing mask type and coordinates: [{'type': 'rectangle', 'coords': (x1, y1, x2, y2)}, ...]
-        self.mask_start_point_scene = None
-        self.mask_obj = None
-        self.current_mask_overlay_item = None
-        self.polygon_points = []  # List of points for polygon drawing
-        self.polygon_preview_item = None  # Current polygon preview
-        
-        # Mask editing functionality
-        self.editing_mask_index = -1  # Index of the mask being edited
-        self.edit_handles = []  # List of QGraphicsEllipseItem handles for resizing
-        self.dragging_handle = None  # Current handle being dragged
-        self.mask_edit_mode = False  # Whether we're in mask edit mode
+        self._init_masks(gui)  # P8.4: mask state and buttons (Masks.py)
 
-        # Buttons to toggle mask drawing mode for different shapes
-        self.rectangle_mask_button = gui.rectangle_mask_button
-        self.rectangle_mask_button.clicked.connect(lambda: self.set_single_toggle_state('mask_drawing_on'))
-        
-        self.ellipse_mask_button = gui.ellipse_mask_button
-        self.ellipse_mask_button.clicked.connect(lambda: self.set_single_toggle_state('mask_drawing_on'))
-            
-        self.polygon_mask_button = gui.polygon_mask_button
-        self.polygon_mask_button.clicked.connect(lambda: self.set_single_toggle_state('mask_drawing_on'))
-        self.polygon_mask_button.toggled.connect(self.finish_polygon_mask)
-        
-        # Button to delete selected mask
-        self.delete_mask_button = gui.delete_mask_button
-        self.delete_mask_button.clicked.connect(self.delete_selected_mask)
-        
-        # Button to save selected mask
-        self.save_mask_button = gui.save_mask_button
-        self.save_mask_button.clicked.connect(self.save_selected_mask)
-        
-        # Button to clear all masks
-        self.delete_all_masks_button = gui.delete_all_masks_button
-        self.delete_all_masks_button.clicked.connect(self.delete_all_masks)
-        
-        # Button to edit masks
-        self.edit_mask_button = gui.edit_mask_button
-        self.edit_mask_button.clicked.connect(lambda: self.set_single_toggle_state('mask_edit_mode'))
-
-        #Button to deselect mask 
-        self.unselect_mask_button = gui.unselect_mask_button
-        self.unselect_mask_button.clicked.connect(self.deselect_mask)
-
-        #Button to move masked area
-        self.move_masked_area_button = gui.move_masked_area_button
-        self.move_masked_area_button.clicked.connect(lambda: self.set_single_toggle_state('move_mask_on'))
-        
-        # List widget to display masks
-        self.masks_list_widget = gui.masks_list_widget
-        self.masks_list_widget.itemSelectionChanged.connect(self.on_mask_selected)
-
-        # Ensure all image editing is disabled when switching to another tab
-        control_tabWidget = gui.control_tabWidget
-        control_tabWidget.currentChanged.connect(lambda: self.set_single_toggle_state(''))  # Passing empty string to only reset states
 
         #Event callbacks for handling gui interactions
         self.event_handler.add_canvas_event_callback(self.trigger_canvas_event)
         self.event_handler.add_global_event_callback(self.trigger_global_event)
+        self.data_handler.image_shape_changed_callback_list.append(self.reset_masks)  # B17
+        self.data_handler.add_image_resized_callback(self.refresh_mask_outlines)  # B17: pixel size changed
 
 
     #### UI SETUP METHODS ####
@@ -604,6 +511,15 @@ class ImageColorer(QtCore.QObject):
             
             # Add the button to the layout
             self.default_color_buttons_layout.addWidget(btn, row, col)
+
+        transparent_btn = QtWidgets.QPushButton(objectName="transparent_color_button")
+        transparent_btn.setProperty("styleClass", "IconButton")
+        icons.set_icon(transparent_btn, "transparent", size=18,
+                       tooltip="Transparent: painted / filled areas become background and are not hatched")
+        transparent_btn.setFixedHeight(25)
+        theme.on_change(lambda: transparent_btn.setIcon(icons.icon("transparent")))  # P11.3
+        transparent_btn.clicked.connect(lambda checked: self.set_active_color(list(image_doc.TRANSPARENT)))
+        self.default_color_buttons_layout.addWidget(transparent_btn, 3, 0, 1, 3)
     
     ### EVENT HANDLING METHODS ###
 
@@ -634,6 +550,7 @@ class ImageColorer(QtCore.QObject):
             color = self.choose_color(event)
             self.pick_color_from_image_button.setChecked(False)
             self.gui.image_canvas.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+            self._notify_state()  # P9.10: pick mode ended
             if color is not None:
                 self.set_active_color(color)
         elif self.limit_color_choose_on:
@@ -770,9 +687,10 @@ class ImageColorer(QtCore.QObject):
             if self.mask_edit_mode == False:
                 self.clear_edit_handles()
                     
-        except Exception as e:
-            print(f"Error in set_single_toggle_state: {e}")
-
+        except Exception:
+            log.exception("Error in set_single_toggle_state")
+        finally:
+            self._notify_state()
     #### SELECT COLOR METHODS ####
 
     def select_color(self):
@@ -783,6 +701,10 @@ class ImageColorer(QtCore.QObject):
         return None
 
     def select_color_from_db(self):
+        """A colour of the active colour profile (P8.5); without one, browse the whole database."""
+        palette = self.data_handler.color_profile
+        if palette is not None:
+            return ColorProfile.pick_color_dialog(self.gui, palette)
         selected_color = {'value': None}
 
         def on_color_received(color_data):
@@ -820,23 +742,59 @@ class ImageColorer(QtCore.QObject):
 
         selected_color = None
         if 0 <= x_img < width_px and 0 <= y_img < height_px:
-            r, g, b = image_matrix[y_img, x_img]
-            selected_color = [int(r), int(g), int(b)]
+            selected_color = [int(v) for v in image_matrix[y_img, x_img]]
 
         # Disable pick mode after one pick
         self.choose_color_on = False
         return selected_color
 
     def set_active_color(self, color_list):
-        self.active_color = color_list
-        self.pixel_pen.setColor(QColor(*self.active_color))
-        
+        """color_list: [r, g, b] or [r, g, b, a]; a == 0 selects the transparent colour (eraser)."""
+        self.active_color = [int(v) for v in color_list] + [255] * (4 - len(color_list))
+        if self.active_color[3] == 0:
+            self.active_color = list(image_doc.TRANSPARENT)
+            self.pixel_pen.setBrush(QBrush(QPixmap.fromImage(self._checker_qimage(8, 8))))
+            self.active_color_dislplay_edit.setText("Transparent")
+            self.active_color_dislplay_edit.setStyleSheet("color: black; background-color: white")
+            self._notify_state()
+            return
+        self.pixel_pen.setColor(QColor(*self.active_color[:3]))
+
         #show chosen color in the color display
-        color = QtGui.QColor(*self.active_color)
+        color = QtGui.QColor(*self.active_color[:3])
         opposite_color = QtGui.QColor(255 - color.red(), 255 - color.green(), 255 - color.blue())
         color_string = f"R{color.red()}, G{color.green()}, B{color.blue()}"
         self.active_color_dislplay_edit.setText(color_string)
         self.active_color_dislplay_edit.setStyleSheet(f"color: {opposite_color.name()}; background-color: {color.name()}")
+        self._notify_state()
+
+    def _notify_state(self):
+        for callback in self.state_callbacks:
+            callback()
+
+    @property
+    def active_tool(self):
+        """Name of the active canvas tool (P9.10), '' if none."""
+        for flag, name in (("color_drawing_on", "Draw"), ("flood_fill_color_on", "Fill"),
+                           ("replace_color_on", "Replace"), ("choose_color_on", "Pick"),
+                           ("mask_drawing_on", "Mask"), ("mask_edit_mode", "Mask"), ("move_mask_on", "Mask")):
+            if getattr(self, flag, False):
+                return name
+        return ""
+
+    @property
+    def erasing(self):
+        return self.active_color[3] == 0
+
+    @staticmethod
+    def _checker_rgba(h, w):
+        """Light checkerboard (4 px squares): the look of 'will become transparent'."""
+        yy, xx = np.indices((h, w))
+        gray = np.where(((yy // 4) + (xx // 4)) % 2 == 0, 255, 204).astype(np.uint8)
+        return np.dstack([gray, gray, gray, np.full((h, w), 255, np.uint8)])
+
+    def _checker_qimage(self, h, w):
+        return QImage(np.ascontiguousarray(self._checker_rgba(h, w)).data, w, h, QImage.Format.Format_RGBA8888).copy()
 
     def set_limit_color(self, color_list):
         self.limit_color = color_list
@@ -845,7 +803,7 @@ class ImageColorer(QtCore.QObject):
     def update_limit_color_indicator(self):
         if self.limit_color_indicator is None:
             return
-        r, g, b = self.limit_color
+        r, g, b = self.limit_color[:3]
         style = f"background-color: rgb({r}, {g}, {b}); border: 1px solid #444;"
         self.limit_color_indicator.setStyleSheet(style)
 
@@ -885,14 +843,15 @@ class ImageColorer(QtCore.QObject):
         self.fill_option_spinbox.setMaximum(255)
         self.fill_option_spinbox.setValue(self.flood_fill_parameter_value)
         self.fill_option_spinbox.valueChanged.connect(self.on_fill_parameter_changed)
-        self.fill_options_grid_layout.addWidget(self.fill_option_label, 0, 0)
-        self.fill_options_grid_layout.addWidget(self.fill_option_spinbox, 1, 0)
+        self.fill_options_grid_layout.addWidget(self.fill_option_label, 0, 0)  # P9.7: one row, no resizing
+        self.fill_options_grid_layout.addWidget(self.fill_option_spinbox, 0, 1)
+        self.fill_options_grid_layout.setColumnStretch(1, 1)
 
     def on_fill_parameter_changed(self, value):
         self.flood_fill_parameter_value = value
 
     def show_to_color_options(self):
-        label = QtWidgets.QLabel("Pick Limit color")
+        label = QtWidgets.QLabel("Limit color")
         label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         combo = QtWidgets.QComboBox()
         combo.addItem("Choose source...")
@@ -942,7 +901,7 @@ class ImageColorer(QtCore.QObject):
             return [int(hex_string[i:i+2], 16) for i in (0, 2, 4)]
 
         def on_palette_color(chosen_color):
-            self.set_limit_color(chosen_color)
+            self.set_limit_color(chosen_color + [255])
             dialog.accept()
             if self.limit_color_source_dropdown is not None:
                 self.limit_color_source_dropdown.setCurrentIndex(0)
@@ -958,20 +917,11 @@ class ImageColorer(QtCore.QObject):
         dialog.exec()
 
     def prompt_limit_color_from_db(self):
-        def on_color_received(color_data):
-            color_string = color_data['color_rgb']
-            self.set_limit_color([int(c) for c in color_string.split(',')])
-            if self.limit_color_source_dropdown is not None:
-                self.limit_color_source_dropdown.setCurrentIndex(0)
-
-        dialog = QtWidgets.QDialog(self.gui)
-        dialog.setWindowTitle("Select Limit Color")
-        layout = QtWidgets.QVBoxLayout(dialog)
-        navigator = DatabaseNavigatorWidget(mode=NavigatorMode.SELECT_COLOR, parent=dialog)
-        navigator.selection_button_box.rejected.connect(dialog.reject)
-        navigator.colorSelected.connect(on_color_received)
-        layout.addWidget(navigator)
-        dialog.exec()
+        color = self.select_color_from_db()
+        if color is not None:
+            self.set_limit_color(color + [255])
+        if self.limit_color_source_dropdown is not None:
+            self.limit_color_source_dropdown.setCurrentIndex(0)
 
     def choose_limit_color(self, event):
         image_matrix = self.data_handler.image_matrix
@@ -985,8 +935,7 @@ class ImageColorer(QtCore.QObject):
         x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
 
         if 0 <= x_img < width_px and 0 <= y_img < height_px:
-            r, g, b = image_matrix[y_img, x_img]
-            self.set_limit_color([int(r), int(g), int(b)])
+            self.set_limit_color([int(v) for v in image_matrix[y_img, x_img]])
 
         self.limit_color_choose_on = False
         if self.limit_color_source_dropdown is not None:
@@ -1022,6 +971,7 @@ class ImageColorer(QtCore.QObject):
         #add as Children of the image item so they move with it and are clipped to its shape
         self.temp_path_item = QGraphicsPathItem(self.current_path, self.gui.image_item)
         self.temp_path_item.setPen(self.pixel_pen)
+        self.temp_path_item.erases = self.erasing
         self.temp_path_item.setZValue(10) # Layer above image
         
         # self.gui.image_scene.addItem(self.temp_path_item)
@@ -1054,188 +1004,38 @@ class ImageColorer(QtCore.QObject):
             self.current_path = None
 
     def flood_fill(self, event, mode = "Regular"):
-        """
-        Flood-fill adapted for overlay logic.
-        event_pos: QPointF (Scene Coordinates)
-        """
-        # 1. Get data
-        # image_matrix = self._get_image_matrix() # This is RGBA
+        """Flood fill from the clicked pixel; the result becomes a colour overlay (imprinted later)."""
         image_matrix = self.data_handler.image_matrix
-        if image_matrix is None: return
+        if image_matrix is None:
+            return
+        x_image, y_image = self.data_handler.canvas_to_image_coords(event.position().x(), event.position().y())
+        self.flood_fill_at(x_image, y_image, mode)
 
+    def flood_fill_at(self, x_image, y_image, mode="Regular"):
+        image_matrix = self.data_handler.image_matrix
         h, w = image_matrix.shape[:2]
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
+        if not (0 <= x_image < w and 0 <= y_image < h):
+            return
+        if np.array_equal(image_matrix[y_image, x_image], self.active_color):
+            return  # already the fill colour
 
-        # Bounds Check
-        x_image, y_image = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
-        if not (0 <= x_image < w and 0 <= y_image < h): return
-
-        # Compare colors (comparison must be in the same color space)
-        # We assume image_matrix is RGBA
-        target_color = image_matrix[y_image, x_image].copy() 
-        fill_color_arr = np.array([self.active_color[0], self.active_color[1], self.active_color[2]], dtype=np.uint8)
-        
-        # Abort if color is equal (tolerance could be added here)
-        if np.array_equal(target_color, fill_color_arr): return
-
-        #2. see if there are any masks and if the clicked pixel is inside one
-        active_mask = None
-        mask_matrix = np.full(image_matrix.shape, -1, dtype=np.int16)  # use signed sentinel so white pixels do not collide with invalid marker
-        for color_mask in self.data_handler.masks_list:
-            # if np.isnan(mask[y_img, x_img][0])==False:
-            if color_mask[y_image, x_image] == 1:
-                # Clicked inside a mask, do not replace color
-                active_mask = color_mask
-                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
+        # the fill stays inside the clicked mask, or outside of all masks if clicked on the background
+        region = None
+        for mask in self.data_handler.masks_list:
+            if mask[y_image, x_image] == 1:
+                region = mask == 1
                 break
-
-        if active_mask is None:
+        else:
             if self.data_handler.masks_list:
-                active_mask = self.get_background_mask()
-                mask_matrix[active_mask == 1] = image_matrix[active_mask == 1]
-            else:
-                mask_matrix = image_matrix
+                region = self.get_background_mask() == 1
 
-        # 3. BFS Algorithm (Numpy optimization is difficult for flood fill, so use Queue)
-        # For extremely large images: skimage.segmentation.flood_fill would be faster,
-        # but here we stick with pure Python/Numpy standard.
-        # Decide which pixels are detected as being connected depending on the mode
-        
-        color_mask = np.zeros((h, w), dtype=bool)
-        queue = collections.deque([(y_image, x_image)])
-        visited = set([(y_image, x_image)])
-        tolerance = self.flood_fill_parameter_value
-        
+        color_mask = fill.fill_region(
+            image_matrix, (x_image, y_image), mode, tolerance=self.flood_fill_parameter_value,
+            fill_color=self.active_color, limit_color=self.limit_color, region=region, contour_mask=self.contour_mask)
 
-
-        if mode == "Regular":
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                # Check neighbors
-                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w:
-                        if (ny, nx) not in visited:
-                            # Check pixel color
-                            if np.array_equal(mask_matrix[ny, nx][:3], target_color):
-                                visited.add((ny, nx))
-                                queue.append((ny, nx))
-
-        elif mode == "Include Diagonals":
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                # Check 8 neighbors
-                for dy in [-1, 0, 1]:
-                    for dx in [-1, 0, 1]:
-                        if dy == 0 and dx == 0:
-                            continue
-                        ny, nx = cy + dy, cx + dx
-                        if 0 <= ny < h and 0 <= nx < w:
-                            if (ny, nx) not in visited:
-                                if np.array_equal(mask_matrix[ny, nx][:3], target_color):
-                                    visited.add((ny, nx))
-                                    queue.append((ny, nx))
-        
-        elif mode == "Similar Color":
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w:
-                        if (ny, nx) not in visited:
-                            color_diff = np.linalg.norm(mask_matrix[ny, nx][:3] - target_color)
-                            if color_diff <= tolerance:
-                                visited.add((ny, nx))
-                                queue.append((ny, nx))
-        
-        elif mode == "Diagonals + Similar":
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                for dy in [-1, 0, 1]:
-                    for dx in [-1, 0, 1]:
-                        if dy == 0 and dx == 0:
-                            continue
-                        ny, nx = cy + dy, cx + dx
-                        if 0 <= ny < h and 0 <= nx < w:
-                            if (ny, nx) not in visited:
-                                color_diff = np.linalg.norm(mask_matrix[ny, nx][:3] - target_color)
-                                if color_diff <= tolerance:
-                                    visited.add((ny, nx))
-                                    queue.append((ny, nx))
-        
-        elif mode == "To Contours":
-            # fill all pixels until hitting a contour 
-            if len(self.contour_pixels)<1:
-                return  # No contours, so dont do anything
-            # Pre-mark all contour pixels as visited to act as boundaries
-            for point in self.contour_pixels:
-                cx, cy = point[0], point[1]
-                if 0 <= cy < h and 0 <= cx < w:
-                    visited.add((cy, cx))
-                
-            
-            # Process the queue with contour boundary check
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                
-                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w:
-                        if (ny, nx) not in visited:
-                            visited.add((ny, nx))
-                            queue.append((ny, nx))
-        elif mode == "To Color":
-            # fill all pixels until hitting a defined input color limit_color (r, g, b)
-            limit_color = self.limit_color
-            if np.array_equal(target_color, limit_color):
-                return  # No need to fill if the target color is the same as the limit color
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                # Check neighbors
-                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w:
-                        if (ny, nx) not in visited:
-                            # Check pixel color
-                            if not np.array_equal(mask_matrix[ny, nx][:3], limit_color):
-                                visited.add((ny, nx))
-                                queue.append((ny, nx))
-        
-        elif mode == "Fill Lines":
-            #fill all colors that match the selected color AND have a matching color with the active color within R pixels distance
-            radius = tolerance
-            while queue:
-                cy, cx = queue.popleft()
-                color_mask[cy, cx] = True
-                # Check neighbors
-                for dy, dx in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w:
-                        if (ny, nx) not in visited:
-                            # Check pixel color
-                            if np.array_equal(mask_matrix[ny, nx][:3], target_color):
-                                for ry in range(-radius, radius+1):
-                                    for rx in range(-radius, radius+1):
-                                        check_y, check_x = ny + ry, nx + rx
-                                        if 0 <= check_y < h and 0 <= check_x < w:
-                                            if np.array_equal(mask_matrix[check_y, check_x][:3], fill_color_arr):
-                                                visited.add((ny, nx))
-                                                queue.append((ny, nx))
-
-
-        # 34. Create overlay and add to stack
+        # create overlay and add to stack
         if np.any(color_mask):
             overlay_item = self._create_overlay_from_mask(color_mask)
-            # # Position overlay at same location as main image to account for panning
-            # overlay_item.setPos(self.gui.image_item.pos())
-            # self.gui.image_scene.addItem(overlay_item)
             self.data_handler.active_color_overlays.append(overlay_item) # Add to undo stack
             if self.undo_manager:
                 action = ColorOverlayAction(
@@ -1286,7 +1086,7 @@ class ImageColorer(QtCore.QObject):
         # Create color_mask: which pixels are equal to the target color?
         # np.all checks over the last axis (Color Channels)
         # We compare only the first 3 channels (RGB), ignoring alpha
-        color_mask = np.all(mask_matrix[:, :, :3] == target_color, axis=2)
+        color_mask = np.all(mask_matrix == target_color, axis=2)
 
         # Create overlay
         if np.any(color_mask):
@@ -1301,60 +1101,42 @@ class ImageColorer(QtCore.QObject):
                 )
                 self.undo_manager.push_action(action)
 
+    def show_color_profile(self, palette):
+        from ColorProfile import profile_name
+        self.recolor_from_database_button.setToolTip(
+            f"Recolor with the colors of the active color profile ({profile_name(palette)})")
+
     def recolor_color_from_db(self):
-        def on_profile_received(data):
-            if data is not None:
-                ids = data['identifiers']
-                self.db_color_palette = DBColorPalette(data['parameters'], data['settings'])
-                self.recolor_laser_label.setText(f"<b> {ids['laser']['name']} </b>")
-                self.recolor_material_label.setText(f"<b> {ids['material']['name']} </b>")
-                self.recolor_type_label.setText(f"<b> {ids['material_type']['name']} </b>")
+        """Recolour the image with the colours of the active colour profile (P8.5; asked for if none is set)."""
+        if self.data_handler.image_matrix is None:
+            return
+        palette = self.data_handler.color_profiles.require()
+        if palette is None:  # B14: no profile chosen
+            return
 
-
-        dialog = QtWidgets.QDialog()
-        dialog.setWindowTitle("Select Profile")
-        layout = QtWidgets.QVBoxLayout(dialog)
-        navigator=DatabaseNavigatorWidget(NavigatorMode.SELECT_PROFILE,parent=dialog)
-        navigator.selection_button_box.rejected.connect(dialog.reject)
-        navigator.profileSelected.connect(on_profile_received)
-        layout.addWidget(navigator)
-        dialog.exec()
-
-        color_list = self.db_color_palette.get_color_list()
+        color_list = palette.get_color_list()
         if not color_list:
-            print("No colors available in the database.")
+            log.error("No colors available in the database.")
             return
         
-        # Recolor the entire image
+        # Recolor all opaque pixels; transparent pixels stay transparent (alpha of the overlay = alpha of the image)
         image_matrix = self.data_handler.image_matrix.copy()
-        pixels = image_matrix.reshape(-1, 3)  # (num_pixels, 3)
+        pixels = image_matrix[..., :3].reshape(-1, 3)  # (num_pixels, 3)
         palette = np.stack(color_list)        # (num_palette, 3)
 
-        # Compute squared distances: (num_pixels, num_palette)
-        dists = np.sum((pixels[:, None, :] - palette[None, :, :]) ** 2, axis=2)
-
-        # Find the index of the closest palette color for each pixel
-        closest = np.argmin(dists, axis=1)  # (num_pixels,)
+        # B14: match only the unique colours (pixels x palette x 3 could exhaust memory)
+        unique_colors, inverse = np.unique(pixels, axis=0, return_inverse=True)
+        dists = np.sum((unique_colors[:, None, :].astype(np.int64) - palette[None, :, :]) ** 2, axis=2)
+        closest = np.argmin(dists, axis=1)  # (num_unique,)
 
         # Map each pixel to its closest palette color
-        recolored_pixels = palette[closest]  # (num_pixels, 3)
+        recolored_pixels = palette[closest][inverse.reshape(-1)]  # (num_pixels, 3)
 
         # Reshape back to image
-        recolored_image = recolored_pixels.reshape(image_matrix.shape)
-        recolored_image = recolored_image.astype(np.uint8)
+        recolored_image = image_doc.with_rgb(image_matrix, recolored_pixels.reshape(image_matrix.shape[:2] + (3,)))
 
         h, w = recolored_image.shape[:2]
-        
-        # Convert to QImage
-        # Assumption: new_image_matrix is uint8 RGB or RGBA
-        if recolored_image.shape[2] == 3:
-            fmt = QImage.Format.Format_RGB888
-            bytes_per_line = w * 3
-        else:
-            fmt = QImage.Format.Format_RGBA8888
-            bytes_per_line = w * 4
-            
-        img = QImage(recolored_image.data, w, h, bytes_per_line, fmt)
+        img = QImage(recolored_image.data, w, h, w * 4, QImage.Format.Format_RGBA8888)
         img = img.copy() # Important: data copy
         
         # This is not a transparent overlay, but a completely new image
@@ -1378,18 +1160,21 @@ class ImageColorer(QtCore.QObject):
         """
         Efficiently converts a boolean mask (H, W) into a QGraphicsPixmapItem overlay.
         """
+        # P6.5: the pixmap only covers the bounding box of the mask (placed there via setOffset)
+        rows, cols = np.flatnonzero(mask_boolean.any(axis=1)), np.flatnonzero(mask_boolean.any(axis=0))
+        y0, x0 = (rows[0], cols[0]) if len(rows) else (0, 0)
+        y1, x1 = (rows[-1] + 1, cols[-1] + 1) if len(rows) else (1, 1)
+        mask_boolean = mask_boolean[y0:y1, x0:x1]
         h, w = mask_boolean.shape
-        
+
         # 1. Create RGBA array (4 channels: R, G, B, Alpha)
         rgba_overlay = np.zeros((h, w, 4), dtype=np.uint8)
-        
-        # 2. Set color (r, g, b, alpha)
-        r, g, b = self.active_color
-        
-        # 3. Only set pixels where the mask is True
-        # Numpy broadcasting is extremely fast here (also for 4K/8K)
-        # Set alpha to 255 for full opacity
-        rgba_overlay[mask_boolean] = [r, g, b, 255]
+
+        # 2./3. Only set pixels where the mask is True; transparent colour shows a checkerboard and erases on imprint
+        if self.erasing:
+            rgba_overlay[mask_boolean] = self._checker_rgba(y1, x1)[y0:y1, x0:x1][mask_boolean]  # pattern aligned to the image
+        else:
+            rgba_overlay[mask_boolean] = self.active_color
         
         # 4. Convert to QImage
         # Format_RGBA8888 expects 4 bytes per pixel (R, G, B, A)
@@ -1397,7 +1182,9 @@ class ImageColorer(QtCore.QObject):
         
         # 5. Create QGraphicsItem as child of image item
         pixmap_item = QGraphicsPixmapItem(QPixmap.fromImage(overlay_img), self.gui.image_item)
+        pixmap_item.setOffset(float(x0), float(y0))
         pixmap_item.setZValue(10) # Above background
+        pixmap_item.erases = self.erasing
         return pixmap_item
 
     def imprint_color_overlays(self):
@@ -1428,6 +1215,9 @@ class ImageColorer(QtCore.QObject):
         # overlay_items.extend(self.data_handler.geometry_overlays)
 
         for item in overlay_items:
+            erases = getattr(item, "erases", False)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut if erases
+                                       else QPainter.CompositionMode.CompositionMode_SourceOver)
             if isinstance(item, QGraphicsPathItem):
                 painter.setPen(item.pen())
                 painter.drawPath(item.path())
@@ -1480,7 +1270,7 @@ class ImageColorer(QtCore.QObject):
         # copy buffer so python owns the data
         arr = np.frombuffer(ptr, np.uint8).reshape((height, width, 4)).copy()
         
-        self.data_handler.image_matrix = arr[:,:,:3]  # Drop alpha as we work in RGB only
+        self.data_handler.image_matrix = arr  # RGBA; the data handler binarizes the alpha
 
         after_matrix = self.data_handler.image_matrix.copy()
         if self.undo_manager and before_matrix is not None:
@@ -1499,7 +1289,6 @@ class ImageColorer(QtCore.QObject):
         #ensure to reset contours
         self.contours_visible = False
         self.contour_overlay_item = None
-        self.draw_contour_button.setText("Draw Contours")
         self.draw_contour_button.setChecked(False)
 
         #ensure to restet mask moving
@@ -1566,14 +1355,14 @@ class ImageColorer(QtCore.QObject):
     def toggle_contours(self):
         if not self.contours_visible:
             # Outlines are currently not visible; show them
-            self.draw_contour_button.setText("Delete Contours")
             self.contours_visible = True
+            self.draw_contour_button.setChecked(True)
             self.find_image_contours()
 
         else:
             # Outlines are visible; hide them
-            self.draw_contour_button.setText("Draw Contours")
             self.contours_visible = False
+            self.draw_contour_button.setChecked(False)
             # Hide overlay instead of removing it
             if self.contour_overlay_item is not None:
                 self.contour_overlay_item.hide()
@@ -1593,7 +1382,7 @@ class ImageColorer(QtCore.QObject):
             
 
             # Get the current image data
-            image_matrix = self.data_handler.image_matrix.copy()
+            image_matrix = image_doc.rgb_filled(self.data_handler.image_matrix)
             height, width = image_matrix.shape[:2]
 
             # Only apply edge detection to the masked region if there is one, otherwise to the whole image
@@ -1616,7 +1405,18 @@ class ImageColorer(QtCore.QObject):
             edges = cv2.dilate(edges, kernel, iterations=1)
 
             # Find contours from the edges
-            if self.contouring_mode_combobox.currentText() == "only external":
+            if self.contouring_mode_combobox.currentText() == "color regions":
+                # P6.7: exact outline of every area of one colour (no edge detection, independent of sensitivity)
+                rgba = self.data_handler.image_matrix
+                packed = np.ascontiguousarray(rgba).view(np.uint32)[..., 0]
+                region = np.ones((height, width), bool)
+                if self.data_handler.active_mask_index != -1:
+                    region = self.data_handler.masks_list[self.data_handler.active_mask_index] == 1
+                contours = []
+                for color in np.unique(packed[(rgba[..., 3] > 0) & region]):
+                    color_mask = ((packed == color) & region).astype(np.uint8)
+                    contours.extend(cv2.findContours(color_mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)[0])
+            elif self.contouring_mode_combobox.currentText() == "only external":
                 contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             elif self.contouring_mode_combobox.currentText() == "all":
                 contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -1631,12 +1431,8 @@ class ImageColorer(QtCore.QObject):
             # Draw contours on the mask with thickness
             cv2.drawContours(contour_mask, contours, -1, 1, thickness=self.contour_thickness_spinbox.value())
 
-            # Extract all pixel coordinates where contours exist for flood fill boundary
-            contour_pixels = np.argwhere(contour_mask == 1)
-            # Convert from (y, x) to (x, y) tuples
-            self.contour_pixels = []
-            for y, x in contour_pixels:
-                self.contour_pixels.append((x, y))
+            # contour pixels are the boundary of the "To Contours" flood fill
+            self.contour_mask = contour_mask == 1
 
             # Create overlay from the contour mask
             self.contour_overlay_item = self._create_overlay_from_mask(contour_mask.astype(bool))
@@ -1660,1051 +1456,41 @@ class ImageColorer(QtCore.QObject):
                 self.contours_list.append(polyline)
             self.data_handler.contours_list = self.contours_list
 
-        except Exception as e:
-            print(f"Error finding image outlines: {e}")
-    
-    def clean_up_clusters(self):
-        """
-        Cleans up image colors by applying a median blur filter to each color patch
-        and recombining them, taking the darker color if a pixel is colored in multiple patches.
-        """
-        ctx = self.undo_manager.record_image_matrix("Clean Clusters") if self.undo_manager else nullcontext()
-        with ctx:
-            image_matrix = self.data_handler.image_matrix.copy()
-            if image_matrix is None:
-                return
-            # Find all unique colors (excluding white)
-            unique_colors = np.unique(image_matrix.reshape(-1, 3), axis=0)
-            
-            # Ask user if he wants to continue if more than 10 colors are present
-            if len(unique_colors) > 10:
-                reply = QtWidgets.QMessageBox.question(
-                    self.gui, "Too many colors",
-                    f"This image has {len(unique_colors)} different colors. "
-                    "Do you want to continue cleaning up the image.\nIt might take very long if more than 10 colors are present?",
-                    QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
-                )
-                if reply == QtWidgets.QMessageBox.StandardButton.No:
-                    return
-            white = np.array([255, 255, 255], dtype=np.uint8)
-            color_patches = []
-            for color in unique_colors:
-                if np.all(color == white):
-                    continue
-                # Create a mask for this color
-                mask = np.all(image_matrix == color, axis=-1)
-                patch = np.ones_like(image_matrix, dtype=np.uint8) * 255
-                patch[mask] = color
-                # Apply median blur to the patch
-                patch_blur = cv2.medianBlur(patch, 5)
-                color_patches.append(patch_blur)
-            if not color_patches:
-                return
-            # Recombine patches: for each pixel, take the darkest color (lowest sum)
-            combined = np.ones_like(image_matrix, dtype=np.uint8) * 255
-            for patch in color_patches:
-                # Where patch is not white, compare to current combined
-                mask = ~np.all(patch == 255, axis=-1)
-                # For those pixels, if patch is darker, use it
-                current = combined[mask]
-                candidate = patch[mask]
-                # Compare sum of RGB (lower is darker)
-                darker = np.sum(candidate, axis=-1) < np.sum(current, axis=-1)
-                # Update only where candidate is darker
-                indices = np.where(mask)
-                if len(indices[0]) > 0:
-                    darker_indices = np.where(darker)[0]
-                    for idx in darker_indices:
-                        combined[indices[0][idx], indices[1][idx]] = candidate[idx]
-            # Update the data handler with the cleaned image
-            self.data_handler.image_matrix_adjusted = combined
-            self.data_handler.image_matrix = combined
-
+        except Exception:
+            log.exception("Error finding image outlines")
     def clean_up_image_colors(self):
-        """
-        Removes thin artifact lines of intermediate colors using a majority vote,
-        but strictly prevents non-white pixels from being changed to white (background).
-        
-        :param quantized_image: The already color-reduced image (RGB, numpy array).
-        :param kernel_size: Odd integer (3, 5, 7) determining the filter size.
-        :return: Cleaned image as a numpy array.
-        """
+        """P8.3: reduce the image to a few clear colour areas without anti-aliasing traces (see core/palette.py)."""
+        if self.data_handler.image_matrix is None:
+            return
+        params = getattr(self, "_cleanup_params", {"n_colors": 8, "min_region": 6, "edge_threshold": 12.0})
+        dialog = QtWidgets.QDialog(self.gui)
+        dialog.setWindowTitle("Clean Up Colors")
+        form = QtWidgets.QFormLayout(dialog)
+        n_colors = QtWidgets.QSpinBox(minimum=1, maximum=64, value=params["n_colors"])
+        n_colors.setToolTip("Number of colours of the result")
+        min_region = QtWidgets.QSpinBox(minimum=1, maximum=10000, value=params["min_region"], suffix=" px")
+        min_region.setToolTip("Colour areas smaller than this are merged into their neighbour")
+        edge = QtWidgets.QDoubleSpinBox(minimum=1, maximum=100, value=params["edge_threshold"], decimals=1)
+        edge.setToolTip("Colour difference (delta E) between neighbouring pixels that counts as an edge; "
+                        "smaller = more pixels are treated as edge blends")
+        form.addRow("Colors", n_colors)
+        form.addRow("Min. region size", min_region)
+        form.addRow("Edge sensitivity", edge)
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        self._cleanup_params = {"n_colors": n_colors.value(), "min_region": min_region.value(), "edge_threshold": edge.value()}
+        self.apply_color_cleanup(**self._cleanup_params)
+
+    def apply_color_cleanup(self, n_colors=8, min_region=6, edge_threshold=12.0):
         ctx = self.undo_manager.record_image_matrix("Clean Up Colors") if self.undo_manager else nullcontext()
         with ctx:
-            quantized_image = self.data_handler.image_matrix.copy()
-            if quantized_image is None:
-                return
-            
-            kernel_size = self.gui.color_count_spinbox.value()
-           
-            # 1. Extract all unique colors present in the image
-            pixels = quantized_image.reshape(-1, 3)
-            unique_colors = np.unique(pixels, axis=0)
-            
-            h, w, _ = quantized_image.shape
-            num_colors = len(unique_colors)
-            
-            # Array to store the "votes" for each color
-            color_scores = np.zeros((h, w, num_colors), dtype=np.float32)
-            kernel = np.ones((kernel_size, kernel_size), dtype=np.float32)
-            
-            white_idx = -1
-            
-            # 2. Count votes for each color in the neighborhood
-            for idx, color in enumerate(unique_colors):
-                # Remember the index of pure white in our palette
-                if np.array_equal(color, [255, 255, 255]):
-                    white_idx = idx
-                    
-                # Binary mask: Where exactly is this color located?
-                mask = np.all(quantized_image == color, axis=-1).astype(np.float32)
-                
-                # Convolution: Counts the presence of the color within the kernel area
-                score = cv2.filter2D(mask, -1, kernel)
-                color_scores[:, :, idx] = score
-                
-            # 3. APPLY RULE: Never change a non-white pixel to pure white
-            if white_idx != -1:
-                # Find all pixels that are NOT white in the original image
-                non_white_mask = ~np.all(quantized_image == [255, 255, 255], axis=-1)
-                
-                # For all non-white pixels, we set the votes for white to -1.
-                # This ensures white can never win the vote here. The argmax function
-                # will automatically select the second most frequent color instead.
-                color_scores[non_white_mask, white_idx] = -1
-                
-            # 4. Majority vote (find the maximum score)
-            best_color_indices = np.argmax(color_scores, axis=-1)
-            
-            # 5. Reconstruct the image with the winning colors
-            result_image = unique_colors[best_color_indices]
-
-            # Update the data handler with the cleaned image
-            self.data_handler.image_matrix_adjusted = result_image.astype(np.uint8)
-            self.data_handler.image_matrix = result_image.astype(np.uint8)
-    
-
-    #Image Masking Functions
-    def start_mask_rect(self, event):
-        """Start drawing a rectangular mask."""
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
-        
-        # Convert viewport coordinates to scene coordinates
-        x_scene, y_scene = self.data_handler.canvas_to_scene_coords(x_canvas, y_canvas)
-        self.mask_start_point_scene = (x_scene, y_scene)
-        # self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
-
-    def update_mask_rect_preview(self, event):
-        """Update the preview of the rectangular mask being drawn."""
-        if self.mask_start_point_scene is None:
-            return
-        
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
-
-        x_scene, y_scene = self.data_handler.canvas_to_scene_coords(x_canvas, y_canvas)
-        # Remove old overlay if exists
-        if self.current_mask_overlay_item is not None:
-            self.gui.image_scene.removeItem(self.current_mask_overlay_item)
-        
-        # Create rectangle from start point to current point
-        x_start, y_start = self.mask_start_point_scene
-        width = x_scene - x_start
-        height = y_scene - y_start
-        
-        # Draw dotted rectangle overlay
-        self.mask_obj = QRectF(int(x_start), int(y_start), int(width), int(height))
-        self.current_mask_overlay_item = QtWidgets.QGraphicsRectItem(self.mask_obj)
-        pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
-        pen.setStyle(QtCore.Qt.PenStyle.DashLine)
-        pen.setWidth(2)
-        self.current_mask_overlay_item.setPen(pen)
-        self.current_mask_overlay_item.setBrush(QtGui.QBrush())
-        self.gui.image_scene.addItem(self.current_mask_overlay_item)
-
-    def finish_mask_rect(self, event):
-        """Finish drawing the rectangular mask and create the mask matrix."""
-        if self.mask_obj is None or self.mask_start_point_scene is None:
-            return
-        
-        # Add current overlay to the list of overlays, plot it permanently and reset current overlay
-        if self.current_mask_overlay_item is not None:
-            new_mask_overlay_item = self.current_mask_overlay_item
-            self.data_handler.mask_overlays.append(new_mask_overlay_item)
-            self.gui.image_scene.removeItem(self.current_mask_overlay_item)
-            self.current_mask_overlay_item = None
-
-            # Replot from overlays
-            self.gui.image_scene.addItem(self.data_handler.mask_overlays[-1])
-        
-        # Convert canvas coordinates to image coordinates
-        x_start_scene, y_start_scene = self.mask_start_point_scene
-        x_end_canvas = event.position().x()
-        y_end_canvas = event.position().y()
-
-        x_start_img, y_start_img = self.data_handler.scene_to_image_coords(x_start_scene, y_start_scene)
-        x_end_img, y_end_img = self.data_handler.canvas_to_image_coords(x_end_canvas, y_end_canvas)
-
-        # Normalize coordinates
-        x_min = min(x_start_img, x_end_img)
-        x_max = max(x_start_img, x_end_img)
-        y_min = min(y_start_img, y_end_img)
-        y_max = max(y_start_img, y_end_img)
-        
-        # Create mask matrix
-        image_matrix = self.data_handler.image_matrix
-        height, width = image_matrix.shape[:2]
-        
-        # Create mask with zeros for pixels outside the selected area
-        mask_matrix = np.zeros((height, width), dtype=image_matrix.dtype)
-        
-        # Fill selected area with ones
-        for y in range(max(0, y_min), min(height, y_max + 1)):
-            for x in range(max(0, x_min), min(width, x_max + 1)):
-                mask_matrix[y, x] = 1
-
-        # Store the mask and its info
-        self.data_handler.masks_list.append(mask_matrix)
-        self.data_handler.mask_info.append({
-            'type': 'rectangle',
-            'coords': (x_min, y_min, x_max, y_max)
-        })
-        self.update_masks_list_widget()
-        
-        # Reset
-        self.mask_start_point_scene = None
-        self.mask_obj = None
-
-    def start_mask_ellipse(self, event):
-        """Start drawing an elliptical mask."""
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
-        
-        # Convert viewport coordinates to scene coordinates
-        x_scene, y_scene = self.data_handler.canvas_to_scene_coords(x_canvas, y_canvas)
-        self.mask_start_point_scene = (x_scene, y_scene)
-
-    def update_mask_ellipse_preview(self, event):
-        """Update the preview of the elliptical mask being drawn."""
-        if self.mask_start_point_scene is None:
-            return
-        
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
-
-        x_scene, y_scene = self.data_handler.canvas_to_scene_coords(x_canvas, y_canvas)
-        
-        # Remove old overlay if exists
-        if self.current_mask_overlay_item is not None:
-            self.gui.image_scene.removeItem(self.current_mask_overlay_item)
-        
-        # Create ellipse from start point to current point
-        x_start, y_start = self.mask_start_point_scene
-        width = x_scene - x_start
-        height = y_scene - y_start
-        
-        # Draw dotted ellipse overlay
-        self.mask_obj = QRectF(int(x_start), int(y_start), int(width), int(height))
-        self.current_mask_overlay_item = QtWidgets.QGraphicsEllipseItem(self.mask_obj)
-        pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
-        pen.setStyle(QtCore.Qt.PenStyle.DashLine)
-        pen.setWidth(2)
-        self.current_mask_overlay_item.setPen(pen)
-        self.current_mask_overlay_item.setBrush(QtGui.QBrush())
-        self.gui.image_scene.addItem(self.current_mask_overlay_item)
-
-    def finish_mask_ellipse(self, event):
-        """Finish drawing the elliptical mask and create the mask matrix."""
-        if self.mask_obj is None or self.mask_start_point_scene is None:
-            return
-        
-        # Add current overlay to the list of overlays, plot it permanently and reset current overlay
-        if self.current_mask_overlay_item is not None:
-            new_mask_overlay_item = self.current_mask_overlay_item
-            self.data_handler.mask_overlays.append(new_mask_overlay_item)
-            self.gui.image_scene.removeItem(self.current_mask_overlay_item)
-            self.current_mask_overlay_item = None
-
-            # Replot from overlays
-            self.gui.image_scene.addItem(self.data_handler.mask_overlays[-1])
-        
-        # Convert scene coordinates to image coordinates
-        x_start_scene, y_start_scene = self.mask_start_point_scene
-        x_end_canvas = event.position().x()
-        y_end_canvas = event.position().y()
-
-        x_start_img, y_start_img = self.data_handler.scene_to_image_coords(x_start_scene, y_start_scene)
-        x_end_img, y_end_img = self.data_handler.canvas_to_image_coords(x_end_canvas, y_end_canvas)
-
-        # Get ellipse bounds
-        x_min = min(x_start_img, x_end_img)
-        x_max = max(x_start_img, x_end_img)
-        y_min = min(y_start_img, y_end_img)
-        y_max = max(y_start_img, y_end_img)
-        
-        # Create mask matrix
-        image_matrix = self.data_handler.image_matrix
-        height, width = image_matrix.shape[:2]
-        
-        # Create mask with zeros for pixels outside the selected area
-        mask_matrix = np.zeros((height, width), dtype=image_matrix.dtype)
-        
-        # Calculate ellipse parameters
-        center_x = (x_min + x_max) / 2.0
-        center_y = (y_min + y_max) / 2.0
-        radii_x = (x_max - x_min) / 2.0
-        radii_y = (y_max - y_min) / 2.0
-        
-        # Fill pixels inside ellipse with ones
-        if radii_x > 0 and radii_y > 0:
-            for y in range(max(0, y_min), min(height, y_max + 1)):
-                for x in range(max(0, x_min), min(width, x_max + 1)):
-                    # Check if point is inside ellipse using the ellipse equation
-                    dx = (x - center_x) / radii_x
-                    dy = (y - center_y) / radii_y
-                    if dx * dx + dy * dy <= 1.0:
-                        mask_matrix[y, x] = 1
-        
-        # Store the mask and its info
-        self.data_handler.masks_list.append(mask_matrix)
-        self.data_handler.mask_info.append({
-            'type': 'ellipse',
-            'coords': (x_min, y_min, x_max, y_max)
-        })
-        self.update_masks_list_widget()
-        
-        # Reset
-        self.mask_start_point_scene = None
-        self.mask_obj = None
-
-    def add_polygon_point(self, event):
-        """Add a point to the polygon mask."""
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
-        
-        # Convert to image coordinates
-        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
-        
-        # Add point to the list
-        self.polygon_points.append((x_img, y_img))
-        
-        # Update preview
-        self.update_polygon_preview()
-    
-    def remove_last_polygon_point(self):
-        """Remove the last point added to the polygon."""
-        if self.polygon_points:
-            self.polygon_points.pop()
-            self.update_polygon_preview()
-
-    def update_polygon_preview(self):
-        """Update the visual preview of the polygon being drawn."""
-        # Remove old preview if exists
-        if self.polygon_preview_item is not None:
-            self.gui.image_scene.removeItem(self.polygon_preview_item)
-            self.polygon_preview_item = None
-        
-        if len(self.polygon_points) < 2:
-            return
-        
-        # Convert image coordinates to scene coordinates
-        scene_points = []
-        for x_img, y_img in self.polygon_points:
-            x_scene, y_scene = self.data_handler.image_to_scene_coords(x_img, y_img)
-            scene_points.append(QtCore.QPointF(x_scene, y_scene))
-        
-        # If we have 3+ points, draw a closed polygon
-        if len(scene_points) >= 3:
-            polygon = QtGui.QPolygonF(scene_points)
-            self.polygon_preview_item = QtWidgets.QGraphicsPolygonItem(polygon)
-        else:
-            # Draw lines connecting the points
-            path = QtGui.QPainterPath()
-            path.moveTo(scene_points[0])
-            for point in scene_points[1:]:
-                path.lineTo(point)
-            self.polygon_preview_item = QtWidgets.QGraphicsPathItem(path)
-        
-        # Style the preview
-        pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
-        pen.setStyle(QtCore.Qt.PenStyle.DashLine)
-        pen.setWidth(2)
-        self.polygon_preview_item.setPen(pen)
-        self.polygon_preview_item.setBrush(QtGui.QBrush())
-        
-        self.gui.image_scene.addItem(self.polygon_preview_item)
-
-    def finish_polygon_mask(self):
-        """Finalize the polygon mask and create the mask matrix."""
-        
-        # Remove preview
-        if self.polygon_preview_item is not None:
-            self.gui.image_scene.removeItem(self.polygon_preview_item)
-            self.polygon_preview_item = None
-
-        #simply clear if just a single point or line
-        if len(self.polygon_points) < 3:
-            self.polygon_points = []
-            return
-        
-        # Create polygon overlay for permanent display
-        scene_points = []
-        for x_img, y_img in self.polygon_points:
-            x_scene, y_scene = self.data_handler.image_to_scene_coords(x_img, y_img)
-            scene_points.append(QtCore.QPointF(x_scene, y_scene))
-        
-        polygon = QtGui.QPolygonF(scene_points)
-        polygon_item = QtWidgets.QGraphicsPolygonItem(polygon)
-        
-        pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
-        pen.setStyle(QtCore.Qt.PenStyle.DashLine)
-        pen.setWidth(2)
-        polygon_item.setPen(pen)
-        polygon_item.setBrush(QtGui.QBrush())
-        
-        self.data_handler.mask_overlays.append(polygon_item)
-        self.gui.image_scene.addItem(polygon_item)
-        
-        # Create mask matrix using point-in-polygon test
-        image_matrix = self.data_handler.image_matrix
-        height, width = image_matrix.shape[:2]
-        
-        # Create mask with zeros for pixels outside the polygon
-        mask_matrix = np.zeros((height, width), dtype=image_matrix.dtype)
-        
-        # Use OpenCV to create a filled polygon mask
-        pts = np.array(self.polygon_points, dtype=np.int32)
-        cv2.fillPoly(mask_matrix, [pts], 1)
-        
-        self.data_handler.masks_list.append(mask_matrix)
-        self.data_handler.mask_info.append({
-            'type': 'polygon',
-            'coords': self.polygon_points.copy()
-        })
-        self.update_masks_list_widget()
-        
-        # Reset polygon points
-        self.polygon_points = []
-    
-    def cancel_mask_drawing(self):
-        """Cancel the current mask drawing operation."""
-        # Remove preview
-        if self.current_mask_overlay_item is not None:
-            self.gui.image_scene.removeItem(self.current_mask_overlay_item)
-            self.current_mask_overlay_item = None
-        
-        # Remove polygon preview
-        if self.polygon_preview_item is not None:
-            self.gui.image_scene.removeItem(self.polygon_preview_item)
-            self.polygon_preview_item = None
-        
-        # Reset state
-        self.mask_start_point_scene = None
-        self.mask_obj = None
-        self.polygon_points = []
-
-    def update_masks_list_widget(self):
-        """Update the masks list widget display."""
-        self.masks_list_widget.clear()
-        for idx, mask in enumerate(self.data_handler.masks_list):
-            non_nan_count = np.count_nonzero(mask == 1)
-            type = self.data_handler.mask_info[idx]['type']
-            item_text = f"{type}-mask {idx + 1} ({non_nan_count} pixels)"
-            self.masks_list_widget.addItem(item_text)
-
-    def on_mask_selected(self):
-        """Handle mask selection in the list widget."""
-        # Clear any existing edit handles
-        self.clear_edit_handles()
-        
-        selected_items = self.masks_list_widget.selectedItems()
-        if selected_items:
-            index = self.masks_list_widget.row(selected_items[0])
-            self.data_handler.active_mask_index = index
-            self.editing_mask_index = index
-            
-            # Update overlay colors: selected mask in red, others in cyan
-            for i, overlay in enumerate(self.data_handler.mask_overlays):
-                pen = QtGui.QPen()
-                pen.setStyle(QtCore.Qt.PenStyle.DashLine)
-                pen.setWidth(2)
-                
-                if i == index:
-                    pen.setColor(QtCore.Qt.GlobalColor.darkCyan)  # Selected mask in red
-                else:
-                    pen.setColor(QtCore.Qt.GlobalColor.cyan)  # Other masks in cyan
-                
-                overlay.setPen(pen)
-            
-            # Show edit handles if edit mode is enabled
-            self.show_edit_handles_for_selected()
-        else:
-            self.editing_mask_index = -1
-
-        #ensure to reset mask moving
-        self.disable_move_mask_mode()
-
-    def show_edit_handles_for_selected(self):
-        """Show edit handles for the currently selected mask (if in edit mode)."""
-        if not self.mask_edit_mode or self.editing_mask_index < 0:
-            return
-        
-        self.clear_edit_handles()
-        
-        if self.editing_mask_index < len(self.data_handler.mask_overlays):
-            overlay = self.data_handler.mask_overlays[self.editing_mask_index]
-            
-            if self.editing_mask_index < len(self.data_handler.mask_info):
-                mask_info = self.data_handler.mask_info[self.editing_mask_index]
-                if mask_info['type'] in ['rectangle', 'ellipse']:
-                    self.add_resize_handles(self.editing_mask_index, overlay)
-                elif mask_info['type'] == 'polygon':
-                    self.add_polygon_handles(self.editing_mask_index, overlay)
-
-    def clear_edit_handles(self):
-        """Remove all edit handles from the scene."""
-        for handle in self.edit_handles:
-            self.gui.image_scene.removeItem(handle)
-        self.edit_handles.clear()
-        self.dragging_handle = None
-
-    def add_resize_handles(self, mask_index, overlay):
-        """Add draggable corner handles to rectangle/ellipse masks."""
-        rect = overlay.rect()
-        handle_size = 10
-        
-        # Define handle positions: corners and midpoints
-        positions = [
-            (rect.left(), rect.top(), 'tl'),      # Top-left
-            (rect.right(), rect.top(), 'tr'),     # Top-right
-            (rect.left(), rect.bottom(), 'bl'),   # Bottom-left
-            (rect.right(), rect.bottom(), 'br'),  # Bottom-right
-            (rect.center().x(), rect.top(), 'tm'),   # Top-middle
-            (rect.center().x(), rect.bottom(), 'bm'), # Bottom-middle
-            (rect.left(), rect.center().y(), 'lm'),  # Left-middle
-            (rect.right(), rect.center().y(), 'rm'),  # Right-middle
-        ]
-        
-        for x, y, handle_type in positions:
-            handle = QtWidgets.QGraphicsEllipseItem(
-                x - handle_size/2, y - handle_size/2, 
-                handle_size, handle_size
-            )
-            handle.setBrush(QtGui.QBrush(QtCore.Qt.GlobalColor.red))
-            handle.setPen(QtGui.QPen(QtCore.Qt.GlobalColor.white, 1))
-            handle.setZValue(100)  # Above the overlay
-            
-            # Store metadata
-            handle.mask_index = mask_index
-            handle.handle_type = handle_type
-            
-            self.gui.image_scene.addItem(handle)
-            self.edit_handles.append(handle)
-
-    def add_polygon_handles(self, mask_index, overlay):
-        """Add draggable point handles to polygon masks."""
-        if isinstance(overlay, QtWidgets.QGraphicsPolygonItem):
-            polygon = overlay.polygon()
-            handle_size = 10
-            
-            for i, point in enumerate(polygon):
-                handle = QtWidgets.QGraphicsEllipseItem(
-                    point.x() - handle_size/2, point.y() - handle_size/2,
-                    handle_size, handle_size
-                )
-                handle.setBrush(QtGui.QBrush(QtCore.Qt.GlobalColor.red))
-                handle.setPen(QtGui.QPen(QtCore.Qt.GlobalColor.white, 1))
-                handle.setZValue(100)  # Above the overlay
-                
-                # Store metadata
-                handle.mask_index = mask_index
-                handle.point_index = i
-                handle.handle_type = 'polygon_point'
-                
-                self.gui.image_scene.addItem(handle)
-                self.edit_handles.append(handle)
-
-    def drag_edit_handle(self, event):
-        """Handle dragging of edit handles."""
-        if self.dragging_handle is None or self.editing_mask_index < 0:
-            return
-        
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
-        x_scene, y_scene = self.data_handler.canvas_to_scene_coords(x_canvas, y_canvas)
-        
-        overlay = self.data_handler.mask_overlays[self.editing_mask_index]
-        
-        # Handle polygon point dragging
-        if hasattr(self.dragging_handle, 'point_index'):
-            polygon = overlay.polygon()
-            polygon[self.dragging_handle.point_index] = QtCore.QPointF(x_scene, y_scene)
-            overlay.setPolygon(polygon)
-        else:
-            # Handle rectangle/ellipse dragging
-            rect = overlay.rect()
-            handle_type = self.dragging_handle.handle_type
-            
-            # Update rect based on which handle is being dragged
-            if handle_type == 'tl':  # Top-left
-                rect.setTopLeft(QtCore.QPointF(x_scene, y_scene))
-            elif handle_type == 'tr':  # Top-right
-                rect.setTopRight(QtCore.QPointF(x_scene, y_scene))
-            elif handle_type == 'bl':  # Bottom-left
-                rect.setBottomLeft(QtCore.QPointF(x_scene, y_scene))
-            elif handle_type == 'br':  # Bottom-right
-                rect.setBottomRight(QtCore.QPointF(x_scene, y_scene))
-            elif handle_type == 'tm':  # Top-middle
-                rect.setTop(y_scene)
-                # center_x = rect.center().x()
-                # rect.setLeft(rect.left() + (x_scene - center_x))
-                # rect.setRight(rect.right() + (x_scene - center_x))
-            elif handle_type == 'bm':  # Bottom-middle
-                rect.setBottom(y_scene)
-                # center_x = rect.center().x()
-                # rect.setLeft(rect.left() + (x_scene - center_x))
-                # rect.setRight(rect.right() + (x_scene - center_x))
-            elif handle_type == 'lm':  # Left-middle
-                rect.setLeft(x_scene)
-            elif handle_type == 'rm':  # Right-middle
-                rect.setRight(x_scene)
-            
-            overlay.setRect(rect)
-        
-        # Move the handle
-        handle_size = 10
-        self.dragging_handle.setRect(
-            x_scene - handle_size/2, y_scene - handle_size/2,
-            handle_size, handle_size
-        )
-
-    def finish_drag_edit_handle(self, event):
-        """Finish dragging and update the mask."""
-        if self.dragging_handle is None or self.editing_mask_index < 0:
-            self.dragging_handle = None
-            return
-        
-        mask_index = self.editing_mask_index
-        overlay = self.data_handler.mask_overlays[mask_index]
-        mask_info = self.data_handler.mask_info[mask_index]
-        
-        x_canvas = event.position().x()
-        y_canvas = event.position().y()
-        x_img, y_img = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
-        
-        # Update the mask based on type
-        if mask_info['type'] in ['rectangle', 'ellipse']:
-            self.update_rect_ellipse_mask_from_drag(mask_index, overlay, mask_info)
-            # Update handle positions to match the new rect
-            self.update_resize_handles_positions(mask_index, overlay)
-        elif mask_info['type'] == 'polygon':
-            self.update_polygon_mask_from_drag(mask_index, overlay, mask_info)
-            # Update handle positions to match the new polygon
-            self.update_polygon_handles_positions(mask_index, overlay)
-        
-        self.dragging_handle = None
-
-    def update_rect_ellipse_mask_from_drag(self, mask_index, overlay, mask_info):
-        """Update rectangle/ellipse mask after handle drag."""
-        rect = overlay.rect()
-        x_min_scene, y_min_scene = rect.left(), rect.top()
-        x_max_scene, y_max_scene = rect.right(), rect.bottom()
-        
-        # Convert scene coordinates to image coordinates
-        x_min, y_min = self.data_handler.scene_to_image_coords(x_min_scene, y_min_scene)
-        x_max, y_max = self.data_handler.scene_to_image_coords(x_max_scene, y_max_scene)
-        
-        # Update mask info with image coordinates
-        self.data_handler.mask_info[mask_index]['coords'] = (x_min, y_min, x_max, y_max)
-        
-        # Regenerate mask matrix
-        image_matrix = self.data_handler.image_matrix
-        height, width = image_matrix.shape[:2]
-        mask_matrix = np.zeros((height, width), dtype=image_matrix.dtype)
-        
-        if mask_info['type'] == 'rectangle':
-            for y in range(max(0, y_min), min(height, y_max + 1)):
-                for x in range(max(0, x_min), min(width, x_max + 1)):
-                    mask_matrix[y, x] = 1
-        else:  # ellipse
-            center_x = (x_min + x_max) / 2.0
-            center_y = (y_min + y_max) / 2.0
-            radii_x = (x_max - x_min) / 2.0
-            radii_y = (y_max - y_min) / 2.0
-            
-            if radii_x > 0 and radii_y > 0:
-                for y in range(max(0, y_min), min(height, y_max + 1)):
-                    for x in range(max(0, x_min), min(width, x_max + 1)):
-                        dx = (x - center_x) / radii_x
-                        dy = (y - center_y) / radii_y
-                        if dx * dx + dy * dy <= 1.0:
-                            mask_matrix[y, x] = 1
-        
-        self.data_handler.masks_list[mask_index] = mask_matrix
-        self.update_masks_list_widget_keep_selection(mask_index)
-
-    def update_polygon_mask_from_drag(self, mask_index, overlay, mask_info):
-        """Update polygon mask after vertex drag."""
-        if isinstance(overlay, QtWidgets.QGraphicsPolygonItem):
-            polygon = overlay.polygon()
-            new_points = []
-            
-            for point in polygon:
-                x_img, y_img = self.data_handler.scene_to_image_coords(point.x(), point.y())
-                new_points.append((int(x_img), int(y_img)))
-            
-            # Update mask info
-            self.data_handler.mask_info[mask_index]['coords'] = new_points
-            
-            # Regenerate mask matrix
-            image_matrix = self.data_handler.image_matrix
-            height, width = image_matrix.shape[:2]
-            mask_matrix = np.zeros((height, width), dtype=image_matrix.dtype)
-            
-            pts = np.array(new_points, dtype=np.int32)
-            cv2.fillPoly(mask_matrix, [pts], 1)
-            
-            self.data_handler.masks_list[mask_index] = mask_matrix
-            self.update_masks_list_widget_keep_selection(mask_index)
-
-    def update_masks_list_widget_keep_selection(self, selected_index):
-        """Update the masks list widget while keeping a specific mask selected."""
-        # Block signals to prevent triggering itemSelectionChanged during update
-        self.masks_list_widget.blockSignals(True)
-        
-        self.masks_list_widget.clear()
-        for idx, mask in enumerate(self.data_handler.masks_list):
-            non_nan_count = np.count_nonzero(mask == 1)
-            item_text = f"Mask {idx + 1} ({non_nan_count} pixels)"
-            self.masks_list_widget.addItem(item_text)
-        
-        # Restore selection
-        if selected_index >= 0 and selected_index < self.masks_list_widget.count():
-            self.masks_list_widget.setCurrentRow(selected_index)
-        
-        # Re-enable signals
-        self.masks_list_widget.blockSignals(False)
-
-    def update_resize_handles_positions(self, mask_index, overlay):
-        """Update positions of resize handles to match the overlay rect."""
-        if mask_index >= len(self.edit_handles):
-            return
-        
-        rect = overlay.rect()
-        handle_size = 10
-        
-        positions = [
-            (rect.left(), rect.top()),      # Top-left
-            (rect.right(), rect.top()),     # Top-right
-            (rect.left(), rect.bottom()),   # Bottom-left
-            (rect.right(), rect.bottom()),  # Bottom-right
-            (rect.center().x(), rect.top()),   # Top-middle
-            (rect.center().x(), rect.bottom()), # Bottom-middle
-            (rect.left(), rect.center().y()),  # Left-middle
-            (rect.right(), rect.center().y()),  # Right-middle
-        ]
-        
-        handle_index = 0
-        for handle in self.edit_handles:
-            if handle.mask_index == mask_index and hasattr(handle, 'handle_type') and not hasattr(handle, 'point_index'):
-                if handle_index < len(positions):
-                    x, y = positions[handle_index]
-                    handle.setRect(x - handle_size/2, y - handle_size/2, handle_size, handle_size)
-                    handle_index += 1
-
-    def update_polygon_handles_positions(self, mask_index, overlay):
-        """Update positions of polygon handles to match the overlay polygon."""
-        if isinstance(overlay, QtWidgets.QGraphicsPolygonItem):
-            polygon = overlay.polygon()
-            handle_size = 10
-            
-            handle_index = 0
-            for handle in self.edit_handles:
-                if handle.mask_index == mask_index and hasattr(handle, 'point_index'):
-                    if handle.point_index < len(polygon):
-                        point = polygon[handle.point_index]
-                        handle.setRect(point.x() - handle_size/2, point.y() - handle_size/2, handle_size, handle_size)
-
-    def save_selected_mask(self):
-        """Save the currently selected mask as an image file with actual image pixels."""
-        selected_items = self.masks_list_widget.selectedItems()
-        if not selected_items:
-            QtWidgets.QMessageBox.warning(self.gui, "No Mask Selected", "Please select a mask to save.")
-            return
-        
-        index = self.masks_list_widget.row(selected_items[0])
-        active_mask = self.data_handler.masks_list[index]
-        
-        # Find the minimum bounding rectangle containing all True (1) values
-        rows = np.where(np.any(active_mask == 1, axis=1))[0]
-        cols = np.where(np.any(active_mask == 1, axis=0))[0]
-        
-        if len(rows) == 0 or len(cols) == 0:
-            QtWidgets.QMessageBox.warning(self.gui, "Empty Mask", "The selected mask contains no pixels.")
-            return
-        
-        row_min, row_max = rows[0], rows[-1]
-        col_min, col_max = cols[0], cols[-1]
-        
-        # Extract the bounding rectangle from the mask and image
-        mask_cropped = active_mask[row_min:row_max+1, col_min:col_max+1]
-        image_cropped = self.data_handler.image_matrix[row_min:row_max+1, col_min:col_max+1]
-        
-        # Fill the output image with pixels where mask==1, white elsewhere
-        output_image = np.ones_like(image_cropped) * 255
-        output_image[mask_cropped == 1] = image_cropped[mask_cropped == 1]
-        
-        # Get save file path from user
-        file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self.gui, 
-            "Save Mask", 
-            "", 
-            "PNG Files (*.png);;BMP Files (*.bmp);;JPEG Files (*.jpg *.jpeg)"
-        )
-        
-        if file_path:
+            QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
             try:
-                image = Image.fromarray(output_image.astype(np.uint8))
-                # Add DPI information based on current pixel_per_mm
-                dpi = round(self.data_handler.pixel_per_mm * 25.4)
-                # Save with DPI metadata
-                image.save(file_path, dpi=(dpi, dpi))
-                QtWidgets.QMessageBox.information(self.gui, "Success", f"Mask saved successfully to:\n{file_path}")
-            except Exception as e:
-                QtWidgets.QMessageBox.critical(self.gui, "Error Saving Mask", f"Error saving mask: {e}")
-    
-    def deselect_mask(self):
-        """Deselect any selected mask."""
-        self.masks_list_widget.clearSelection()
-        self.data_handler.active_mask_index = -1
-        self.editing_mask_index = -1
-        
-        self.edit_mask_button.setChecked(False)
-        # Update overlay colors to all cyan
-        for overlay in self.data_handler.mask_overlays:
-            pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
-            pen.setStyle(QtCore.Qt.PenStyle.DashLine)
-            pen.setWidth(2)
-            overlay.setPen(pen)
-        
-        self.clear_edit_handles()
-
-    def delete_selected_mask(self):
-        """Delete the currently selected mask."""
-        selected_items = self.masks_list_widget.selectedItems()
-        if selected_items:
-            index = self.masks_list_widget.row(selected_items[0])
-            if index == self.data_handler.active_mask_index:
-                #ensure deselection and edit mode if delted mask is currently selected
-                self.deselect_mask()
-            self.data_handler.masks_list.pop(index)
-            self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
-            self.data_handler.mask_overlays.pop(index)
-            if index < len(self.data_handler.mask_info):
-                self.data_handler.mask_info.pop(index)
-            self.clear_edit_handles()
-            self.update_masks_list_widget()
-
-    def delete_all_masks(self):
-        """Clear all masks."""
-        reply = QtWidgets.QMessageBox.question(
-            self.gui, "Clear All Masks",
-            "Are you sure you want to delete all masks?",
-            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
-        )
-        if reply == QtWidgets.QMessageBox.StandardButton.Yes:
-            #ensure deselection and edit mode reset first!
-            self.deselect_mask()
-            #then delete all masks and overlays
-            self.data_handler.masks_list.clear()
-            self.data_handler.mask_info.clear()
-            self.clear_edit_handles()
-            self.update_masks_list_widget()
-            for overlay in self.data_handler.mask_overlays:
-                self.gui.image_scene.removeItem(overlay)
-            self.data_handler.mask_overlays.clear()
-
-    def get_background_mask(self):
-        """
-        Get the mask matrix containing all pixels NOT covered by any other masks.
-        Returns a matrix with NaN where any mask covers it, and original pixels elsewhere.
-        """
-        image_matrix = self.data_handler.image_matrix
-        height, width = image_matrix.shape[:2]
-        
-        # Start with full image
-        # background_mask = image_matrix.copy().astype(np.float32)
-        background_mask = np.ones((height, width), dtype=np.uint8)
-        
-        # Set pixels covered by any mask to 0
-        for mask in self.data_handler.masks_list:
-            # Where mask equals 1, set background to 0
-            # covered = ~np.isnan(mask[:,:,0])
-            covered = mask == 1
-            # background_mask[covered] = np.nan
-            background_mask[covered] = 0
-        
-        return background_mask
-
-    def get_all_masks_with_background(self):
-        """
-        Get a dictionary containing all masks plus the background mask.
-        Returns: {'mask_0': array, 'mask_1': array, ..., 'background': array}
-        """
-        all_masks = {}
-        for idx, mask in enumerate(self.data_handler.masks_list):
-            all_masks[f'mask_{idx}'] = mask
-        all_masks['background'] = self.get_background_mask()
-        return all_masks
-    
-
-
-
-    #MOVE MASK FUNCTIONALITY
-    def _extract_mask_for_moving(self, mask_index):
-        """Creates the overlays and hands them over to the existing imprint system."""
-        mask = self.data_handler.masks_list[mask_index]
-        image = self.data_handler.image_matrix
-        h, w = mask.shape
-        
-        # 1. Create the White Cutout 
-        temp_white_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-        temp_white_rgba[mask == 1] = [255, 255, 255, 255]
-        white_img = QImage(temp_white_rgba.data, w, h, QImage.Format.Format_RGBA8888)
-        self.white_cutout_item = QtWidgets.QGraphicsPixmapItem(QPixmap.fromImage(white_img.copy()), self.gui.image_item)
-        self.white_cutout_item.setZValue(11)
-
-        # 2. Create the Moving Pixels
-        temp_moving_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-        temp_moving_rgba[mask == 1, :3] = image[mask == 1]
-        temp_moving_rgba[mask == 1, 3] = 255
-        moving_img = QImage(temp_moving_rgba.data, w, h, QImage.Format.Format_RGBA8888)
-        self.moving_mask_item = QtWidgets.QGraphicsPixmapItem(QPixmap.fromImage(moving_img.copy()), self.gui.image_item)
-        self.moving_mask_item.setZValue(12) 
-        
-        # 3. Add to your existing undo/imprint stack! 
-        # (This automatically triggers your imprint button visibility if you have it linked to this list)
-        self.data_handler.active_color_overlays.append(self.white_cutout_item)
-        self.data_handler.active_color_overlays.append(self.moving_mask_item)
-        
-        self.detached_mask_index = mask_index
-
-        if self.undo_manager:
-            def undo_mask_move():
-                if self.detached_mask_index >= 0 and self.detached_mask_index < len(self.data_handler.mask_overlays):
-                    self.data_handler.mask_overlays[self.detached_mask_index].setPos(0, 0)
-                self.detached_mask_index = -1
-                self.moving_mask_item = None
-                self.white_cutout_item = None
-
-            action = ColorOverlayAction(
-                [self.white_cutout_item, self.moving_mask_item],
-                self.gui.image_scene,
-                self.data_handler.active_color_overlays,
-                description="Move Mask",
-                extra_undo=undo_mask_move
-            )
-            self.undo_manager.push_action(action)
-
-    def on_move_mask_press(self, event):
-        """Prepares for dragging. Detaches mask if it hasn't been detached yet."""
-        idx = self.data_handler.active_mask_index
-        if idx < 0:
-            return 
-            
-        if self.detached_mask_index != idx:
-            self._extract_mask_for_moving(idx)
-        
-        # Record starting coordinates for smooth delta calculation
-        self.mask_drag_start_canvas = event.pos()
-        self.moving_item_start_pos = self.moving_mask_item.pos()
-        self.mask_boundary_start_pos = self.data_handler.mask_overlays[idx].pos()
-
-    def on_move_mask_drag(self, event):
-        """Updates the visual position of the pixel overlay and dashed boundary."""
-        idx = self.data_handler.active_mask_index
-        if idx < 0:
-            return 
-        if self.moving_mask_item is None or self.detached_mask_index < 0:
-            return
-            
-        idx = self.detached_mask_index
-        start_x = self.mask_drag_start_canvas.x()
-        start_y = self.mask_drag_start_canvas.y()
-        curr_x = event.position().x()
-        curr_y = event.position().y()
-        
-        # Calculate Image-space delta (for the Pixmap)
-        start_img = self.data_handler.canvas_to_image_coords(start_x, start_y)
-        curr_img = self.data_handler.canvas_to_image_coords(curr_x, curr_y)
-        dx_img = curr_img[0] - start_img[0]
-        dy_img = curr_img[1] - start_img[1]
-        
-        # Calculate Scene-space delta (for the dashed boundary)
-        start_scene = self.data_handler.canvas_to_scene_coords(start_x, start_y)
-        curr_scene = self.data_handler.canvas_to_scene_coords(curr_x, curr_y)
-        dx_scene = curr_scene[0] - start_scene[0]
-        dy_scene = curr_scene[1] - start_scene[1]
-        
-        # Move items
-        self.moving_mask_item.setPos(self.moving_item_start_pos.x() + dx_img, self.moving_item_start_pos.y() + dy_img)
-        self.data_handler.mask_overlays[idx].setPos(self.mask_boundary_start_pos.x() + dx_scene, self.mask_boundary_start_pos.y() + dy_scene)
-
-    def on_move_mask_release(self, event):
-        """Clears drag variables. Items stay exactly where left."""
-        self.mask_drag_start_canvas = None
-        self.moving_item_start_pos = None
-        self.mask_boundary_start_pos = None
-
-    def update_logical_mask_matrices(self):
-        """Shifts the logical mask array to match the visual item before imprinting."""
-        if self.detached_mask_index < 0 or self.moving_mask_item is None:
-            return
-            
-        idx = self.detached_mask_index
-        dx_img = int(self.moving_mask_item.pos().x())
-        dy_img = int(self.moving_mask_item.pos().y())
-        
-        if dx_img != 0 or dy_img != 0:
-            mask = self.data_handler.masks_list[idx]
-            h, w = mask.shape
-            
-            # Calculate new valid coordinates
-            y, x = np.where(mask == 1)
-            ny, nx = y + dy_img, x + dx_img
-            valid = (ny >= 0) & (ny < h) & (nx >= 0) & (nx < w)
-
-            # Generate and save new mask array
-            new_mask = np.zeros_like(mask)
-            new_mask[ny[valid], nx[valid]] = 1
-            self.data_handler.masks_list[idx] = new_mask
-
-            # Update internal mask_info coordinate tracking
-            info = self.data_handler.mask_info[idx]
-            if info['type'] in ['rectangle', 'ellipse']:
-                x1, y1, x2, y2 = info['coords']
-                info['coords'] = (x1 + dx_img, y1 + dy_img, x2 + dx_img, y2 + dy_img)
-            elif info['type'] == 'polygon':
-                info['coords'] = [(px + dx_img, py + dy_img) for px, py in info['coords']]
-                
-            # Permanently translate the dashed boundary overlay's geometry so its pos can be reset to 0,0
-            boundary_item = self.data_handler.mask_overlays[idx]
-            dx_scene = boundary_item.pos().x()
-            dy_scene = boundary_item.pos().y()
-            boundary_item.setPos(0, 0)
-            if isinstance(boundary_item, (QtWidgets.QGraphicsRectItem, QtWidgets.QGraphicsEllipseItem)):
-                boundary_item.setRect(boundary_item.rect().translated(dx_scene, dy_scene))
-            elif isinstance(boundary_item, QtWidgets.QGraphicsPolygonItem):
-                boundary_item.setPolygon(boundary_item.polygon().translated(dx_scene, dy_scene))
-
-        # Reset state tracking
-        self.detached_mask_index = -1
-        self.moving_mask_item = None
-        self.white_cutout_item = None
-    
-    def disable_move_mask_mode(self):
-        #disable move mask mode and reset state
-        self.move_masked_area_button.setChecked(False)
-        self.move_mask_on = False
-        
+                self.data_handler.image_matrix = palette.pixel_art_cleanup(
+                    self.data_handler.image_matrix, n_colors, min_region, edge_threshold)
+            finally:
+                QtWidgets.QApplication.restoreOverrideCursor()

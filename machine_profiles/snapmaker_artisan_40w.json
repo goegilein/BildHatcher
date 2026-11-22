@@ -1,0 +1,35 @@
+{
+    "name": "Snapmaker Artisan 40W",
+    "header": [
+        "G90 ; Use absolute coordinates",
+        "G21 ; Set units to millimeters",
+        "M2000 W1 P100 ; Artisan Setting to turn on Enclosure lights 100%",
+        "G0 F{feedrate} ; set default feedrate for laser off moves",
+        "G1 F{feedrate} ; set default feedrate for laser on moves"
+    ],
+    "footer": [
+        "M5 ; Turn off laser",
+        "M9 ; Turn off Air assist",
+        "M2000 W2 P0 ; Artisan Setting to turn off Enclosure fan (0%)",
+        "M2000 L23 P1 ; Artisan 40W laser. 1 exits half power Moade"
+    ],
+    "laser_modes": {
+        "constant": ["M3 P0 ; set laser to constant Mode"],
+        "variable": ["M4 P0 ; set Laser to variable Mode"]
+    },
+    "power_modes": {
+        "half": ["M2000 L23 P0 ; Artisan 40W laser. 0 enters half power Mode (20W max)"],
+        "full": ["M2000 L23 P1 ; Artisan 40W laser. 1 exits half power Mode (40W max)"]
+    },
+    "air_assist": {
+        "on": ["M8 ; Turn on Air assis", "G4 S1.0 ; Wait for 1.0 seconds to allow air assist to stabilize"],
+        "off": ["M9 ; Turn off Air assis"]
+    },
+    "enclosure_fan": ["M2000 W2 P{fan} ; Artisan Enclosure fan to {fan}%"],
+    "burn_power": " P{power} S{s}",
+    "feedrate": 6000,
+    "rapid_speed": 100,
+    "acceleration": 3000,
+    "over_drive_fit": [0.24484, 0.10634, 27.3937, 5.82549],
+    "cylinder_laser_distance": 17
+}

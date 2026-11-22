@@ -1,3 +1,4 @@
+from PathManager import USER_DIR
 import sys
 import os
 import sqlite3
@@ -9,6 +10,9 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox, QSpinBox, QComboBox, QDoubleSpinBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+import logging
+
+log = logging.getLogger(__name__)
 
 # This try-except block allows the script to be run from the root folder
 # or from the 'Database' subfolder directly.
@@ -63,8 +67,8 @@ class DatabaseManager:
             self._run_migrations()
     
     def get_writable_db_path(self, db_filename="laser_database.db"):
-        # Use user's Documents/BildHatcher for writable database
-        writable_dir = os.path.join(os.path.expanduser("~"), "Documents", "BildHatcher")
+        # writable database in the user folder (PathManager.USER_DIR)
+        writable_dir = str(USER_DIR)
         os.makedirs(writable_dir, exist_ok=True)
         writable_db = os.path.join(writable_dir, db_filename)
         # If not present, copy from bundled location
@@ -91,13 +95,12 @@ class DatabaseManager:
         for col, col_type in migrations.items():
             if col not in columns:
                 try:
-                    print(f"Column '{col}' not found in 'material_types'. Migrating database...")
+                    log.info(f"Column '{col}' not found in 'material_types'. Migrating database...")
                     self.cursor.execute(f"ALTER TABLE material_types ADD COLUMN {col} {col_type}")
                     self.conn.commit()
-                    print(f"Successfully added column '{col}' to 'material_types'.")
+                    log.info(f"Successfully added column '{col}' to 'material_types'.")
                 except sqlite3.Error as e:
-                    print(f"Error migrating database for material_types: {e}")
-                    
+                    log.exception("Error migrating database for material_types")
     def create_schema(self):
         with self.conn:
             self.cursor.execute("CREATE TABLE IF NOT EXISTS lasers (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE)")
@@ -133,8 +136,7 @@ class DatabaseManager:
                     FOREIGN KEY (palette_id) REFERENCES color_palettes (id) ON DELETE CASCADE,
                     UNIQUE (palette_id, color_name)
                 );""")
-        print("Database schema is up to date.")
-
+        log.info("Database schema is up to date.")
     def add_material_type(self, mat_id, name, post='None', mode='constant', fan=0, air='off', power='half'):
         try:
             with self.conn:
@@ -414,8 +416,7 @@ class DatabaseNavigatorWidget(QWidget, Ui_DatabaseNavigatorWidget):
         power = self.power_mode_combobox.currentText()
         
         self.db_manager.update_material_type_properties(type_id, post, mode, fan, air, power)
-        print(f"Auto-saved properties for material type ID: {type_id}")
-
+        log.info(f"Auto-saved properties for material type ID: {type_id}")
     def _update_ui_state(self):
         is_full_edit = (self.mode == NavigatorMode.FULL_EDIT)
         type_selected = self.type_combo.currentData() is not None
@@ -505,11 +506,11 @@ class MainWindow(QMainWindow):
         nav.selection_button_box.rejected.connect(d.reject);nav.profileSelected.connect(self.on_profile_received);l.addWidget(nav);d.exec()
     
     def on_color_received(self,data):
-        print("Color:",data)
+        log.info("Color:",data)
         self.results_label.setText(f"<b>Color:</b> {data['color_name']}")
     
     def on_profile_received(self,data):
-        print("Profile Data:", data)
+        log.info("Profile Data:", data)
         ids = data['identifiers']
         params = data['parameters']
         self.results_label.setText(f"<b>Profile Loaded:</b><br>"

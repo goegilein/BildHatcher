@@ -2,7 +2,6 @@ from PyQt6 import QtWidgets, QtGui, QtCore
 from pyqtgraph.opengl import GLViewWidget,GLLinePlotItem
 import numpy as np
 from HelperClasses import HatchData
-from OpenGL.GL import glDisable, GL_LIGHTING, glClearColor,glEnable, glBlendFunc, GL_BLEND, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA
 
 
 class HatchLinePlotter:
@@ -17,7 +16,6 @@ class HatchLinePlotter:
         # Initialize GUI elements from the preloaded PyQt6 GUI
         self.plot_canvas = gui.plot_canvas  # QGraphicsView for the plot
         self.color_mode_plotting_combobox = gui.color_mode_plotting_combobox  # QComboBox for color mode
-        self.white_threshold_plotting_spinbox = gui.white_threshold_plotting_spinbox  # QSpinBox for white threshold
         self.plot_button = gui.plot_hatch_button  # QPushButton for plotting active hatchlines
         self.plot_process_blocks_button = gui.plot_process_blocks_button # QPushButton for plotting active hatchblocks
         self.plot_linedwidth_spinbox = gui.plot_linewidth_spinbox  # QSpinBox for line width
@@ -29,9 +27,6 @@ class HatchLinePlotter:
         # Initialize combobox values
         self.color_mode_plotting_combobox.addItems(["Color", "Black"])
 
-        # Set default values for spinboxes
-        self.white_threshold_plotting_spinbox.setRange(0, 255)
-        self.white_threshold_plotting_spinbox.setValue(255)
 
         # Connect signals to methods
         self.plot_button.clicked.connect(self.plot_hatch_lines)
@@ -47,9 +42,6 @@ class HatchLinePlotter:
         self.view.opts['distance'] = 50  # Set the initial distance of the camera
         self.view.setCameraPosition(elevation=90, azimuth=-90)
         self.plot_canvas.layout().addWidget(self.view)  # Add the GLViewWidget to the layout
-        
-        # Initialize OpenGL settings
-        self.initializeGL()
 
     def add_data_to_plot_items(self, hatch_data:HatchData):
         #iterate over the hach cluster. apply the offset from ref_position
@@ -61,38 +53,21 @@ class HatchLinePlotter:
                                         [0, 1, 0],
                                         [-np.sin(rot_angle), 0, np.cos(rot_angle)]])
         # Iterate over each hatch line
-            for hatch_lines in hatch_cluster.data:
+            for layer in hatch_cluster.data:
+                if not layer.polylines:
+                    continue
 
-                # Calculate the total number of points, including NaN break points
-                total_points = sum(len(polyline) + 1 for polyline in hatch_lines) - 1  # Add 1 NaN per polyline, except the last
+                # one NaN row between polylines disconnects the line strip
+                separator = np.full((1, 4), np.nan)
+                rows = np.concatenate([part for line in layer.polylines for part in (line, separator)][:-1])
+                pos = ((rows[:, :3] + offset) @ rot_matrix_y.T - np.array([0, 0, hatch_cluster.cylinder_radius])).astype(np.float32)
 
-                # Preallocate numpy arrays for positions and colors
-                pos = np.zeros((total_points, 3), dtype=np.float32)  # Shape (N, 3)
-                colors = np.zeros((total_points, 4), dtype=np.float32)  # Shape (N, 4)
-
-                # Fill the numpy arrays
-                index = 0
-                for polyline in hatch_lines:
-                    for point in polyline:
-                        # Fill position array
-                        if (point.r+point.g+point.b)/3 > self.white_threshold_plotting_spinbox.value():
-                            pos[index] = [np.nan, np.nan, np.nan]
-                        else:
-                            pos[index] =  rot_matrix_y @ (np.array([point.x, point.y, point.z])+offset)-np.array([0,0,hatch_cluster.cylinder_radius])
-
-                        # Fill color array
-                        if self.color_mode_plotting_combobox.currentText() == "Black":
-                            colors[index] = [0, 0, 0, 1.0]
-                        else:
-                            colors[index] = [point.r / 255, point.g / 255, point.b / 255, 1.0]  # RGB values normalized to [0, 1]
-                        
-                        index += 1
-
-                    # Add a NaN break point to disconnect the line
-                    if index < total_points:  # Avoid adding NaN after the last polyline
-                        pos[index] = [np.nan, np.nan, np.nan]
-                        colors[index] = [0, 0, 0, 0]  # Invisible color
-                        index += 1
+                if self.color_mode_plotting_combobox.currentText() == "Black":
+                    rgba = [0, 0, 0, 1.0]
+                else:
+                    rgba = [layer.color[0] / 255, layer.color[1] / 255, layer.color[2] / 255, 1.0]
+                colors = np.tile(np.array(rgba, dtype=np.float32), (len(rows), 1))
+                colors[np.isnan(rows[:, 0])] = 0  # separators invisible
 
                 # Create a line item for the current hatch line and add it to the view
                 line_item = GLLinePlotItem(pos=pos, color=colors, width=self.plot_linedwidth_spinbox.value(), mode='line_strip')
@@ -178,15 +153,6 @@ class HatchLinePlotter:
     #         item.mode = 'line_strip'
     #         item.setGLOptions("opaque")
     #         self.view.addItem(item)
-
-    def initializeGL(self):
-        """
-        Enable blending and disable lighting for consistent line colors.
-        """
-        glClearColor(1.0, 1.0, 1.0, 1.0)
-        glEnable(GL_BLEND)  # Enable blending
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)  # Set blending function
-        glDisable(GL_LIGHTING)  # Disable lighting effects
 
     def choose_background_color(self,color=None):
         """

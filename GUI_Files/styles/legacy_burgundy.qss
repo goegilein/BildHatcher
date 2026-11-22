@@ -1,0 +1,373 @@
+QWidget{
+background-color: rgb(230,230,230);
+}
+
+QGroupBox{
+color:  rgb(80, 0, 19);  /* Text color */
+font-weight: bold;  /* Bold text */
+}
+
+QLabel{
+color:  rgb(80, 0, 19);;  /* Text color */
+}
+
+
+/* BUTTON*/
+
+QPushButton {
+	background-color: rgb(122,0,28);  /* Background color */
+	border: 1px solid rgb(0, 0, 0);
+    color: rgb(255, 255, 255);  /* Text color */
+    border-radius: 5px;  /* Rounded edges */
+	padding: 2px;
+}
+
+QPushButton:hover {
+    background-color: rgb(142, 0, 38);  /* Background color when hovered */
+	color: rgb(245, 245, 245);
+    border-color:rgb(40, 40, 40);  /* Border color when hovered */
+}
+
+QPushButton:pressed {
+   color:  rgb(80, 0, 19);  /* Background color when pressed */
+	border-color: rgb(0, 0, 0);
+}
+QPushButton:clicked {
+   background-color: rgb(80,0,19);  /* Background color when pressed */
+	border-color:  rgb(0,0, 0);
+}
+
+QPushButton:checked {
+    background-color: rgb(255,255,255);
+	color:  rgb(80, 0, 19);
+	border: 2px solid rgb(122, 0, 28);
+	font-weight: bold;  /* Bold text */
+}
+
+QPushButton:disabled {
+    background-color: rgb(180,180, 180);
+	border: 1px solid rgb(0, 0,0);
+}
+
+
+/* SPIN BOX*/
+
+QDoubleSpinBox:enabled{
+background-color: rgb(255,255,255);
+color:  rgb(80, 0, 19);  /* Text color */
+border: 1px solid  rgb(122, 0, 28);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+QDoubleSpinBox:disabled{
+color: rgb(80, 0, 19);  /* Text color */
+border: 1px solid rgb(255,255,255);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+
+QSpinBox:enabled{
+background-color: rgb(255,255,255);
+color:  rgb(80, 0, 19);  /* Text color */
+border: 1px solid  rgb(122, 0, 28);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+
+}
+QSpinBox:disabled{
+color: rgb(80, 0, 19);  /* Text color */
+border: 1px solid rgb(255,255,255);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+
+/* spin arrows (P10.6): slim, always visible; hidden while the field is disabled (read-only values) */
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {
+	subcontrol-origin: padding;
+	width: 12px;
+	border: none;
+	border-left: 1px solid rgb(232, 205, 213);
+	background-color: rgb(252, 244, 246);
+}
+QAbstractSpinBox::up-button {
+	subcontrol-position: top right;
+	border-top-right-radius: 4px;
+	border-bottom: 1px solid rgb(232, 205, 213);
+}
+QAbstractSpinBox::down-button {
+	subcontrol-position: bottom right;
+	border-bottom-right-radius: 4px;
+}
+QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover {
+	background-color: rgb(244, 212, 221);
+}
+QAbstractSpinBox::up-button:pressed, QAbstractSpinBox::down-button:pressed {
+	background-color: rgb(225, 175, 190);
+}
+QAbstractSpinBox::up-arrow {
+	image: url(icons:spin-up.svg);
+	width: 8px;
+	height: 5px;
+}
+QAbstractSpinBox::down-arrow {
+	image: url(icons:spin-down.svg);
+	width: 8px;
+	height: 5px;
+}
+QAbstractSpinBox::up-button:disabled, QAbstractSpinBox::down-button:disabled {
+	width: 0px;
+	border: none;
+}
+QAbstractSpinBox::up-arrow:disabled, QAbstractSpinBox::down-arrow:disabled {
+	image: none;
+	width: 0px;
+}
+
+
+/* TEXT EDIT*/
+
+QPlainTextEdit{
+background-color: rgb(255,255,255);
+border-radius: 5px;  /* Rounded edges */
+}
+
+
+/* LINE EDIT*/
+
+QLineEdit:endabled{
+background-color: rgb(255,255,255);
+color:  rgb(80, 0, 19);  /* Text color */
+border: 1px solid rgb(0,0,0);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+
+QLineEdit:disabled{
+background-color: rgb(230,230,230);
+color:  rgb(80, 0, 19);  /* Text color */
+border: 1px solid rgb(0,0,0);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+
+
+/* COMBOBOX*/
+
+QComboBox{
+background-color: rgb(255,255,255);
+color:  rgb(80, 0, 19);  /* Text color */
+border: 1px solid rgb(0,0,0);  /* Border color */
+border-radius: 5px;  /* Rounded edges */
+padding : 2px;
+}
+
+
+/* TAB*/
+
+QTabBar::tab {
+    color:  rgb(80, 0, 19); 
+    border: 1px solid rgb(122,0,28);
+    padding: 5px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+	min-width:80px;
+}
+
+QTabBar::tab:selected {
+    color:  rgb(80, 0, 19); 
+    background-color: rgb(255, 255, 255); ;
+    font-weight: bold;
+	border: 2px solid rgb(122, 0, 28);
+}
+
+QTabBar::tab:hover {
+    color:  rgb(122, 0, 28); /* Slightly lighter orange */
+	background-color: rgb(245, 245, 245); ;
+}
+
+
+/* CHECKBOX*/
+
+QCheckBox {
+        spacing: 8 px;
+        color: rgb(80, 0, 19);
+    }
+    
+    QCheckBox::indicator {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgb(122, 0, 28);
+        border-radius: 3px;
+        background-color: rgb(255, 255, 255);
+    }
+    
+    QCheckBox::indicator:hover {
+        border: 2px solid rgb(142, 0, 38);
+        background-color: rgb(245, 245, 245);
+    }
+    
+    QCheckBox::indicator:checked {
+        background-color: rgb(122, 0, 28);
+        border: 2px solid rgb(122, 0, 28);
+    }
+    
+    QCheckBox::indicator:checked:hover {
+        background-color: rgb(142, 0, 38);
+        border: 2px solid rgb(142, 0, 38);
+    }
+    
+    QCheckBox::indicator:checked:pressed {
+        background-color: rgb(80, 0, 19);
+        border: 2px solid rgb(80, 0, 19);
+    }
+    
+    QCheckBox:disabled {
+        color: rgb(180, 180, 180);
+    }
+    
+    QCheckBox::indicator:disabled {
+        background-color: rgb(230, 230, 230);
+        border: 2px solid rgb(200, 200, 200);
+    }
+
+/* ListWidget*/
+
+QListWidget{
+background-color: rgb(255,255,255);  /* Background color */
+}
+
+
+
+
+/*STYLE CLASSES*/
+
+/*OutsideFrame*/
+QGroupBox[styleClass="outsideFrame"]{
+border: 2px solid rgb(122, 0, 28);
+background-color: rgb(240,240,240);  /* Background color */
+margin: 0px;
+}
+QGroupBox[styleClass="outsideFrame"] QGroupBox{
+background-color: rgb(240,240,240);  /* Background color */
+}
+QGroupBox[styleClass="outsideFrame"] QLabel{
+background-color: rgb(240,240,240);  /* Background color */
+}
+QGroupBox[styleClass="outsideFrame"] QSlider{
+background-color: rgb(240,240,240);  /* Background color */
+}
+QGroupBox[styleClass="outsideFrame"] QCheckBox{
+background-color: rgb(240,240,240);  /* Background color */
+}
+
+/*InsideFrame*/
+QGroupBox[styleClass="insideFrame"]{
+border: 0px solid rgb(0, 0, 0);
+padding: 10px;
+margin: 0px;
+margin-top: 16px;
+}
+QGroupBox[styleClass="insideFrame"]::title {
+    /* the section title (P9.3: replaces the old show/hide header button) */
+    subcontrol-origin: margin;
+	subcontrol-position: top left;
+	padding: 0px 4px;
+}
+
+/*Panel group strip (P9.3)*/
+QToolButton[styleClass="PanelGroup"] {
+	border: 1px solid transparent;
+	border-radius: 4px;
+	padding: 4px;
+}
+QToolButton[styleClass="PanelGroup"]:hover {
+	border-color: rgb(122, 0, 28);
+}
+QToolButton[styleClass="PanelGroup"]:checked {
+	background-color: rgb(255, 255, 255);
+	border: 1px solid rgb(122, 0, 28);
+	border-right: 3px solid rgb(122, 0, 28);
+}
+
+/*verticalSubFrame*/
+QGroupBox[styleClass="verticalSubFrame"]{
+color:  rgb(80, 0, 19);  /* Text color */
+font-weight: normal;  /* Bold text */
+font-style: italic;
+border: 1px solid rgb(122, 0, 28);
+border-left: none;
+border-right: none;
+border-bottom: none;
+margin-top: 8px;
+padding-top:5px
+}
+QGroupBox[styleClass="verticalSubFrame"]::title {
+    /* Tells Qt to position the title in the margin area we created above */
+    subcontrol-origin: margin;
+	subcontrol-position: top center; 
+	padding: 0px 5px;
+}
+
+
+/*MenuButton*/
+QPushButton[styleClass="MenuButton"] {
+	background-color: rgb(122,0,28);  /* Background color */
+	border: 1px solid rgb(0, 0, 0);
+    color: rgb(255, 255, 255);  /* Text color */
+	font-size: 14px;
+    border-radius: 0px;
+	padding: 2px;
+}
+
+QPushButton[styleClass="MenuButton"]::hover {
+    background-color: rgb(142, 0, 38);  /* Background color when hovered */
+	color: rgb(245, 245, 245);
+    border-color:rgb(40, 40, 40);  /* Border color when hovered */
+}
+
+QPushButton[styleClass="MenuButton"]::pressed {
+   color:  rgb(80, 0, 19);  /* Background color when pressed */
+	border-color: rgb(0, 0, 0);
+}
+QPushButton[styleClass="MenuButton"]::clicked {
+   background-color: rgb(80,0,19);  /* Background color when pressed */
+	border-color:  rgb(0,0, 0);
+}
+
+QPushButton[styleClass="MenuButton"]::checked {
+    background-color: rgb(255,255,255);
+	color:  rgb(80, 0, 19);
+	border: 1px solid rgb(122, 0, 28);
+	border-top: none;
+	border-left: none;
+	border-right: none;
+	font-weight: bold;  /* Bold text */
+}
+
+QPushButton[styleClass="MenuButton"]::disabled {
+    background-color: rgb(180,180, 180);
+	border: 0px solid rgb(0, 0,0);
+}
+
+/*IconButton (P10): light buttons for the coloured pictograms*/
+QPushButton[styleClass="IconButton"] {
+	background-color: rgb(255, 255, 255);
+	color: rgb(80, 0, 19);
+	border: 1px solid rgb(200, 170, 178);
+	border-radius: 5px;
+	padding: 2px;
+}
+QPushButton[styleClass="IconButton"]:hover {
+	background-color: rgb(250, 236, 240);
+	border-color: rgb(122, 0, 28);
+}
+QPushButton[styleClass="IconButton"]:checked {
+	background-color: rgb(244, 212, 221);
+	border: 2px solid rgb(122, 0, 28);
+	font-weight: bold;
+}
+QPushButton[styleClass="IconButton"]:disabled {
+	background-color: rgb(236, 236, 236);
+	color: rgb(150, 150, 150);
+	border-color: rgb(215, 215, 215);
+}

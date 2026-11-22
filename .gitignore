@@ -2,3 +2,6 @@
 /build/
 *.spec
 __pycache__/
+*.py[cod]
+.pytest_cache/
+libraries/

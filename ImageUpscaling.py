@@ -7,6 +7,8 @@ import tempfile
 import shutil
 import cv2
 import numpy as np
+from core import image_doc
+from PathManager import USER_DIR
 
 class ImageUpscaler:
     """
@@ -22,12 +24,11 @@ class ImageUpscaler:
         "realesr-animevideov3"
     ]
 
-    def __init__(self, data_handler, library_path=None):
-        self.data_handler = data_handler
+    def __init__(self, image_matrix, library_path=None):
+        self.image_matrix = image_matrix
         if library_path is None:
-            # Resolve absolute path for libraries/realesrgan
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            self.library_path = os.path.join(base_dir, "libraries", "realesrgan")
+            # Downloaded on demand into a writable user folder (same place as the database)
+            self.library_path = str(USER_DIR / "libraries" / "realesrgan")
         else:
             self.library_path = os.path.abspath(library_path)
 
@@ -112,75 +113,52 @@ class ImageUpscaler:
 
     def calculate_dimensions(self, scale: int) -> tuple[int, int]:
         """Calculate the resulting dimensions in pixels for a given upscale factor."""
-        if self.data_handler.image_matrix is None:
+        if self.image_matrix is None:
             return 0, 0
-        height, width = self.data_handler.image_matrix.shape[:2]
+        height, width = self.image_matrix.shape[:2]
         return width * scale, height * scale
 
     @staticmethod
     def scale2x(image: np.ndarray) -> np.ndarray:
-        """
-        Applies the Scale2x (AdvMAME2x / EPX) algorithm to double image resolution,
-        smoothing/rounding edges while strictly preserving the exact palette colors.
-        """
+        """Scale2x (AdvMAME2x / EPX): doubles the resolution and rounds stair-step edges while keeping exactly the
+        colours of the image (every output pixel is a copy of an input pixel; all channels, alpha included)."""
         h, w, c = image.shape
-        padded = np.pad(image, ((1, 1), (1, 1), (0, 0)), mode='edge')
-
-        # Orthogonal neighbors of center pixel E:
-        #   B
-        # D E F
-        #   H
+        padded = np.pad(image, ((1, 1), (1, 1), (0, 0)), mode="edge")
+        # neighbours of the centre pixel E:   B
+        #                                    D E F
+        #                                      H
         E = padded[1:-1, 1:-1]
-        B = padded[0:-2, 1:-1]  # Top
-        D = padded[1:-1, 0:-2]  # Left
-        F = padded[1:-1, 2:]    # Right
-        H = padded[2:, 1:-1]    # Bottom
-
-        # Equality tests across color channels
+        B = padded[0:-2, 1:-1]
+        D = padded[1:-1, 0:-2]
+        F = padded[1:-1, 2:]
+        H = padded[2:, 1:-1]
         eq_DB = np.all(D == B, axis=-1)
         eq_BF = np.all(B == F, axis=-1)
         eq_DH = np.all(D == H, axis=-1)
         eq_HF = np.all(H == F, axis=-1)
-
-        # Scale2x rules:
-        # E0 = D == B and D != H and B != F ? D : E
-        m0 = eq_DB & (~eq_DH) & (~eq_BF)
-        # E1 = B == F and B != D and F != H ? F : E
-        m1 = eq_BF & (~eq_DB) & (~eq_HF)
-        # E2 = D == H and D != B and H != F ? D : E
-        m2 = eq_DH & (~eq_DB) & (~eq_HF)
-        # E3 = H == F and H != D and F != B ? F : E
-        m3 = eq_HF & (~eq_DH) & (~eq_BF)
-
-        E0 = np.where(m0[..., None], D, E)
-        E1 = np.where(m1[..., None], F, E)
-        E2 = np.where(m2[..., None], D, E)
-        E3 = np.where(m3[..., None], F, E)
-
+        m0 = eq_DB & ~eq_DH & ~eq_BF   # E0 = D if D == B, D != H, B != F
+        m1 = eq_BF & ~eq_DB & ~eq_HF   # E1 = F if B == F, B != D, F != H
+        m2 = eq_DH & ~eq_DB & ~eq_HF   # E2 = D if D == H, D != B, H != F
+        m3 = eq_HF & ~eq_DH & ~eq_BF   # E3 = F if H == F, H != D, F != B
         out = np.empty((h * 2, w * 2, c), dtype=image.dtype)
-        out[0::2, 0::2] = E0
-        out[0::2, 1::2] = E1
-        out[1::2, 0::2] = E2
-        out[1::2, 1::2] = E3
+        out[0::2, 0::2] = np.where(m0[..., None], D, E)
+        out[0::2, 1::2] = np.where(m1[..., None], F, E)
+        out[1::2, 0::2] = np.where(m2[..., None], D, E)
+        out[1::2, 1::2] = np.where(m3[..., None], F, E)
         return out
 
     def palette_preserving_upscale(self, scale: int = 2, status_callback=None) -> np.ndarray | None:
         """
-        Upscales the image while rounding edges and strictly preserving the original color palette.
-        Uses the Scale2x (AdvMAME2x) algorithm (iterated for powers of 2).
+        Upscales while rounding edges and keeping the original palette exactly: Scale2x (AdvMAME2x), iterated for
+        powers of two; other factors finish with a nearest-neighbour resize to the target size.
+        No blended or interpolated colours are created.
         """
-        if self.data_handler.image_matrix is None:
+        if self.image_matrix is None:
             if status_callback:
                 status_callback("Error: No image loaded.")
             return None
 
-        image_matrix = np.asarray(self.data_handler.image_matrix)
-        if image_matrix.ndim == 2:
-            image_matrix = np.stack([image_matrix] * 3, axis=-1)
-        elif image_matrix.shape[-1] == 4:
-            image_matrix = image_matrix[..., :3]
-        elif image_matrix.shape[-1] != 3:
-            raise ValueError(f"Unsupported image shape for palette-preserving upscale: {image_matrix.shape}")
+        image_matrix = image_doc.normalize(self.image_matrix)
 
         if scale <= 0:
             raise ValueError("Scale must be a positive integer.")
@@ -191,34 +169,19 @@ class ImageUpscaler:
         if status_callback:
             status_callback(f"Applying palette-preserving {scale}x upscale (Scale2x / AdvMAME2x)...")
 
-        is_power_of_two = (scale & (scale - 1)) == 0
+        passes = int(np.floor(np.log2(scale)))
         current = image_matrix
-
-        if is_power_of_two:
-            passes = int(np.round(np.log2(scale)))
-            for i in range(passes):
-                if status_callback and passes > 1:
-                    status_callback(f"Applying Scale2x pass {i + 1}/{passes}...")
-                current = self.scale2x(current)
-            upscaled_rgb = current
-        else:
-            passes = int(np.floor(np.log2(scale)))
-            for i in range(passes):
-                if status_callback:
-                    status_callback(f"Applying Scale2x pass {i + 1}...")
-                current = self.scale2x(current)
-
-            orig_h, orig_w = image_matrix.shape[:2]
-            target_w, target_h = orig_w * scale, orig_h * scale
-            if current.shape[1] != target_w or current.shape[0] != target_h:
-                if status_callback:
-                    status_callback("Adjusting to target dimensions (nearest-neighbor)...")
-                upscaled_rgb = cv2.resize(current, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
-            else:
-                upscaled_rgb = current
-
-        self.data_handler.image_matrix = upscaled_rgb
-
+        for i in range(passes):
+            if status_callback and passes > 1:
+                status_callback(f"Applying Scale2x pass {i + 1}/{passes}...")
+            current = self.scale2x(current)
+        target_h, target_w = image_matrix.shape[0] * scale, image_matrix.shape[1] * scale
+        if current.shape[:2] != (target_h, target_w):  # factors that are no power of two
+            rows = np.arange(target_h) * current.shape[0] // target_h
+            cols = np.arange(target_w) * current.shape[1] // target_w
+            current = current[rows][:, cols]
+        upscaled_rgb = current
+        
         if status_callback:
             status_callback("Palette-preserving upscaling completed.")
 
@@ -226,14 +189,14 @@ class ImageUpscaler:
 
     def upscale(self, scale: int = 4, model: str = "realesrgan-x4plus", use_gpu: bool = True, status_callback=None, preserve_palette: bool = False) -> np.ndarray | None:
         """
-        Upscales the current image in data_handler.image_matrix using the portable AI engine.
-        Saves output directly back to data_handler.image_matrix and returns it.
+        Upscales self.image_matrix using the portable AI engine.
+        Returns the upscaled image (the input is not modified).
         If preserve_palette is True, a palette-safe Scale2x (AdvMAME2x) algorithm is used instead.
         """
         if preserve_palette:
             return self.palette_preserving_upscale(scale=scale, status_callback=status_callback)
 
-        if self.data_handler.image_matrix is None:
+        if self.image_matrix is None:
             if status_callback:
                 status_callback("Error: No image loaded.")
             return None
@@ -264,8 +227,8 @@ class ImageUpscaler:
 
         try:
             # Convert RGB image matrix to BGR for OpenCV write
-            image_matrix = self.data_handler.image_matrix
-            bgr_image = cv2.cvtColor(image_matrix, cv2.COLOR_RGB2BGR)
+            image_matrix = self.image_matrix
+            bgr_image = cv2.cvtColor(image_doc.rgb_filled(image_matrix), cv2.COLOR_RGB2BGR)  # engine needs RGB
             cv2.imwrite(temp_in, bgr_image)
 
             if status_callback:
@@ -276,7 +239,7 @@ class ImageUpscaler:
                 exe_path,
                 "-i", temp_in,
                 "-o", temp_out,
-                "-s", str(scale),
+                "-s", "4",  # B22: realesrgan(-net)-x4plus models only support 4x; resized below
                 "-n", model,
                 "-g", "0" if use_gpu else "-1"
             ]
@@ -309,14 +272,14 @@ class ImageUpscaler:
                 raise ValueError("Failed to decode the upscaled image file.")
 
             upscaled_rgb = cv2.cvtColor(upscaled_bgr, cv2.COLOR_BGR2RGB)
+            if scale != 4:
+                upscaled_rgb = cv2.resize(upscaled_rgb, self.calculate_dimensions(scale), interpolation=cv2.INTER_AREA)
 
-            # Update data handler state
-            self.data_handler.image_matrix = upscaled_rgb
-
+            
             if status_callback:
                 status_callback("Upscaling completed successfully!")
 
-            return upscaled_rgb
+            return self._with_scaled_alpha(upscaled_rgb, scale)
 
         except Exception as e:
             if status_callback:
@@ -345,15 +308,18 @@ class ImageUpscaler:
         Highest-quality traditional interpolation (Lanczos4)
         as an instant, robust, offline fallback.
         """
-        if self.data_handler.image_matrix is None:
+        if self.image_matrix is None:
             return None
 
-        image_matrix = self.data_handler.image_matrix
+        image_matrix = image_doc.rgb_filled(self.image_matrix)  # transparent -> white, so edges do not darken
         new_w, new_h = self.calculate_dimensions(scale)
 
         # Apply OpenCV high-quality Lanczos4 interpolation
         upscaled_rgb = cv2.resize(image_matrix, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
 
-        # Update data handler state
-        self.data_handler.image_matrix = upscaled_rgb
-        return upscaled_rgb
+        return self._with_scaled_alpha(upscaled_rgb, scale)
+
+    def _with_scaled_alpha(self, upscaled_rgb, scale):
+        """Attach the source alpha, scaled with nearest neighbour (stays binary)."""
+        alpha = cv2.resize(image_doc.normalize(self.image_matrix)[..., 3], upscaled_rgb.shape[1::-1], interpolation=cv2.INTER_NEAREST)
+        return image_doc.with_rgb(np.dstack([upscaled_rgb, alpha]), upscaled_rgb)
