@@ -118,10 +118,40 @@ class ImageUpscaler:
         height, width = self.image_matrix.shape[:2]
         return width * scale, height * scale
 
+    @staticmethod
+    def scale2x(image: np.ndarray) -> np.ndarray:
+        """Scale2x (AdvMAME2x / EPX): doubles the resolution and rounds stair-step edges while keeping exactly the
+        colours of the image (every output pixel is a copy of an input pixel; all channels, alpha included)."""
+        h, w, c = image.shape
+        padded = np.pad(image, ((1, 1), (1, 1), (0, 0)), mode="edge")
+        # neighbours of the centre pixel E:   B
+        #                                    D E F
+        #                                      H
+        E = padded[1:-1, 1:-1]
+        B = padded[0:-2, 1:-1]
+        D = padded[1:-1, 0:-2]
+        F = padded[1:-1, 2:]
+        H = padded[2:, 1:-1]
+        eq_DB = np.all(D == B, axis=-1)
+        eq_BF = np.all(B == F, axis=-1)
+        eq_DH = np.all(D == H, axis=-1)
+        eq_HF = np.all(H == F, axis=-1)
+        m0 = eq_DB & ~eq_DH & ~eq_BF   # E0 = D if D == B, D != H, B != F
+        m1 = eq_BF & ~eq_DB & ~eq_HF   # E1 = F if B == F, B != D, F != H
+        m2 = eq_DH & ~eq_DB & ~eq_HF   # E2 = D if D == H, D != B, H != F
+        m3 = eq_HF & ~eq_DH & ~eq_BF   # E3 = F if H == F, H != D, F != B
+        out = np.empty((h * 2, w * 2, c), dtype=image.dtype)
+        out[0::2, 0::2] = np.where(m0[..., None], D, E)
+        out[0::2, 1::2] = np.where(m1[..., None], F, E)
+        out[1::2, 0::2] = np.where(m2[..., None], D, E)
+        out[1::2, 1::2] = np.where(m3[..., None], F, E)
+        return out
+
     def palette_preserving_upscale(self, scale: int = 2, status_callback=None) -> np.ndarray | None:
         """
-        Preserves the original palette exactly by using nearest-neighbor pixel replication.
-        This does not create any blended or interpolated colors.
+        Upscales while rounding edges and keeping the original palette exactly: Scale2x (AdvMAME2x), iterated for
+        powers of two; other factors finish with a nearest-neighbour resize to the target size.
+        No blended or interpolated colours are created.
         """
         if self.image_matrix is None:
             if status_callback:
@@ -133,11 +163,24 @@ class ImageUpscaler:
         if scale <= 0:
             raise ValueError("Scale must be a positive integer.")
 
-        if status_callback:
-            status_callback(f"Applying palette-preserving {scale}x nearest-neighbor upscale...")
+        if scale == 1:
+            return image_matrix.copy()
 
-        # Replicate each pixel block exactly to keep every original RGB value unchanged.
-        upscaled_rgb = np.repeat(np.repeat(image_matrix, scale, axis=0), scale, axis=1)
+        if status_callback:
+            status_callback(f"Applying palette-preserving {scale}x upscale (Scale2x / AdvMAME2x)...")
+
+        passes = int(np.floor(np.log2(scale)))
+        current = image_matrix
+        for i in range(passes):
+            if status_callback and passes > 1:
+                status_callback(f"Applying Scale2x pass {i + 1}/{passes}...")
+            current = self.scale2x(current)
+        target_h, target_w = image_matrix.shape[0] * scale, image_matrix.shape[1] * scale
+        if current.shape[:2] != (target_h, target_w):  # factors that are no power of two
+            rows = np.arange(target_h) * current.shape[0] // target_h
+            cols = np.arange(target_w) * current.shape[1] // target_w
+            current = current[rows][:, cols]
+        upscaled_rgb = current
         
         if status_callback:
             status_callback("Palette-preserving upscaling completed.")
@@ -148,7 +191,7 @@ class ImageUpscaler:
         """
         Upscales self.image_matrix using the portable AI engine.
         Returns the upscaled image (the input is not modified).
-        If preserve_palette is True, a palette-safe nearest-neighbor algorithm is used instead.
+        If preserve_palette is True, a palette-safe Scale2x (AdvMAME2x) algorithm is used instead.
         """
         if preserve_palette:
             return self.palette_preserving_upscale(scale=scale, status_callback=status_callback)

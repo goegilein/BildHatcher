@@ -35,6 +35,8 @@ def simplify_indices(points, tolerance):
     return np.flatnonzero(keep)
 
 
+CONST_DRIVE_BUFFER = 1.0  # +100 % on the computed acceleration / deceleration length (main 99054ce)
+
 class PostProcessor:
     def __init__(self):
         pass
@@ -51,7 +53,8 @@ class PostProcessor:
             elif process_block.post_processing == "Constant Drive" or process_block.post_processing == "Over Drive":
                 machine = process_block.machine
                 data_processed = self.set_drive_mode(data_offset, process_block.post_processing,
-                                                     machine.acceleration, machine.over_drive_fit)
+                                                     machine.acceleration, machine.over_drive_fit,
+                                                     machine.rapid_speed)
             
             hatch_cluster.data = data_processed
 
@@ -72,7 +75,15 @@ class PostProcessor:
         return [dataclasses.replace(layer, polylines=[line[simplify_indices(line[:, :3], tolerance)] for line in layer.polylines])
                 for layer in data]
     
-    def set_drive_mode(self, data, mode, acceleration=3000, over_drive_fit=(0.24484, 0.10634, 27.3937, 5.82549)):
+    @staticmethod
+    def const_drive_length(initial_speed, target_speed=0.0, acceleration=3000, buffer=CONST_DRIVE_BUFFER):
+        """Travel length (mm) to change speed from `initial_speed` to `target_speed` (mm/s) at constant
+        `acceleration` (mm/s^2), plus `buffer` (1.0 = 100 %); at least 0.1 mm."""
+        distance = (initial_speed**2 - target_speed**2) / (2 * acceleration)
+        return np.maximum(0.1, distance * (1 + buffer))
+
+    def set_drive_mode(self, data, mode, acceleration=3000, over_drive_fit=(0.24484, 0.10634, 27.3937, 5.82549),
+                       rapid_speed=100):
         """Constant Drive: accelerate/decelerate outside the burn (lead-in/lead-out travel moves of const_drive_len).
         Over Drive: additionally extend each burn by the measured over-drive length.
         Corners sharper than 10 degrees get a lead-out/lead-in as well; exactly collinear points are dropped."""
@@ -85,8 +96,10 @@ class PostProcessor:
             if not layer.polylines:
                 continue
             speed = layer.speed
-            # constant acceleration/deceleration of `acceleration` mm/s^2 plus a 10 % buffer
-            const_drive_len = np.maximum(0.1, 1.1 * speed**2 / (2 * acceleration))
+            # constant acceleration/deceleration of `acceleration` mm/s^2 plus a 100 % buffer (main 99054ce)
+            const_drive_len = self.const_drive_length(speed, 0, acceleration)
+            # the lead-in is approached at rapid speed: it must be long enough to slow down from there (main 6a7cc88)
+            first_const_drive_len = self.const_drive_length(rapid_speed, speed, acceleration)
             # logistic fit to measured over-drive of horizontal lines (31.01.2025): 10 mm/s: 110 um ... 100 mm/s: 260 um
             a, b, c, n = over_drive_fit
             over_drive_len = a + (b - a) / (1 + (speed / c)**n) if over else 0
@@ -96,7 +109,7 @@ class PostProcessor:
                     hatch_lines_new.append(line)
                     continue
                 pos = line[:, :3]
-                _, A_pre, _, _ = self.elongate_line(pos[0], pos[1], const_drive_len)
+                _, A_pre, _, _ = self.elongate_line(pos[0], pos[1], first_const_drive_len, over_drive_len)
                 # first command from the hatcher is ALWAYS a travel move: approach the lead-in point at rapid speed
                 parts = [polyline([(*A_pre, MOVE_RAPID)]), line[:1]]
 

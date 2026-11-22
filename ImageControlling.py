@@ -34,6 +34,7 @@ class BaseFunctions:
         self.images_frame = gui.images_frame
         self.default_dpi = 96  # Assuming 96 DPI by default
         self.last_save_filter = "PNG Files (*.png)"
+        self.last_directory = ""  # load / save dialogs open where the last image came from / went to
         self.changeing_image = False
         self.updating_dimensions = False
         self.active_image_item = None
@@ -146,12 +147,13 @@ class BaseFunctions:
             file_path, _ = QFileDialog.getOpenFileName(
                 self.gui,
                 "Load Image",
-                "",
+                self.last_directory,
                 "Image Files (*.png *.jpg *.jpeg *.bmp *.svg *.webp *.gif *.tiff);;SVG Files (*.svg);;All Files (*)"
             )
         if not file_path:
             return
         file_path = str(file_path)
+        self.last_directory = os.path.dirname(os.path.abspath(file_path))
         try:
             image_matrix, pixel_per_mm = self.read_image_file(file_path, self.action_white_is_background.isChecked())
             self.changeing_image = True
@@ -258,11 +260,13 @@ class BaseFunctions:
         # PNG/SVG keep the transparent background, JPEG/BMP get a white one
         filters = ["PNG Files (*.png)", "SVG Files (*.svg)", "JPEG Files (*.jpg *.jpeg)", "BMP Files (*.bmp)"]
         base_name = os.path.splitext(self.active_image_item.text())[0]
+        default_path = os.path.join(self.last_directory, base_name) if self.last_directory else base_name
         file_path, selected_filter = QFileDialog.getSaveFileName(
-            self.gui, "Save Image", base_name, ";;".join(filters), initialFilter=self.last_save_filter
+            self.gui, "Save Image", default_path, ";;".join(filters), initialFilter=self.last_save_filter
         )
         if not file_path:
             return
+        self.last_directory = os.path.dirname(os.path.abspath(file_path))
         self.last_save_filter = selected_filter or self.last_save_filter
         if not os.path.splitext(file_path)[1]:
             file_path += "." + re.search(r"\*\.(\w+)", self.last_save_filter).group(1)
