@@ -76,6 +76,7 @@ class ToolController:
         else:
             toolbar.addWidget(self.indicator)
         self.colorer.state_callbacks.append(self.update_indicator)
+        theme.on_change(self.update_indicator)  # P11.3: bright / dark
         self.update_indicator()
         return self.indicator
 
@@ -101,7 +102,7 @@ class ToolController:
                              QtGui.QColor("#BBBBBB"))
         else:
             painter.fillRect(swatch, QtGui.QColor(*rgba[:3]))
-        painter.setPen(QtGui.QColor(theme.TEXT_MUTED))
+        painter.setPen(theme.color("muted"))
         painter.drawRect(swatch)
         painter.end()
         self.indicator.setPixmap(pixmap)
@@ -345,11 +346,11 @@ class ToolWheel(QtWidgets.QWidget):
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        gold = QtGui.QColor(theme.GOLD)  # Atelier look: dark surface, gold accents
+        gold = theme.color("accent")  # Atelier look (dark or bright): surface, gold accents
         c = self.centre
         outer = QtCore.QRectF(c.x() - self.RADIUS, c.y() - self.RADIUS, 2 * self.RADIUS, 2 * self.RADIUS)
-        painter.setPen(QtGui.QPen(theme.GOLD_40, 1.5))
-        surface = QtGui.QColor(theme.SURFACE)
+        painter.setPen(QtGui.QPen(theme.color("accentLine"), 1.5))
+        surface = theme.color("surface")
         surface.setAlpha(240)
         painter.setBrush(surface)
         painter.drawEllipse(outer)
@@ -360,9 +361,9 @@ class ToolWheel(QtWidgets.QWidget):
             path.arcTo(outer, start, step)
             path.closeSubpath()
             painter.setPen(QtGui.QPen(gold, 1.5))
-            painter.setBrush(QtGui.QColor(208, 167, 111, 60))
+            painter.setBrush(theme.color("accentPress"))
             painter.drawPath(path)
-        painter.setPen(QtGui.QPen(theme.FROST, 1))
+        painter.setPen(QtGui.QPen(theme.color("hairline"), 1))
         for i in range(len(TOOLS)):  # sector borders
             a = math.radians(i * step - step / 2 - 90)
             painter.drawLine(QtCore.QPointF(c.x() + self.INNER * math.cos(a), c.y() + self.INNER * math.sin(a)),
@@ -377,12 +378,12 @@ class ToolWheel(QtWidgets.QWidget):
             on = i == self.highlight
             pix = icons.icon(icon_name).pixmap(48, 48)
             painter.drawPixmap(QtCore.QRectF(p.x() - 12, p.y() - 18, 24, 24), pix, QtCore.QRectF(pix.rect()))
-            painter.setPen(gold if on else QtGui.QColor(theme.TEXT_HIGH))
+            painter.setPen(theme.color("accentText") if on else theme.color("text"))
             painter.drawText(QtCore.QRectF(p.x() - 45, p.y() + 6, 90, 16), QtCore.Qt.AlignmentFlag.AlignCenter,
                              f"{label.split()[0]} ({key})")
         inner = QtCore.QRectF(c.x() - self.INNER, c.y() - self.INNER, 2 * self.INNER, 2 * self.INNER)
-        painter.setPen(QtGui.QPen(theme.GOLD_40, 1.5))
-        painter.setBrush(QtGui.QColor(theme.BG))
+        painter.setPen(QtGui.QPen(theme.color("accentLine"), 1.5))
+        painter.setBrush(theme.color("bg"))
         painter.drawEllipse(inner)
         x = icons.icon("close").pixmap(48, 48)
         painter.drawPixmap(QtCore.QRectF(c.x() - 10, c.y() - 10, 20, 20), x, QtCore.QRectF(x.rect()))

@@ -10,6 +10,7 @@ from PyQt6 import QtCore, QtWidgets
 
 import icons
 import Preferences
+import theme
 import Tools
 
 # group: (icon, [(strip label, tooltip / full name, section groupbox in the .ui)])
@@ -130,6 +131,7 @@ class SettingsPanel:
                 sub_button.hide()
                 sub_layout.addWidget(sub_button)
                 self.sections[label], self.section_buttons[label], self.group_of[label] = section, sub_button, group
+        theme.on_change(lambda: [b.setIcon(icons.icon(GROUPS[g][0])) for g, b in self.group_buttons.items()])
         self.content_layout.addStretch(1)
         sub_layout.addStretch(1)
         # P10: one width for every section (and so for the panel): the Images section's, measured with the
@@ -249,8 +251,10 @@ def build_toolbar(gui, c):
     gui.zoom_spinbox.setSuffix(" %")
     gui.zoom_spinbox.setToolTip("Zoom")
     bar.addWidget(_take(gui.zoom_spinbox))
-    bar.addAction(icons.icon("zoom-reset"), "Reset Zoom").triggered.connect(lambda: mover.reset_zoom())
-    bar.addAction(icons.icon("recenter"), "Re-center").triggered.connect(lambda: mover.recenter_image())
+    zoom_action = bar.addAction(icons.icon("zoom-reset"), "Reset Zoom")
+    zoom_action.triggered.connect(lambda: mover.reset_zoom())
+    center_action = bar.addAction(icons.icon("recenter"), "Re-center")
+    center_action.triggered.connect(lambda: mover.recenter_image())
     grid_action = bar.addAction(icons.toggle_icon("grid", "grid-hide"), "Grid")
     grid_action.setCheckable(True)
     grid_action.toggled.connect(lambda checked: mover.toggle_grid() if checked != mover.grid_on else None)
@@ -271,6 +275,29 @@ def build_toolbar(gui, c):
     gui.machine_profile_label.hide()
     bar.addWidget(_take(gui.machine_profile_combobox))
 
+    def refresh_icons():  # P11.3: bright / dark mode switch
+        zoom_action.setIcon(icons.icon("zoom-reset"))
+        center_action.setIcon(icons.icon("recenter"))
+        grid_action.setIcon(icons.toggle_icon("grid", "grid-hide"))
+        c.color_profiles.action.setIcon(icons.icon("color-profile"))
+        machine_label.setPixmap(icons.icon("machine").pixmap(22, 22))
+    theme.on_change(refresh_icons)
+
+
+def build_theme_switch(gui):
+    """P11.3: Modes > Bright Mode switches the Atelier style between dark and bright (remembered)."""
+    action = gui.actionBright_Mode
+    action.setCheckable(True)
+    action.setChecked(theme.MODE == "light")
+
+    def switch(bright):
+        mode = "light" if bright else "dark"
+        if mode != theme.MODE:
+            theme.set_mode(mode, gui)
+            Preferences.put("theme", mode)
+    action.toggled.connect(switch)
+    return action
+
 
 def build(gui, c):
     """Arrange toolbar and settings panel (call after main.create_components)."""
@@ -285,4 +312,5 @@ def build(gui, c):
     tg = c.overlay_manager  # colour buttons: icons in the contrast colour of the current colour (P9.8)
     tg._style_color_button(gui.fill_color_button, tg.current_fill_color)
     tg._style_color_button(gui.outline_color_button, tg.current_outline_color)
+    build_theme_switch(gui)
     return panel

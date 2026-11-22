@@ -4,6 +4,7 @@ from PyQt6.QtGui import QPainterPath, QPen, QBrush, QColor, QFont, QFontDatabase
 from PyQt6.QtWidgets import QGraphicsItem
 from UndoRedo import TGAddOverlayAction, TGDeleteOverlayAction, TGTransformOverlayAction, TGImprintOverlaysAction
 import icons
+import theme
 
 
 def select_color() -> QtGui.QColor:
@@ -750,6 +751,7 @@ class TextGeometryOverlayManager:
         # Initialize button styles
         self._style_color_button(self.fill_color_button, self.current_fill_color)
         self._style_color_button(self.outline_color_button, self.current_outline_color)
+        theme.on_change(self._on_theme_changed)  # P11.3
 
         # Wire up event handler if available
         if event_handler:
@@ -1585,6 +1587,14 @@ class TextGeometryOverlayManager:
             if w is not None:
                 w.blockSignals(block)
 
+    def _on_theme_changed(self):
+        """Bright / dark mode switch: icons drawn by this code."""
+        for i, icon_name in enumerate(("geo-line", "geo-rect", "geo-triangle", "geo-ellipse")):
+            if i < self.geometry_type_combobox.count():
+                self.geometry_type_combobox.setItemIcon(i, icons.icon(icon_name))
+        self._style_color_button(self.fill_color_button, self.current_fill_color)
+        self._style_color_button(self.outline_color_button, self.current_outline_color)
+
     @staticmethod
     def _recolor_button_icon(button, hex_color):
         """P9.8: the pictogram of a colour button follows its (contrast) text colour."""
@@ -1599,20 +1609,8 @@ class TextGeometryOverlayManager:
 
         if color is None or color.alpha() == 0:
             # Default styling for transparent / no color
-            button.setStyleSheet(
-                "QPushButton {"
-                "  background-color: #18202F;"
-                "  color: #CBD5E1;"
-                "  border: 1px solid rgba(255, 255, 255, 0.10);"
-                "  font-weight: bold;"
-                "  border-radius: 8px;"
-                "  padding: 4px;"
-                "}"
-                "QPushButton:hover {"
-                "  border-color: rgba(208, 167, 111, 0.40);"
-                "}"
-            )
-            self._recolor_button_icon(button, "CBD5E1")
+            button.setStyleSheet("")  # no colour: the theme's button look (P11.3: dark or bright)
+            self._recolor_button_icon(button, icons.ink())
             return
 
         r, g, b = color.red(), color.green(), color.blue()

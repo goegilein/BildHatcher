@@ -18,6 +18,7 @@ import Settings
 import ColorProfile
 import MainLayout
 import theme
+import Preferences
 import AutomatedProcessing
 import EventHandling
 import TextandGeometries
@@ -129,7 +130,7 @@ def main():
     setup_logging()
     sys.excepthook = show_unhandled_exception
     app = QtWidgets.QApplication(sys.argv)
-    theme.apply(app)  # Atelier look: fonts + stylesheet for all windows and dialogs
+    theme.apply(app, Preferences.get("theme", "dark"))  # Atelier look (P11.3: dark / bright, remembered)
 
     gui = create_main_window()
     gui.setWindowTitle(f"BildHatcher - v{load_version()}")

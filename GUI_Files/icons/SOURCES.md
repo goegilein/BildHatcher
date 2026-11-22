@@ -1,6 +1,6 @@
 # Icons
 
-Files are named by what they mean in BildHatcher; to change a pictogram, replace the file (24×24 SVG). Referenced from `GUI_Files/BildHatcher.ui` and the code by these names.
+Files are named by what they mean in BildHatcher; to change a pictogram, replace the file (24×24 SVG). Referenced from `GUI_Files/BildHatcher.ui` and the code by these names. The files here are the dark-mode versions (light outlines); `light/` holds the same pictograms for the bright mode (dark outlines), written by `tools/make_icons.py` – same sources and licences as listed below.
 
 Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT · Streamline Color © Streamline (streamlinehq.com), CC BY 4.0 (attribution: this file) · Tabler Icons © Paweł Kuna, MIT.
 

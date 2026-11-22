@@ -1,9 +1,11 @@
 """Copy a stylesheet from GUI_Files/styles into the root of GUI_Files/BildHatcher.ui (so Qt Designer shows it).
 
-    python tools/apply_style.py             # atelier (the app's style)
+    python tools/apply_style.py                 # atelier, dark mode (what the app starts with)
+    python tools/apply_style.py atelier light   # bright mode, only to look at it in Designer
     python tools/apply_style.py legacy_burgundy
 
-Edit the .qss file, not the stylesheet in Designer – this script overwrites it.
+Edit the .qss file, not the stylesheet in Designer – this script overwrites it. Templates with @palette blocks
+(atelier) are rendered by theme.render first.
 """
 import sys
 from pathlib import Path
@@ -11,11 +13,13 @@ from pathlib import Path
 from lxml import etree
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import theme  # noqa: E402
 UI = ROOT / "GUI_Files" / "BildHatcher.ui"
 
 
-def apply(name="atelier"):
-    qss = (ROOT / "GUI_Files" / "styles" / f"{name}.qss").read_text(encoding="utf-8")
+def apply(name="atelier", mode="dark"):
+    qss = theme.render(mode, name) if "@palette" in theme.template(name) else theme.template(name)
     tree = etree.parse(str(UI))
     window = tree.getroot().find("widget")
     prop = window.find("property[@name='styleSheet']")
@@ -23,7 +27,7 @@ def apply(name="atelier"):
     text = etree.tostring(tree, xml_declaration=True, encoding="UTF-8").decode("utf-8")
     UI.write_text(text.replace("<?xml version='1.0' encoding='UTF-8'?>", '<?xml version="1.0" encoding="UTF-8"?>')
                   + ("" if text.endswith("\n") else "\n"), encoding="utf-8")
-    print(f"{name}.qss -> {UI.name}")
+    print(f"{name}.qss ({mode}) -> {UI.name}")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtCore import QRectF
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import icons
+import theme
 import cv2
 import numpy as np
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
@@ -516,6 +517,7 @@ class ImageColorer(MaskTools, QtCore.QObject):
         icons.set_icon(transparent_btn, "transparent", size=18,
                        tooltip="Transparent: painted / filled areas become background and are not hatched")
         transparent_btn.setFixedHeight(25)
+        theme.on_change(lambda: transparent_btn.setIcon(icons.icon("transparent")))  # P11.3
         transparent_btn.clicked.connect(lambda checked: self.set_active_color(list(image_doc.TRANSPARENT)))
         self.default_color_buttons_layout.addWidget(transparent_btn, 3, 0, 1, 3)
     

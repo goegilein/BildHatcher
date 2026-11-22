@@ -888,19 +888,43 @@ DARK_THEME = {INK: "#CBD5E1", BLACK: "#E2E8F0", HALO: "#131822"}
 
 
 def themed(name, text):
-    if name.startswith("cursor-"):
+    if name.startswith(("cursor-", "spin-", "combo-down", "check")):
         return text
     for light, dark in DARK_THEME.items():
         text = text.replace(f'"{light}"', f'"{dark}"')
     return text
 
 
+LIGHT_DIR = ICON_DIR / "light"  # P11.3: the bright mode's pictograms (the light-theme colours as drawn)
+NOT_THEMED = ("cursor-", "spin-", "combo-down", "check")  # cursors (on the image), stylesheet images: one set
+
+
+def light_copies():
+    """Bright-mode copies of the icons not drawn here (downloaded ones): the dark-mode ink back to dark."""
+    count = 0
+    for path in ICON_DIR.glob("*.svg"):
+        name = path.stem
+        if name in ICONS:
+            continue
+        text = path.read_text(encoding="utf-8")
+        for light, dark in DARK_THEME.items():
+            text = text.replace(f'"{dark}"', f'"{light}"').replace(f'"{dark.lower()}"', f'"{light}"')
+        (LIGHT_DIR / path.name).write_text(text, encoding="utf-8")
+        count += 1
+    return count
+
+
 def main(names):
     names = names or list(ICONS)
+    LIGHT_DIR.mkdir(exist_ok=True)
     for name in names:
-        (ICON_DIR / f"{name}.svg").write_text(themed(name, ICONS[name]()), encoding="utf-8")
+        text = ICONS[name]()
+        (ICON_DIR / f"{name}.svg").write_text(themed(name, text), encoding="utf-8")
+        if not name.startswith(NOT_THEMED):
+            (LIGHT_DIR / f"{name}.svg").write_text(text, encoding="utf-8")
+    copies = light_copies()
     update_sources(names)
-    print(f"{len(names)} icons written to {ICON_DIR}")
+    print(f"{len(names)} icons written to {ICON_DIR} (+ bright mode in {LIGHT_DIR.name}/, {copies} copied)")
 
 
 if __name__ == "__main__":

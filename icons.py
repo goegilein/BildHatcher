@@ -3,26 +3,36 @@
 The panel's icons are set in GUI_Files/BildHatcher.ui; this module serves the code-built parts (toolbar actions,
 group strip, tool wheel, indicator). Coloured icons are used as they are; monochrome ones that use
 `currentColor` (e.g. the text colour buttons) are drawn in `color`.
+P11.3: every pictogram exists for the dark mode (GUI_Files/icons) and the bright mode (GUI_Files/icons/light);
+icon() serves the current mode of theme.py (code that keeps icons re-sets them via theme.on_change).
 """
 from functools import lru_cache
 
 from PyQt6 import QtCore, QtGui
 from PyQt6.QtSvg import QSvgRenderer
 
-from PathManager import get_gui_file_path
+import theme
 
-ICON_DIR = get_gui_file_path("icons")
-APP = "CBD5E1"      # pictogram ink on the dark Atelier surfaces (theme.py)
+ICON_DIR = theme.ICON_DIR
+INK = {"dark": "CBD5E1", "light": "37474F"}  # pictogram ink per mode (currentColor icons without a colour)
+APP = None          # (default colour: the mode's ink)
 ON_DARK = "FFFFFF"  # on the filled section buttons
 _SIZES = (16, 24, 32, 48)
-QtCore.QDir.addSearchPath("icons", str(ICON_DIR))  # stylesheet images: url(icons:spin-up.svg)
+
+
+def ink():
+    return INK[theme.MODE]
+
+
+def icon(name, color=APP, checked_color=None):
+    """QIcon of the pictogram `name` for the current mode, `currentColor` drawn in `color` (hex without #,
+    default: the mode's ink), in `checked_color` while the button is checked (optional). Needs a QApplication."""
+    return _icon(name, color or ink(), checked_color, theme.MODE)
 
 
 @lru_cache(maxsize=None)
-def icon(name, color=APP, checked_color=None):
-    """QIcon of GUI_Files/icons/<name>.svg drawn in `color` (hex without #), in `checked_color` while the
-    button is checked (optional). Needs a QApplication."""
-    source = (ICON_DIR / f"{name}.svg").read_text(encoding="utf-8")
+def _icon(name, color, checked_color, mode):
+    source = theme.icon_file(name, mode).read_text(encoding="utf-8")
     result = QtGui.QIcon()
     states = [(color, QtGui.QIcon.State.Off)]
     if checked_color:
@@ -39,9 +49,13 @@ def icon(name, color=APP, checked_color=None):
     return result
 
 
-@lru_cache(maxsize=None)
 def toggle_icon(off_name, on_name):
     """QIcon showing `off_name` while unchecked and `on_name` while checked (e.g. grid / grid-hide)."""
+    return _toggle_icon(off_name, on_name, theme.MODE)
+
+
+@lru_cache(maxsize=None)
+def _toggle_icon(off_name, on_name, mode):
     result = QtGui.QIcon()
     for name, state in ((off_name, QtGui.QIcon.State.Off), (on_name, QtGui.QIcon.State.On)):
         for size in _SIZES:
