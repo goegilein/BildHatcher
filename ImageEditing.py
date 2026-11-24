@@ -573,6 +573,8 @@ class ImageColorer(MaskTools, QtCore.QObject):
                 self.start_mask_ellipse(event)
             elif self.mask_shape_mode == "polygon":
                 self.add_polygon_point(event)
+        else:
+            self.select_mask_at(event)  # P12.5: no tool – a click on a mask selects it
 
     
     def on_key_press(self, event):

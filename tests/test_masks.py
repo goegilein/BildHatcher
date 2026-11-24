@@ -7,10 +7,12 @@ from test_characterization import load_image
 
 
 def _image():
-    """60 x 40 white image with a red block (10..19, 10..19) and a blue block (35..44, 10..19)."""
+    """60 x 40 white image with a red block (10..19, 10..19), a blue block (35..44, 10..19) and a green bar
+    (x 40..49, y 30..33 – not square, so a turn shows)."""
     img = np.full((40, 60, 3), 255, np.uint8)
     img[10:20, 10:20] = (220, 30, 30)
     img[10:20, 35:45] = (30, 60, 200)
+    img[30:34, 40:50] = (40, 160, 60)
     return img
 
 
@@ -192,6 +194,65 @@ def test_undo_imprint_drag_and_lift(masked):
     assert tuple(image[27, 15][:3]) == RED and not c.image_colorer.is_lifted(0)
 
 
+GREEN = (40, 160, 60)
+
+
+def _drag_scene(c, start, end):
+    """Left-button drag between two scene points (real view events)."""
+    view = c.gui.image_canvas
+    viewport = view.viewport()
+    Type, Button, Mod = QtCore.QEvent.Type, QtCore.Qt.MouseButton, QtCore.Qt.KeyboardModifier.NoModifier
+
+    def event(kind, point, buttons):
+        pos = QtCore.QPointF(view.mapFromScene(point))
+        return QtGui.QMouseEvent(kind, pos, QtCore.QPointF(viewport.mapToGlobal(pos)), Button.LeftButton, buttons, Mod)
+    QtWidgets.QApplication.sendEvent(viewport, event(Type.MouseButtonPress, start, Button.LeftButton))
+    QtWidgets.QApplication.sendEvent(viewport, event(Type.MouseMove, end, Button.LeftButton))
+    QtWidgets.QApplication.sendEvent(viewport, event(Type.MouseButtonRelease, end, Button.NoButton))
+
+
+def test_clicking_a_mask_in_the_image_selects_it(masked):
+    c = masked
+    _draw_rect_mask(c, 10, 10, 19, 19)
+    _draw_rect_mask(c, 35, 10, 44, 19)                            # selected (new)
+    _drag(c, (14, 14), (14, 14))                                  # a plain click into mask 1
+    assert c.image_colorer.masks_list_widget.currentRow() == 0
+    c.gui.toggle_draw_button.click()                              # with a tool on, the click is the tool's
+    _drag(c, (40, 14), (40, 14))
+    assert c.image_colorer.masks_list_widget.currentRow() == 0
+    c.image_colorer.set_single_toggle_state("")
+
+
+def test_turning_a_lifted_mask_with_its_handle(masked):
+    c = masked
+    colorer = c.image_colorer
+    _draw_rect_mask(c, 40, 30, 49, 33)                            # around the green bar (10 x 4)
+    _lift(c, 0)
+    lift = c.data_handler.mask_info[0]['lift']
+    handle = lift['pixels'].handle
+    assert handle.isVisible()                                     # selected lifted mask: handle on top
+    centre = lift['pixels'].mapToScene(lift['pixels'].transformOriginPoint())
+    radius = (handle.scenePos() - centre).manhattanLength()
+    _drag_scene(c, handle.scenePos(), centre + QtCore.QPointF(radius, 0))   # handle to the right: 90 degrees
+    assert lift['pixels'].rotation() == pytest.approx(90, abs=1)
+    lift['pixels'].setRotation(90)                                # exact for the pixel check
+    assert c.data_handler.mask_overlays[0].rotation() == 90      # the frame turns along
+    original = c.data_handler.image_matrix.copy()
+    c.gui.imprint_mask_button.click()
+    image = c.data_handler.image_matrix
+    ys, xs = np.nonzero((image[..., 3] == 255) & np.all(image[..., :3] == GREEN, axis=-1))
+    assert (xs.max() - xs.min() + 1, ys.max() - ys.min() + 1) == (4, 10)   # the bar stands upright now
+    colours = {tuple(p) for p in image.reshape(-1, 4).tolist()}
+    assert colours <= {tuple(p) for p in original.reshape(-1, 4).tolist()} | {(0, 0, 0, 0)}  # no new colours
+    assert c.data_handler.mask_info[0]['type'] == 'polygon'       # a turned rectangle is a polygon mask
+    box = _mask_box(c.data_handler.masks_list[0])
+    assert (box[2] - box[0] + 1, box[3] - box[1] + 1) == (4, 10)  # the mask turned with it
+    colorer.undo_manager.undo()                                   # back: lifted and turned
+    assert np.array_equal(c.data_handler.image_matrix, original)
+    assert colorer.is_lifted(0) and c.data_handler.mask_info[0]['type'] == 'rectangle'
+    assert c.data_handler.mask_info[0]['lift']['pixels'].rotation() == 90
+
+
 def test_masks_and_images_sections_have_taller_lists_and_imprint_buttons(app_components):
     gui = app_components.gui
     assert gui.masks_list_widget.minimumHeight() >= 200 and gui.images_ListWidget.minimumHeight() >= 220
@@ -201,3 +262,14 @@ def test_masks_and_images_sections_have_taller_lists_and_imprint_buttons(app_com
     assert gui.toolbar_colors_label.parentWidget() is gui.toolBar
     load_image(app_components, _image())
     assert gui.toolbar_colors_label.text() == gui.number_of_colors_label.text().split(": ")[1] + " colors"
+
+
+def test_a_new_mask_outline_lies_exactly_on_its_pixels(masked):
+    c = masked
+    _draw_rect_mask(c, 40, 30, 49, 33)
+    item = c.gui.image_item
+    expected = QtCore.QRectF(item.mapToScene(QtCore.QPointF(40, 30)), item.mapToScene(QtCore.QPointF(50, 34)))
+    frame = c.data_handler.mask_overlays[0].rect()
+    for a, b in ((frame.left(), expected.left()), (frame.top(), expected.top()),
+                 (frame.right(), expected.right()), (frame.bottom(), expected.bottom())):
+        assert a == pytest.approx(b, abs=1e-6)

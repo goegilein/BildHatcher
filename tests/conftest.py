@@ -40,5 +40,10 @@ def app_components(qapp):
     components.panel_buttons = MainLayout.build(gui, components)
     components.gui = gui
     yield components
+    gui.hide()
     gui.deleteLater()
     qapp.processEvents()
+    # really delete the window now (processEvents alone leaves deferred deletes queued, so every test's window
+    # stayed alive and a theme switch restyled all of them)
+    from PyQt6 import QtCore
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete.value)
