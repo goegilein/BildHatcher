@@ -592,6 +592,22 @@ def imprint_overlays():
                letter_t(16, 16, 5, 4.6, INK, 1.7))
 
 
+def imprint_mask():
+    """Stamp with a dashed square (a mask) at the bottom right: imprint a lifted mask."""
+    return svg(stamp(-2.5), rect(13.5, 13, 9.5, 9.5, HALO, HALO, 3.0, 0.8),
+               rect(14, 13.5, 8.5, 8.5, MASK_FILL, MASK, 1.5, 0.6, "2 1.6"))
+
+
+def imprint_masks():
+    """Stamp with overlapping dashed square, circle and triangle at the bottom right: imprint all lifted masks."""
+    halo = [rect(9.6, 9.6, 14.2, 14.2, HALO, HALO, 1.6, 2)]
+    dash = "2 1.5"
+    shapes = [rect(10.6, 10.6, 6.6, 6.6, MASK_FILL, MASK, 1.3, 0.4, dash),
+              circle(19.2, 14.2, 3.6, MASK_FILL, MASK, 1.3, dash),
+              polygon([(15.8, 15.6), (21.4, 22.6), (10.2, 22.6)], MASK_FILL, MASK, 1.3, dash)]
+    return svg(stamp(-3.5), *halo, *shapes)
+
+
 def rotate_icon():
     """Square at the bottom left, a quarter-circle arrow around its top right corner, "90°" above it."""
     nine = circle(4.4, 4, 1.5, "none", INK, 1.3) + "\n" + path("M 5.9 4 L 5.9 6 Q 5.9 7.6 4.2 7.6", "none", INK, 1.3)
@@ -814,6 +830,8 @@ ICONS = {
     "clean-up": clean_up,
     "imprint-colors": imprint_colors,
     "imprint-overlays": imprint_overlays,
+    "imprint-mask": imprint_mask,
+    "imprint-masks": imprint_masks,
     "image-restore": image_restore,
     "contours": lambda: svg(contour_lines()),
     "contours-hide": lambda: svg(contour_lines(), slash((3, 3), (21, 21))),

@@ -238,7 +238,8 @@ def build_toolbar(gui, c):
 
     # P10.6: imprint colours / overlays – the same as the buttons in the Color and Text sections
     for action, button in ((gui.actionImprint_Colors, gui.imprint_color_overlays_button),
-                           (gui.actionImprint_Overlays, gui.imprint_selected_tg_overlays_button)):
+                           (gui.actionImprint_Overlays, gui.imprint_selected_tg_overlays_button),
+                           (gui.actionImprint_Masks, gui.imprint_mask_button)):  # P12.4: lifted masks
         mirror_button(action, button)
         bar.addAction(action)
         _styled(bar.widgetForAction(action), "ImprintAction")  # highlighted while something waits to be imprinted

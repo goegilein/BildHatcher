@@ -154,11 +154,7 @@ class DataHandler:
     
     def update_color_ovleray_imprint_button(self):
         # if self.active_color_overlays or self.text_overlays or self.geometry_overlays:
-        pending = bool(self.active_color_overlays)  # colour edits and moved mask areas
-        self.gui.imprint_color_overlays_button.setEnabled(pending)
-        mask_button = getattr(self.gui, "imprint_mask_button", None)
-        if mask_button is not None:
-            mask_button.setEnabled(pending)
+        self.gui.imprint_color_overlays_button.setEnabled(bool(self.active_color_overlays))
     
     def update_tg_ovleray_imprint_button(self):
         if self.text_overlays or self.geometry_overlays:

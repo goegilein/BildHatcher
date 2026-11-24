@@ -3751,7 +3751,7 @@ QPushButton[styleClass="SectionTab"]:checked {
                     <property name="icon">
                      <iconset>
                       <normaloff>icons/mask-move.svg</normaloff>
-                      <normalon>icons/mask-move.svg</normalon>
+                      <normalon>icons/imprint-mask.svg</normalon>
                      </iconset>
                     </property>
                     <property name="iconSize">
@@ -3761,7 +3761,7 @@ QPushButton[styleClass="SectionTab"]:checked {
                      </size>
                     </property>
                     <property name="toolTip">
-                     <string>Move the masked area</string>
+                     <string>Lift off the selected mask: cut it out as a layer you can drag; imprint puts it back</string>
                     </property>
                     <property name="text">
                      <string/>
@@ -3951,8 +3951,8 @@ QPushButton[styleClass="SectionTab"]:checked {
                    <widget class="QPushButton" name="imprint_mask_button">
                     <property name="icon">
                      <iconset>
-                      <normaloff>icons/imprint-colors.svg</normaloff>
-                      <normalon>icons/imprint-colors.svg</normalon>
+                      <normaloff>icons/imprint-masks.svg</normaloff>
+                      <normalon>icons/imprint-masks.svg</normalon>
                      </iconset>
                     </property>
                     <property name="iconSize">
@@ -3962,7 +3962,7 @@ QPushButton[styleClass="SectionTab"]:checked {
                      </size>
                     </property>
                     <property name="toolTip">
-                     <string>Imprint the moved mask areas (and other open color edits) into the image</string>
+                     <string>Imprint all lifted masks into the image</string>
                     </property>
                     <property name="text">
                      <string/>
@@ -6571,6 +6571,19 @@ QPushButton[styleClass="SectionTab"]:checked {
    </property>
    <property name="toolTip">
     <string>Imprint the colored overlays into the image</string>
+   </property>
+  </action>
+  <action name="actionImprint_Masks">
+   <property name="icon">
+    <iconset>
+     <normaloff>icons/imprint-masks.svg</normaloff>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>Imprint All Masks</string>
+   </property>
+   <property name="toolTip">
+    <string>Imprint all lifted masks into the image</string>
    </property>
   </action>
   <action name="actionImprint_Overlays">

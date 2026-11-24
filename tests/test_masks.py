@@ -1,4 +1,4 @@
-"""Mask bugs found while testing v2.0 (moving masks, selection, imprint) and the Masks / Images section sizes."""
+"""Masks after testing v2.0: lift off masks (P12.4), selection, imprint, and the Masks / Images section sizes."""
 import numpy as np
 import pytest
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -36,13 +36,23 @@ def _draw_rect_mask(c, x0, y0, x1, y1):
     colorer.mask_drawing_on = False
 
 
-def _move_selected_mask(c, dx, dy, start=(15, 15)):
-    colorer = c.image_colorer
-    colorer.move_mask_on = True
-    Type = QtCore.QEvent.Type
-    colorer.on_move_mask_press(_mouse(c, Type.MouseButtonPress, *start))
-    colorer.on_move_mask_drag(_mouse(c, Type.MouseMove, start[0] + dx, start[1] + dy))
-    colorer.on_move_mask_release(_mouse(c, Type.MouseButtonRelease, start[0] + dx, start[1] + dy))
+def _drag(c, start, end):
+    """Drag with the left mouse button on the canvas from image pixel `start` to `end` (real view events)."""
+    viewport = c.gui.image_canvas.viewport()
+    Type, Button = QtCore.QEvent.Type, QtCore.Qt.MouseButton
+    send = QtWidgets.QApplication.sendEvent
+    send(viewport, _mouse(c, Type.MouseButtonPress, *start))
+    middle = ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)
+    for point in (middle, end):
+        send(viewport, _mouse(c, Type.MouseMove, *point))
+    release = _mouse(c, Type.MouseButtonRelease, *end)
+    send(viewport, QtGui.QMouseEvent(Type.MouseButtonRelease, release.position(), release.globalPosition(),
+                                     Button.LeftButton, Button.NoButton, QtCore.Qt.KeyboardModifier.NoModifier))
+
+
+def _lift(c, row):
+    c.image_colorer.masks_list_widget.setCurrentRow(row)
+    c.gui.move_masked_area_button.click()
 
 
 @pytest.fixture
@@ -68,6 +78,11 @@ def _mask_box(mask):
     return xs.min(), ys.min(), xs.max(), ys.max()
 
 
+
+
+RED, BLUE = (220, 30, 30), (30, 60, 200)
+
+
 def test_a_new_mask_is_selected(masked):
     c = masked
     _draw_rect_mask(c, 10, 10, 19, 19)
@@ -76,64 +91,113 @@ def test_a_new_mask_is_selected(masked):
     assert c.image_colorer.masks_list_widget.currentRow() == 1
 
 
-def test_deleting_a_moved_mask_still_allows_the_imprint(masked):
+def test_lifting_a_mask_makes_a_floating_layer(masked):
+    c = masked
+    colorer, gui = c.image_colorer, c.gui
+    _draw_rect_mask(c, 10, 10, 19, 19)
+    before = c.data_handler.image_matrix.copy()
+    assert not gui.imprint_mask_button.isEnabled() and not gui.move_masked_area_button.isChecked()
+    _lift(c, 0)
+    assert colorer.is_lifted(0)
+    assert gui.move_masked_area_button.isChecked()               # the lift button now imprints
+    assert "Imprint" in gui.move_masked_area_button.toolTip()
+    assert gui.imprint_mask_button.isEnabled() and gui.actionImprint_Masks.isEnabled()
+    assert c.data_handler.mask_overlays[0].pen().color().name().upper() in ("#FF6D00", "#C43C00")  # orange
+    assert np.array_equal(c.data_handler.image_matrix, before)  # the image only changes with the imprint
+    assert not c.data_handler.active_color_overlays             # not part of the colour imprint
+
+
+def test_drag_and_drop_then_imprint_the_mask(masked):
     c = masked
     _draw_rect_mask(c, 10, 10, 19, 19)
-    _move_selected_mask(c, 0, 15)
-    assert c.data_handler.active_color_overlays  # cut-out + moved pixels wait for the imprint
-    assert c.gui.imprint_mask_button.isEnabled()
-    c.image_colorer.delete_selected_mask()
-    assert not c.data_handler.masks_list
-    c.image_colorer.imprint_color_overlays()  # failed before (index of the deleted mask)
+    start = _mask_box(c.data_handler.masks_list[0])
+    _lift(c, 0)
+    _drag(c, (15, 15), (15, 27))                                 # down by 12
+    assert c.data_handler.mask_overlays[0].pos().y() > 0          # the frame follows
+    c.gui.move_masked_area_button.click()                        # imprint this mask
     image = c.data_handler.image_matrix
-    assert not c.data_handler.active_color_overlays
-    assert tuple(image[27, 15][:3]) == (220, 30, 30) and image[27, 15][3] == 255  # moved down by 15
-    assert image[12, 15][3] == 0  # the old place became background
+    assert not c.image_colorer.is_lifted(0)
+    assert tuple(image[27, 15][:3]) == RED and image[27, 15][3] == 255
+    assert image[12, 15][3] == 0                                 # the old place became background
+    assert _mask_box(c.data_handler.masks_list[0])[:2] == (start[0], start[1] + 12)  # the mask moved along
+    assert c.data_handler.mask_overlays[0].pos() == QtCore.QPointF(0, 0)
 
 
-def test_a_second_mask_moves_itself_and_the_first_keeps_its_move(masked):
+def test_masks_lifted_and_moved_alternately(masked):
+    """The scenario that failed with the old "move": mask 1, mask 2, mask 1 again – then imprint all."""
     c = masked
     _draw_rect_mask(c, 10, 10, 19, 19)
-    _move_selected_mask(c, 0, 15)                 # first mask, not imprinted
-    _draw_rect_mask(c, 35, 10, 44, 19)            # new mask: selected automatically
-    _move_selected_mask(c, 0, 15, start=(40, 15))  # moved the old one before
-    c.image_colorer.imprint_color_overlays()
+    _draw_rect_mask(c, 35, 10, 44, 19)
+    start_first, start_second = (_mask_box(m) for m in c.data_handler.masks_list)
+    _lift(c, 0)
+    _drag(c, (15, 15), (15, 27))
+    _lift(c, 1)
+    _drag(c, (40, 15), (40, 27))
+    _drag(c, (15, 27), (27, 27))                                 # the first one again (still lifted)
+    assert c.data_handler.active_mask_index == 0                 # dragging selects
+    c.gui.imprint_mask_button.click()                            # imprint all masks
+    image = c.data_handler.image_matrix
+    assert tuple(image[27, 27][:3]) == RED and image[27, 27][3] == 255
+    assert image[27, 15][3] == 0 and image[15, 15][3] == 0
+    assert tuple(image[27, 40][:3]) == BLUE and image[15, 40][3] == 0
     first, second = c.data_handler.masks_list
-    assert _mask_box(first)[1] >= 24 and _mask_box(second)[1] >= 24  # both masks moved down
+    assert _mask_box(first)[:2] == (start_first[0] + 12, start_first[1] + 12)
+    assert _mask_box(second)[:2] == (start_second[0], start_second[1] + 12)
+    assert not c.image_colorer.lifted_indices() and not c.gui.imprint_mask_button.isEnabled()
+
+
+def test_deleting_a_lifted_mask_puts_nothing_into_the_image(masked):
+    c = masked
+    _draw_rect_mask(c, 10, 10, 19, 19)
+    before = c.data_handler.image_matrix.copy()
+    _lift(c, 0)
+    _drag(c, (15, 15), (15, 27))
+    c.image_colorer.masks_list_widget.setCurrentRow(0)
+    c.image_colorer.delete_selected_mask()
+    assert not c.data_handler.masks_list and not c.gui.imprint_mask_button.isEnabled()
+    assert np.array_equal(c.data_handler.image_matrix, before)
+    assert not [i for i in c.gui.image_item.childItems() if type(i).__name__ == "LiftedMaskItem"]
+
+
+def test_no_drag_while_a_tool_is_on(masked):
+    c = masked
+    _draw_rect_mask(c, 10, 10, 19, 19)
+    _lift(c, 0)
+    c.gui.toggle_draw_button.click()                             # draw tool on: the click draws, nothing moves
+    _drag(c, (15, 15), (15, 27))
+    assert c.data_handler.mask_overlays[0].pos() == QtCore.QPointF(0, 0)
+    c.image_colorer.set_single_toggle_state("")
+
+
+def test_undo_imprint_drag_and_lift(masked):
+    c = masked
+    undo = c.image_colorer.undo_manager
+    _draw_rect_mask(c, 10, 10, 19, 19)
+    original = c.data_handler.image_matrix.copy()
+    _lift(c, 0)
+    _drag(c, (15, 15), (15, 27))
+    c.gui.imprint_mask_button.click()
+    assert not np.array_equal(c.data_handler.image_matrix, original)
+    undo.undo()                                                  # imprint undone: lifted at the dragged place
+    assert np.array_equal(c.data_handler.image_matrix, original)
+    assert c.image_colorer.is_lifted(0) and c.data_handler.mask_overlays[0].pos().y() > 0
+    undo.undo()                                                  # drag undone
+    assert c.image_colorer.is_lifted(0) and c.data_handler.mask_overlays[0].pos() == QtCore.QPointF(0, 0)
+    undo.undo()                                                  # lift undone
+    assert not c.image_colorer.is_lifted(0)
+    undo.redo()
+    undo.redo()
+    undo.redo()                                                  # and everything again
     image = c.data_handler.image_matrix
-    assert tuple(image[27, 15][:3]) == (220, 30, 30)
-    assert tuple(image[27, 40][:3]) == (30, 60, 200)
-    assert image[12, 40][3] == 0
+    assert tuple(image[27, 15][:3]) == RED and not c.image_colorer.is_lifted(0)
 
 
 def test_masks_and_images_sections_have_taller_lists_and_imprint_buttons(app_components):
     gui = app_components.gui
     assert gui.masks_list_widget.minimumHeight() >= 200 and gui.images_ListWidget.minimumHeight() >= 220
     assert gui.imprint_mask_button.property("styleClass") == "ImprintButton"
+    assert gui.actionImprint_Masks in gui.toolBar.actions()
     assert gui.imprint_mask_button.parentWidget() is gui.masks_list_widget.parentWidget()
     assert gui.toolbar_colors_label.parentWidget() is gui.toolBar
     load_image(app_components, _image())
     assert gui.toolbar_colors_label.text() == gui.number_of_colors_label.text().split(": ")[1] + " colors"
-
-
-def test_moving_masks_alternately_moves_their_moved_pixels(masked):
-    """Mask 1 moved, mask 2 moved, mask 1 moved again – all without imprint: the second move of mask 1 must take
-    its already moved pixels, not what the unimprinted image has at that place."""
-    c = masked
-    _draw_rect_mask(c, 10, 10, 19, 19)                      # red block
-    _draw_rect_mask(c, 35, 10, 44, 19)                      # blue block
-    start_first, start_second = (_mask_box(m) for m in c.data_handler.masks_list)
-    c.image_colorer.masks_list_widget.setCurrentRow(0)
-    _move_selected_mask(c, 0, 12)                           # red down by 12
-    c.image_colorer.masks_list_widget.setCurrentRow(1)
-    _move_selected_mask(c, 0, 12, start=(40, 15))           # blue down by 12
-    c.image_colorer.masks_list_widget.setCurrentRow(0)
-    _move_selected_mask(c, 12, 0, start=(15, 27))           # red right by 12 (from its moved place)
-    c.image_colorer.imprint_color_overlays()
-    image = c.data_handler.image_matrix
-    assert tuple(image[27, 27][:3]) == (220, 30, 30) and image[27, 27][3] == 255   # red at its final place
-    assert image[27, 15][3] == 0 and image[15, 15][3] == 0                         # its earlier places are empty
-    assert tuple(image[27, 40][:3]) == (30, 60, 200)                               # blue moved once
-    first, second = c.data_handler.masks_list
-    assert _mask_box(first)[:2] == (start_first[0] + 12, start_first[1] + 12)   # the masks moved along
-    assert _mask_box(second)[:2] == (start_second[0], start_second[1] + 12)
