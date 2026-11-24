@@ -3750,7 +3750,7 @@ QPushButton[styleClass="SectionTab"]:checked {
                     </property>
                     <property name="icon">
                      <iconset>
-                      <normaloff>icons/mask-move.svg</normaloff>
+                      <normaloff>icons/mask-lift.svg</normaloff>
                       <normalon>icons/imprint-mask.svg</normalon>
                      </iconset>
                     </property>

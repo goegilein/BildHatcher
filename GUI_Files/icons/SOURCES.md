@@ -53,7 +53,6 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | mask-ellipse | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | mask-polygon | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | mask-edit | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
-| mask-move | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | mask-unselect | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | delete | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | delete-all | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
@@ -100,3 +99,4 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | check | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | imprint-mask | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | imprint-masks | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| mask-lift | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |

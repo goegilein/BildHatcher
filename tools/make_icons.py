@@ -501,12 +501,6 @@ def mask_edit():
                pencil((13.2, 10.8), -45, 13.5, 4.0))
 
 
-def mask_move():
-    return svg(dashed_rect(8, 8, 8, 8),
-               arrow((12, 6.6), (12, 1.6)), arrow((12, 17.4), (12, 22.4)),
-               arrow((6.6, 12), (1.6, 12)), arrow((17.4, 12), (22.4, 12)))
-
-
 def delete_all():
     return svg(rect(2.5, 3, 9, 8, MASK_FILL, MASK, 1.4, 0.6, DASH),
                ellipse(14.5, 7.5, 6.5, 5, MASK_FILL, MASK, 1.4, DASH),
@@ -590,6 +584,13 @@ def imprint_overlays():
     """Stamp with a "T" in a square at the bottom right."""
     return svg(stamp(-2.5), rect(14, 13.5, 9, 9, HALO, HALO, 2.6, 1.2), rect(14, 13.5, 9, 9, PAPER, INK, 1.4, 1.2),
                letter_t(16, 16, 5, 4.6, INK, 1.7))
+
+
+def mask_lift():
+    """Lift off a mask: square dashed mask with a thick arrow pointing up in the middle."""
+    arrow_up = polygon([(12, 5.5), (17.5, 11.5), (14.2, 11.5), (14.2, 18), (9.8, 18), (9.8, 11.5), (6.5, 11.5)],
+                       BLUE, INK, 1.2)
+    return svg(dashed_rect(3, 3, 18, 18), arrow_up)
 
 
 def imprint_mask():
@@ -830,6 +831,7 @@ ICONS = {
     "clean-up": clean_up,
     "imprint-colors": imprint_colors,
     "imprint-overlays": imprint_overlays,
+    "mask-lift": mask_lift,
     "imprint-mask": imprint_mask,
     "imprint-masks": imprint_masks,
     "image-restore": image_restore,
@@ -840,7 +842,6 @@ ICONS = {
     "mask-rect": lambda: svg(dashed_rect(3, 4, 18, 16)),
     "mask-polygon": lambda: svg(mask_polygon()),
     "mask-edit": mask_edit,
-    "mask-move": mask_move,
     "mask-unselect": lambda: svg(dashed_rect(3, 4, 18, 16), slash((3.5, 3.5), (20.5, 20.5))),
     "delete": lambda: svg(dashed_rect(2.5, 3, 16, 13), CROSS),
     "delete-all": delete_all,
