@@ -787,9 +787,10 @@ class MaskTools:
         selected_items = self.masks_list_widget.selectedItems()
         if selected_items:
             index = self.masks_list_widget.row(selected_items[0])
+            if self.is_lifted(index):
+                self.imprint_masks([index], "Imprint Mask")  # its pixels live only in the lift: keep them
             # the indices of the masks behind it shift: no mask stays selected
             self.deselect_mask()
-            self._remove_lift_items(index)  # a lifted mask: its pixels simply stay where they are in the image
             self.data_handler.masks_list.pop(index)
             self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
             self.data_handler.mask_overlays.pop(index)
@@ -807,6 +808,7 @@ class MaskTools:
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
         )
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            self.imprint_all_masks()  # lifted pixels are not lost
             self.reset_masks()
 
     def reset_masks(self):
@@ -814,7 +816,7 @@ class MaskTools:
         #ensure deselection and edit mode reset first!
         self.deselect_mask()
         self.cancel_mask_drawing()
-        #then delete all masks and overlays (lifted ones: nothing was changed in the image yet)
+        #then delete all masks and overlays (after a change of the image size lifted layers no longer fit)
         for index in range(len(self.data_handler.mask_info)):
             self._remove_lift_items(index)
         self.data_handler.masks_list.clear()
@@ -863,10 +865,11 @@ class MaskTools:
 
 
 
-    # LIFT OFF MASKS (P12.4)
-    # A lifted mask is a floating layer: its pixels are cut out of the image into a movable overlay (drag & drop),
-    # the image itself is unchanged until the mask is imprinted (then the old place becomes transparent and the
-    # pixels land at the new place; the mask moves along). Lifted masks have an orange frame.
+    # LIFT OFF MASKS (P12.4, P12.6)
+    # A lifted mask is a floating layer: its pixels are cut out of the image into a movable overlay (drag & drop)
+    # and its place in the image is transparent right away (P12.6 – so whatever is imprinted there meanwhile
+    # stays). Imprinting the mask paints its pixels at the new place; the mask moves (and turns) along.
+    # Lifted masks have an orange frame. Deleting a lifted mask imprints it first – its pixels are never lost.
     def is_lifted(self, index):
         return 0 <= index < len(self.data_handler.mask_info) and 'lift' in self.data_handler.mask_info[index]
 
@@ -907,7 +910,7 @@ class MaskTools:
         self.update_lift_controls()
 
     def lift_mask(self, index):
-        """Cut the masked pixels out into a movable overlay (the image does not change)."""
+        """Cut the masked pixels out into a movable overlay; their place in the image becomes transparent."""
         if self.is_lifted(index) or self.data_handler.image_matrix is None:
             return
         info = self.data_handler.mask_info[index]
@@ -923,15 +926,20 @@ class MaskTools:
         crop[inside] = image[y0:y1, x0:x1][inside]
         self._lift_counter = getattr(self, "_lift_counter", 0) + 1
         self._create_lift_items(index, crop, (int(x0), int(y0)), (0, 0), self._lift_counter, 0.0)
-        self._push_mask_action(before, self._mask_snapshot([info]), None, "Lift Mask")
+        before_image = image.copy()
+        hole = image.copy()
+        hole[mask == 1] = image_doc.TRANSPARENT  # the place is free as soon as the mask is lifted
+        self.data_handler.image_matrix = hole
+        image_action = self._image_action(before_image, self.data_handler.image_matrix.copy(), "Lift Mask")
+        self._push_mask_action(before, self._mask_snapshot([info]), image_action, "Lift Mask")
         self.update_lift_controls()
 
     def imprint_all_masks(self):
         self.imprint_masks(self.lifted_indices(), "Imprint All Masks")
 
     def imprint_masks(self, indices, description="Imprint Mask"):
-        """Put lifted masks back into the image at their current place (in lift order): their old place becomes
-        transparent, their pixels are painted where they are now, the masks move along."""
+        """Put lifted masks back into the image at their current place (in lift order): their pixels are painted
+        where they are now (their old place is transparent since the lift), the masks move along."""
         indices = [i for i in self.lifted_indices() if i in indices]
         if not indices or self.data_handler.image_matrix is None:
             return
@@ -944,7 +952,6 @@ class MaskTools:
             info, mask = self.data_handler.mask_info[i], self.data_handler.masks_list[i]
             lift = info['lift']
             qy, qx, sy, sx = self._lift_mapping(lift, mask, (h, w))
-            image[mask == 1] = image_doc.TRANSPARENT  # the old place
             pixels = lift['crop'][sy, sx]
             opaque = pixels[:, 3] > 0                  # lifted pixels that are not transparent
             image[qy[opaque], qx[opaque]] = pixels[opaque]
@@ -1037,31 +1044,21 @@ class MaskTools:
 
     def _create_lift_items(self, index, crop, origin, offset, order, rotation=0.0):
         info = self.data_handler.mask_info[index]
-        mask = self.data_handler.masks_list[index]
         x0, y0 = origin
         h, w = crop.shape[:2]
-        # the vacated place, shown as "will become transparent"
-        cut = np.zeros((h, w, 4), np.uint8)
-        inside = mask[y0:y0 + h, x0:x0 + w] == 1
-        cut[inside] = self._checker_rgba(h, w)[inside]
-        cutout = QtWidgets.QGraphicsPixmapItem(_pixmap(cut), self.gui.image_item)
-        cutout.setOffset(x0, y0)
-        cutout.setZValue(11)
         pixels = LiftedMaskItem(_pixmap(crop), self.gui.image_item, self)
         pixels.setOffset(x0, y0)
         pixels.setTransformOriginPoint(QtCore.QPointF(x0 + w / 2, y0 + h / 2))  # turns about the mask centre
         pixels.setPos(*offset)
         pixels.setRotation(rotation)
-        info['lift'] = {'crop': crop, 'origin': (x0, y0), 'order': order, 'cutout': cutout, 'pixels': pixels}
+        info['lift'] = {'crop': crop, 'origin': (x0, y0), 'order': order, 'pixels': pixels}
         self._place_frame(index)
 
     def _remove_lift_items(self, index):
         info = self.data_handler.mask_info[index]
         lift = info.pop('lift', None)
-        if lift:
-            for item in (lift['cutout'], lift['pixels']):
-                if item.scene() is not None:
-                    item.scene().removeItem(item)
+        if lift and lift['pixels'].scene() is not None:
+            lift['pixels'].scene().removeItem(lift['pixels'])
         if index < len(self.data_handler.mask_overlays):
             frame = self.data_handler.mask_overlays[index]
             frame.setPos(0, 0)

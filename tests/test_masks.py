@@ -105,7 +105,10 @@ def test_lifting_a_mask_makes_a_floating_layer(masked):
     assert "Imprint" in gui.move_masked_area_button.toolTip()
     assert gui.imprint_mask_button.isEnabled() and gui.actionImprint_Masks.isEnabled()
     assert c.data_handler.mask_overlays[0].pen().color().name().upper() in ("#FF6D00", "#C43C00")  # orange
-    assert np.array_equal(c.data_handler.image_matrix, before)  # the image only changes with the imprint
+    image = c.data_handler.image_matrix
+    mask = c.data_handler.masks_list[0] == 1
+    assert (image[mask][:, 3] == 0).all()                       # its place is free right away (P12.6)
+    assert np.array_equal(image[~mask], before[~mask])           # nothing else changed
     assert not c.data_handler.active_color_overlays             # not part of the colour imprint
 
 
@@ -148,17 +151,37 @@ def test_masks_lifted_and_moved_alternately(masked):
     assert not c.image_colorer.lifted_indices() and not c.gui.imprint_mask_button.isEnabled()
 
 
-def test_deleting_a_lifted_mask_puts_nothing_into_the_image(masked):
+def test_deleting_a_lifted_mask_imprints_it_first(masked):
     c = masked
     _draw_rect_mask(c, 10, 10, 19, 19)
-    before = c.data_handler.image_matrix.copy()
     _lift(c, 0)
     _drag(c, (15, 15), (15, 27))
     c.image_colorer.masks_list_widget.setCurrentRow(0)
     c.image_colorer.delete_selected_mask()
     assert not c.data_handler.masks_list and not c.gui.imprint_mask_button.isEnabled()
-    assert np.array_equal(c.data_handler.image_matrix, before)
+    image = c.data_handler.image_matrix
+    assert tuple(image[27, 15][:3]) == RED and image[15, 15][3] == 0   # its pixels are not lost
     assert not [i for i in c.gui.image_item.childItems() if type(i).__name__ == "LiftedMaskItem"]
+
+
+def test_imprinting_onto_the_place_of_a_lifted_mask_keeps_everything(masked):
+    """The user's case: mask A is lifted (not imprinted), mask B is moved onto A's old place and imprinted, then
+    A is imprinted somewhere else – B must stay complete."""
+    c = masked
+    _draw_rect_mask(c, 10, 10, 19, 19)                       # A: red
+    _draw_rect_mask(c, 35, 10, 44, 19)                       # B: blue
+    _lift(c, 0)
+    _drag(c, (15, 15), (15, 27))                             # A away (down)
+    _lift(c, 1)
+    _drag(c, (40, 15), (15, 15))                             # B onto A's old place
+    c.gui.move_masked_area_button.click()                    # imprint B
+    image = c.data_handler.image_matrix
+    assert np.all(image[10:20, 10:20, 3] == 255) and np.all(image[10:20, 10:20, :3] == BLUE)  # B complete
+    c.image_colorer.masks_list_widget.setCurrentRow(0)
+    c.gui.move_masked_area_button.click()                    # imprint A
+    image = c.data_handler.image_matrix
+    assert np.all(image[10:20, 10:20, :3] == BLUE) and np.all(image[10:20, 10:20, 3] == 255)  # still complete
+    assert tuple(image[27, 15][:3]) == RED
 
 
 def test_no_drag_while_a_tool_is_on(masked):
@@ -177,16 +200,18 @@ def test_undo_imprint_drag_and_lift(masked):
     _draw_rect_mask(c, 10, 10, 19, 19)
     original = c.data_handler.image_matrix.copy()
     _lift(c, 0)
+    lifted = c.data_handler.image_matrix.copy()                 # with the free place
     _drag(c, (15, 15), (15, 27))
     c.gui.imprint_mask_button.click()
-    assert not np.array_equal(c.data_handler.image_matrix, original)
+    assert not np.array_equal(c.data_handler.image_matrix, lifted)
     undo.undo()                                                  # imprint undone: lifted at the dragged place
-    assert np.array_equal(c.data_handler.image_matrix, original)
+    assert np.array_equal(c.data_handler.image_matrix, lifted)
     assert c.image_colorer.is_lifted(0) and c.data_handler.mask_overlays[0].pos().y() > 0
     undo.undo()                                                  # drag undone
     assert c.image_colorer.is_lifted(0) and c.data_handler.mask_overlays[0].pos() == QtCore.QPointF(0, 0)
-    undo.undo()                                                  # lift undone
+    undo.undo()                                                  # lift undone: the place is filled again
     assert not c.image_colorer.is_lifted(0)
+    assert np.array_equal(c.data_handler.image_matrix, original)
     undo.redo()
     undo.redo()
     undo.redo()                                                  # and everything again
@@ -227,6 +252,7 @@ def test_turning_a_lifted_mask_with_its_handle(masked):
     c = masked
     colorer = c.image_colorer
     _draw_rect_mask(c, 40, 30, 49, 33)                            # around the green bar (10 x 4)
+    before_lift = c.data_handler.image_matrix.copy()
     _lift(c, 0)
     lift = c.data_handler.mask_info[0]['lift']
     handle = lift['pixels'].handle
@@ -237,13 +263,13 @@ def test_turning_a_lifted_mask_with_its_handle(masked):
     assert lift['pixels'].rotation() == pytest.approx(90, abs=1)
     lift['pixels'].setRotation(90)                                # exact for the pixel check
     assert c.data_handler.mask_overlays[0].rotation() == 90      # the frame turns along
-    original = c.data_handler.image_matrix.copy()
+    original = c.data_handler.image_matrix.copy()                 # (the bar's place is free already)
     c.gui.imprint_mask_button.click()
     image = c.data_handler.image_matrix
     ys, xs = np.nonzero((image[..., 3] == 255) & np.all(image[..., :3] == GREEN, axis=-1))
     assert (xs.max() - xs.min() + 1, ys.max() - ys.min() + 1) == (4, 10)   # the bar stands upright now
     colours = {tuple(p) for p in image.reshape(-1, 4).tolist()}
-    assert colours <= {tuple(p) for p in original.reshape(-1, 4).tolist()} | {(0, 0, 0, 0)}  # no new colours
+    assert colours <= {tuple(p) for p in before_lift.reshape(-1, 4).tolist()} | {(0, 0, 0, 0)}  # no new colours
     assert c.data_handler.mask_info[0]['type'] == 'polygon'       # a turned rectangle is a polygon mask
     box = _mask_box(c.data_handler.masks_list[0])
     assert (box[2] - box[0] + 1, box[3] - box[1] + 1) == (4, 10)  # the mask turned with it
