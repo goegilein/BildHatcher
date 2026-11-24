@@ -241,6 +241,13 @@ def build_toolbar(gui, c):
                            (gui.actionImprint_Overlays, gui.imprint_selected_tg_overlays_button)):
         mirror_button(action, button)
         bar.addAction(action)
+        _styled(bar.widgetForAction(action), "ImprintAction")  # highlighted while something waits to be imprinted
+    bar.addSeparator()
+
+    # the number of colours of the image, more visible than in the Images section
+    gui.toolbar_colors_label = _styled(QtWidgets.QLabel("0 colors", objectName="toolbar_colors_label"), "ToolbarInfo")
+    gui.toolbar_colors_label.setToolTip("Number of colors in the image")
+    bar.addWidget(gui.toolbar_colors_label)
     bar.addSeparator()
 
     # (P9.6: the image operations live in the Images section again)

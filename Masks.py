@@ -186,7 +186,7 @@ class MaskTools:
             'type': 'rectangle',
             'coords': (x_min, y_min, x_max, y_max)
         })
-        self.update_masks_list_widget()
+        self.add_mask_done()
         
         # Reset
         self.mask_start_point_scene = None
@@ -275,7 +275,7 @@ class MaskTools:
             'type': 'ellipse',
             'coords': (x_min, y_min, x_max, y_max)
         })
-        self.update_masks_list_widget()
+        self.add_mask_done()
         
         # Reset
         self.mask_start_point_scene = None
@@ -385,7 +385,7 @@ class MaskTools:
             'type': 'polygon',
             'coords': self.polygon_points.copy()
         })
-        self.update_masks_list_widget()
+        self.add_mask_done()
         
         # Reset polygon points
         self.polygon_points = []
@@ -406,6 +406,11 @@ class MaskTools:
         self.mask_start_point_scene = None
         self.mask_obj = None
         self.polygon_points = []
+
+    def add_mask_done(self):
+        """A new mask was appended: list it and select it (it is the one the user wants to edit / move next)."""
+        self.update_masks_list_widget()
+        self.masks_list_widget.setCurrentRow(len(self.data_handler.masks_list) - 1)
 
     def update_masks_list_widget(self):
         """Update the masks list widget display."""
@@ -800,9 +805,9 @@ class MaskTools:
         selected_items = self.masks_list_widget.selectedItems()
         if selected_items:
             index = self.masks_list_widget.row(selected_items[0])
-            if index == self.data_handler.active_mask_index:
-                #ensure deselection and edit mode if delted mask is currently selected
-                self.deselect_mask()
+            # the indices of the masks behind it shift: no mask stays selected
+            self.deselect_mask()
+            self._mask_removed(index)
             self.data_handler.masks_list.pop(index)
             self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
             self.data_handler.mask_overlays.pop(index)
@@ -827,6 +832,7 @@ class MaskTools:
         self.deselect_mask()
         self.cancel_mask_drawing()
         #then delete all masks and overlays
+        self._forget_detached_mask()
         self.data_handler.masks_list.clear()
         self.data_handler.mask_info.clear()
         self.clear_edit_handles()
@@ -873,6 +879,20 @@ class MaskTools:
 
 
     #MOVE MASK FUNCTIONALITY
+    def _forget_detached_mask(self):
+        """The moved mask is gone: its moved pixels stay pending (imprint still works), only the mask is not
+        tracked any more."""
+        self.detached_mask_index = -1
+        self.moving_mask_item = None
+        self.white_cutout_item = None
+
+    def _mask_removed(self, index):
+        """Keep the move tracking consistent when mask `index` is deleted (bug: imprint failed afterwards)."""
+        if self.detached_mask_index == index:
+            self._forget_detached_mask()
+        elif self.detached_mask_index > index:
+            self.detached_mask_index -= 1
+
     def _extract_mask_for_moving(self, mask_index):
         """Creates the overlays and hands them over to the existing imprint system."""
         mask = self.data_handler.masks_list[mask_index]
@@ -925,6 +945,9 @@ class MaskTools:
             return 
             
         if self.detached_mask_index != idx:
+            # another mask was moved before and not imprinted yet: move its mask geometry along now (its pixels
+            # stay pending), otherwise it would be lost when this mask is detached
+            self.update_logical_mask_matrices()
             self._extract_mask_for_moving(idx)
         
         # Record starting coordinates for smooth delta calculation

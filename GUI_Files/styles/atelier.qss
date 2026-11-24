@@ -95,6 +95,9 @@
      insideFrame      QGroupBox   the section's content; its title is the section title (gold, mono)
      verticalSubFrame QGroupBox   a sub group inside a section: hairline on top, small muted title
      IconButton       QPushButton square button with a pictogram
+     ImprintButton    QPushButton pictogram button, highlighted while enabled (edits waiting to be imprinted)
+     ImprintAction    QToolButton the same for a tool bar button
+     ToolbarInfo      QLabel      a value in the tool bar (gold, mono)
      PrimaryButton    QPushButton the main action of a section (gold)
      PanelGroup       QToolButton the group strip at the right edge
      SectionTab       QPushButton the (vertical) section tabs next to the panel
@@ -562,6 +565,38 @@ QPushButton[styleClass="IconButton"]:checked {
 QPushButton[styleClass="IconButton"]:disabled {
 	background-color: @disabledBg;
 	border-color: @disabledLine;
+}
+
+/* ImprintButton: a pictogram tile that is only enabled while edits wait to be imprinted – then highlighted */
+QPushButton[styleClass="ImprintButton"] {
+	background-color: @raised;
+	border: 1px solid @buttonLine;
+	border-radius: 8px;
+	padding: 2px;
+}
+QPushButton[styleClass="ImprintButton"]:enabled {
+	background-color: @accentPress;
+	border: 2px solid @accent;
+}
+QPushButton[styleClass="ImprintButton"]:hover {
+	background-color: @accentSoft;
+	border-color: @accentLine;
+}
+QPushButton[styleClass="ImprintButton"]:disabled {
+	background-color: @disabledBg;
+	border: 1px solid @disabledLine;
+}
+QToolButton[styleClass="ImprintAction"]:enabled {
+	background-color: @accentPress;
+	border: 1px solid @accent;
+}
+
+/* ToolbarInfo: a value shown in the tool bar (e.g. the number of colours) */
+QLabel[styleClass="ToolbarInfo"] {
+	color: @accentText;
+	font-family: "Space Mono";
+	font-weight: bold;
+	padding: 0px 8px;
 }
 
 /* PrimaryButton: gold, dark mono label */

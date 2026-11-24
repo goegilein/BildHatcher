@@ -424,6 +424,7 @@ class ImageColorer(MaskTools, QtCore.QObject):
         #Add button to imprint color edits
         self.imprint_color_overlays_button = gui.imprint_color_overlays_button
         self.imprint_color_overlays_button.clicked.connect(self.imprint_color_overlays)
+        gui.imprint_mask_button.clicked.connect(self.imprint_color_overlays)  # the same, in the Masks section
 
         # Add Show Contours toggle button
         self.draw_contour_button = gui.draw_contour_button
