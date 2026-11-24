@@ -15,9 +15,11 @@ def _image():
 
 
 def _mouse(c, kind, x_img, y_img):
-    x, y = c.data_handler.image_to_canvas_coords(x_img, y_img)
-    viewport = c.gui.image_canvas.viewport()
-    pos = QtCore.QPointF(x, y)
+    """Mouse event on the centre of image pixel (x_img, y_img)."""
+    gui = c.gui
+    point = gui.image_canvas.mapFromScene(gui.image_item.mapToScene(QtCore.QPointF(x_img + 0.5, y_img + 0.5)))
+    viewport = gui.image_canvas.viewport()
+    pos = QtCore.QPointF(point)
     buttons = QtCore.Qt.MouseButton.LeftButton
     return QtGui.QMouseEvent(kind, pos, QtCore.QPointF(viewport.mapToGlobal(pos)), QtCore.Qt.MouseButton.LeftButton,
                              buttons, QtCore.Qt.KeyboardModifier.NoModifier)
@@ -49,8 +51,14 @@ def masked(app_components):
     c.gui.resize(1100, 800)
     c.gui.show()
     load_image(c, _image())
-    c.image_sizer.reset_zoom() if hasattr(c.image_sizer, "reset_zoom") else None
+    # one image pixel = several screen pixels, so that the simulated clicks hit exact pixels
+    view = c.gui.image_canvas
+    view.resetTransform()
+    view.scale(20, 20)
     QtWidgets.QApplication.processEvents()
+    a = view.mapFromScene(c.gui.image_item.mapToScene(QtCore.QPointF(0, 0)))
+    b = view.mapFromScene(c.gui.image_item.mapToScene(QtCore.QPointF(10, 0)))
+    assert b.x() - a.x() >= 30, "image pixels too small on screen for exact clicks"
     yield c
     c.gui.hide()
 
@@ -106,3 +114,26 @@ def test_masks_and_images_sections_have_taller_lists_and_imprint_buttons(app_com
     assert gui.toolbar_colors_label.parentWidget() is gui.toolBar
     load_image(app_components, _image())
     assert gui.toolbar_colors_label.text() == gui.number_of_colors_label.text().split(": ")[1] + " colors"
+
+
+def test_moving_masks_alternately_moves_their_moved_pixels(masked):
+    """Mask 1 moved, mask 2 moved, mask 1 moved again – all without imprint: the second move of mask 1 must take
+    its already moved pixels, not what the unimprinted image has at that place."""
+    c = masked
+    _draw_rect_mask(c, 10, 10, 19, 19)                      # red block
+    _draw_rect_mask(c, 35, 10, 44, 19)                      # blue block
+    start_first, start_second = (_mask_box(m) for m in c.data_handler.masks_list)
+    c.image_colorer.masks_list_widget.setCurrentRow(0)
+    _move_selected_mask(c, 0, 12)                           # red down by 12
+    c.image_colorer.masks_list_widget.setCurrentRow(1)
+    _move_selected_mask(c, 0, 12, start=(40, 15))           # blue down by 12
+    c.image_colorer.masks_list_widget.setCurrentRow(0)
+    _move_selected_mask(c, 12, 0, start=(15, 27))           # red right by 12 (from its moved place)
+    c.image_colorer.imprint_color_overlays()
+    image = c.data_handler.image_matrix
+    assert tuple(image[27, 27][:3]) == (220, 30, 30) and image[27, 27][3] == 255   # red at its final place
+    assert image[27, 15][3] == 0 and image[15, 15][3] == 0                         # its earlier places are empty
+    assert tuple(image[27, 40][:3]) == (30, 60, 200)                               # blue moved once
+    first, second = c.data_handler.masks_list
+    assert _mask_box(first)[:2] == (start_first[0] + 12, start_first[1] + 12)   # the masks moved along
+    assert _mask_box(second)[:2] == (start_second[0], start_second[1] + 12)

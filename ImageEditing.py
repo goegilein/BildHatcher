@@ -1202,19 +1202,66 @@ class ImageColorer(MaskTools, QtCore.QObject):
         # Update the logical mask geometry if one was being moved
         self.update_logical_mask_matrices()
         
-        # 1. get copy of current pixmap
-        current_pixmap = self.gui.image_item.pixmap()
-        result_pixmap = current_pixmap.copy()
+        # 1.-2. paint the overlays onto a copy of the current pixmap, then take them out of the scene
+        overlay_items = list(self.data_handler.active_color_overlays)
+        result_pixmap = self._paint_pending_overlays(overlay_items)
+        for item in overlay_items:
+            if item.scene() is not None:
+                self.gui.image_scene.removeItem(item)
 
-        # 2. set painter on copy
+        # 3. ensure lists are cleared
+        self.data_handler.active_color_overlays.clear()
+        self.data_handler.text_overlays.clear()
+        self.data_handler.geometry_overlays.clear()
+
+        # 4. QPixmap -> numpy
+        self.data_handler.image_matrix = self._pixmap_to_rgba(result_pixmap)  # the data handler binarizes the alpha
+
+        after_matrix = self.data_handler.image_matrix.copy()
+        if self.undo_manager and before_matrix is not None:
+            active_item = getattr(getattr(self.undo_manager, "image_controller", None), "active_image_item", None)
+            if active_item is None and hasattr(self.gui, "images_ListWidget"):
+                active_item = self.gui.images_ListWidget.currentItem()
+            action = ImprintColorOverlaysAction(
+                self.data_handler, self.gui, getattr(self.undo_manager, "image_controller", None),
+                before_matrix, after_matrix, imprinted_items,
+                self.gui.image_scene, self.data_handler.active_color_overlays,
+                image_item=active_item,
+                description="Imprint Color Overlays"
+            )
+            self.undo_manager.push_action(action)
+
+        #ensure to reset contours
+        self.contours_visible = False
+        self.contour_overlay_item = None
+        self.draw_contour_button.setChecked(False)
+
+        #ensure to restet mask moving
+        self.disable_move_mask_mode()
+
+    def pending_image_rgba(self):
+        """The image as it would look after an imprint (all pending colour overlays and mask moves painted in),
+        without imprinting anything (P12.3: a second move of a mask takes its already moved pixels)."""
+        if not self.data_handler.active_color_overlays:
+            return self.data_handler.image_matrix
+        return self._pixmap_to_rgba(self._paint_pending_overlays(list(self.data_handler.active_color_overlays)))
+
+    @staticmethod
+    def _pixmap_to_rgba(pixmap):
+        image = pixmap.toImage()
+        if image.format() != QImage.Format.Format_RGBA8888:
+            image = image.convertToFormat(QImage.Format.Format_RGBA8888)
+        width, height = image.width(), image.height()
+        ptr = image.bits()
+        ptr.setsize(height * width * 4)
+        return np.frombuffer(ptr, np.uint8).reshape((height, width, 4)).copy()  # python owns the data
+
+    def _paint_pending_overlays(self, overlay_items):
+        """A copy of the current image pixmap with `overlay_items` painted onto it in order (erasing items cut
+        out); the items stay in the scene."""
+        result_pixmap = self.gui.image_item.pixmap().copy()
         painter = QPainter(result_pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-        # CompositionMode is SourceOver by default, which is correct for overlays.
-        
-        overlay_items = list(self.data_handler.active_color_overlays)
-        # overlay_items.extend(self.data_handler.text_overlays)
-        # overlay_items.extend(self.data_handler.geometry_overlays)
-
         for item in overlay_items:
             erases = getattr(item, "erases", False)
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut if erases
@@ -1245,55 +1292,8 @@ class ImageColorer(MaskTools, QtCore.QObject):
                 except Exception:
                     pass
 
-            if item.scene() is not None:
-                self.gui.image_scene.removeItem(item)
-
         painter.end()
-
-        # 3. ensure lists are cleared
-        self.data_handler.active_color_overlays.clear()
-        self.data_handler.text_overlays.clear()
-        self.data_handler.geometry_overlays.clear()
-        
-        # 4. QPixmap -> QImage -> Numpy Array conversion
-        image = result_pixmap.toImage()
-        
-        # esnure correct image format
-        if image.format() != QImage.Format.Format_RGBA8888:
-            image = image.convertToFormat(QImage.Format.Format_RGBA8888)
-        
-        width = image.width()
-        height = image.height()
-        
-        ptr = image.bits()
-        ptr.setsize(height * width * 4)
-        
-        # copy buffer so python owns the data
-        arr = np.frombuffer(ptr, np.uint8).reshape((height, width, 4)).copy()
-        
-        self.data_handler.image_matrix = arr  # RGBA; the data handler binarizes the alpha
-
-        after_matrix = self.data_handler.image_matrix.copy()
-        if self.undo_manager and before_matrix is not None:
-            active_item = getattr(getattr(self.undo_manager, "image_controller", None), "active_image_item", None)
-            if active_item is None and hasattr(self.gui, "images_ListWidget"):
-                active_item = self.gui.images_ListWidget.currentItem()
-            action = ImprintColorOverlaysAction(
-                self.data_handler, self.gui, getattr(self.undo_manager, "image_controller", None),
-                before_matrix, after_matrix, imprinted_items,
-                self.gui.image_scene, self.data_handler.active_color_overlays,
-                image_item=active_item,
-                description="Imprint Color Overlays"
-            )
-            self.undo_manager.push_action(action)
-
-        #ensure to reset contours
-        self.contours_visible = False
-        self.contour_overlay_item = None
-        self.draw_contour_button.setChecked(False)
-
-        #ensure to restet mask moving
-        self.disable_move_mask_mode()
+        return result_pixmap
 
     def restore_uncolored_image(self):
         if self.data_handler.active_color_overlays:

@@ -896,7 +896,9 @@ class MaskTools:
     def _extract_mask_for_moving(self, mask_index):
         """Creates the overlays and hands them over to the existing imprint system."""
         mask = self.data_handler.masks_list[mask_index]
-        image = self.data_handler.image_matrix
+        # P12.3: the pixels as they are now, pending moves / colour edits included (not the unimprinted image –
+        # moving a mask a second time after another one must take its already moved pixels)
+        image = self.pending_image_rgba()
         h, w = mask.shape
         
         # 1. Create the cutout: the vacated area becomes transparent on imprint

@@ -26,7 +26,7 @@ This file is the single source of truth for status – update it in the same com
 | 10 – Fixed-width panel, coloured pictograms | done | P10.1–P10.6 done, accepted by the user |
 | 11 – Extras after the revision | done | P11.1 tool cursors; P11.2 Atelier style; P11.3 bright mode |
 | Merge | done | main's fixes ported (P11.4); v2.0 merged into main via PR |
-| 12 – Fixes from testing v2.0 | in progress | P12.1 masks, P12.2 images / colours (branch fix/masks-images) |
+| 12 – Fixes from testing v2.0 | in progress | P12.1 / P12.3 masks, P12.2 images / colours (branch fix/masks-images) |
 
 Bug table (section 4) uses the words `open` / `partial` / `done`; phase task lists use checkboxes.
 
@@ -301,6 +301,7 @@ The plan is complete; further wishes of the user are logged here.
 ### Phase 12 – Fixes from testing v2.0  `[~]` (2026-11-24, branch `fix/masks-images`)
 Found by the user while testing v2.0; the mask bugs already existed before the revision.
 - [x] **P12.1 Masks.** (1) Deleting a moved mask before the imprint broke the imprint (the move tracking kept the index of the deleted mask): the moved pixels stay pending, the tracking is dropped / shifted (`Masks._mask_removed`). (2) Moving a second mask before imprinting moved the first one again (the new mask was not selected) and lost the first mask's new geometry: a new mask is selected right away (`add_mask_done`), and detaching another mask first moves the pending mask's geometry along (`update_logical_mask_matrices`). (3) New masks are selected automatically. (4) Imprint button in the Masks section too (`imprint_mask_button`, same as the colour imprint); imprint buttons and the toolbar imprint actions are highlighted while something waits to be imprinted (style classes `ImprintButton`, `ImprintAction`). (5) Taller mask list (200–320 px). Tests: `tests/test_masks.py` (fail on the old code).
+- [x] **P12.3 Masks moved alternately.** Mask 1 moved, mask 2 moved, mask 1 moved again (no imprint in between): the second move of mask 1 cut out what the unimprinted image had at its new place instead of its moved pixels. A move now takes its pixels from the image with all pending moves / colour edits painted in (`ImageColorer.pending_image_rgba`; the painting of the imprint moved to `_paint_pending_overlays`, unchanged), which also handles overlapping pending moves. Mask tests click image pixel centres at a zoom where a pixel spans several screen pixels.
 - [x] **P12.2 Images.** Number of colours also in the tool bar (`toolbar_colors_label`, style class `ToolbarInfo`); taller image list (220–340 px).
 
 ## 6. Open questions
@@ -404,3 +405,4 @@ Found by the user while testing v2.0; the mask bugs already existed before the r
 | 2026-11-22 | P11.4 / merge | main merged into code_rev_2.0, its fixes ported (drive lengths, last folder, Scale2x); 110 tests. Ready for the PR into main. |
 | 2026-11-22 | – | `Ideas_v3.0.md`: loose ideas for v3.0 (BildHatcher as a module next to the machine control; PySide6, core package, plugin UI, machine control as own process). |
 | 2026-11-24 | P12.1 / P12.2 | Mask move / delete / imprint bugs, new masks selected, imprint button + highlight in Masks, colours in the tool bar, taller lists. 114 tests. |
+| 2026-11-24 | P12.3 | Moving masks alternately without imprint: a move takes the pixels including pending moves. 115 tests. |
