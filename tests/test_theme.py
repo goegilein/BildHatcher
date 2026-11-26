@@ -85,3 +85,20 @@ def test_the_app_runs_without_dev_dependencies():
                   if isinstance(node, ast.ImportFrom) and node.module}
         assert not names & dev_only, (path.name, names & dev_only)
     assert theme.ui_icons()  # the .ui is read with the standard library
+
+
+def test_dropdown_lists_have_an_opaque_background_in_both_modes(app_components):
+    """The drop-down list of a combo box inside a panel card was see-through (the card's "transparent children"
+    rule reached the popup, which is a child of the combo box)."""
+    gui = app_components.gui
+    combo = gui.flood_fill_mode_combobox  # in the Color section card
+    try:
+        for mode in ("dark", "light"):
+            theme.set_mode(mode, gui)
+            combo.showPopup()
+            view = combo.view()
+            background = view.palette().color(view.backgroundRole())
+            combo.hidePopup()
+            assert background.alpha() == 255 and background == theme.color("surface", mode), mode
+    finally:
+        theme.set_mode("dark", gui)

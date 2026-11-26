@@ -494,6 +494,11 @@ QGroupBox[styleClass="outsideFrame"] {
 QGroupBox[styleClass="outsideFrame"] QWidget {
 	background-color: transparent;
 }
+/* ... but not the drop-down list of a combo box: the popup is a child of the combo box and would be see-through */
+QGroupBox[styleClass="outsideFrame"] QComboBox QAbstractItemView,
+QGroupBox[styleClass="outsideFrame"] QComboBoxPrivateContainer {
+	background-color: @surface;
+}
 QGroupBox[styleClass="outsideFrame"] QLineEdit, QGroupBox[styleClass="outsideFrame"] QAbstractSpinBox,
 QGroupBox[styleClass="outsideFrame"] QComboBox, QGroupBox[styleClass="outsideFrame"] QPlainTextEdit,
 QGroupBox[styleClass="outsideFrame"] QListWidget {
