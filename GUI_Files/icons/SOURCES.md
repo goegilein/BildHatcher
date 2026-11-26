@@ -81,7 +81,6 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | center-hide | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | center-reset | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | colors-reset | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
-| image-restore | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | contours-hide | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | mask-save | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | hatch-add | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
@@ -102,3 +101,4 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | mask-lift | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | pin | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | pin-on | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| delete-color-overlays | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |

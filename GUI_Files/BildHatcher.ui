@@ -3340,8 +3340,8 @@ QPushButton[styleClass="SectionTab"]:checked {
                       <widget class="QPushButton" name="restore_uncolored_image_button">
                        <property name="icon">
                         <iconset>
-                         <normaloff>icons/image-restore.svg</normaloff>
-                         <normalon>icons/image-restore.svg</normalon>
+                         <normaloff>icons/delete-color-overlays.svg</normaloff>
+                         <normalon>icons/delete-color-overlays.svg</normalon>
                         </iconset>
                        </property>
                        <property name="iconSize">

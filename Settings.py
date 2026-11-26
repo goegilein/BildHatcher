@@ -4,6 +4,7 @@ from PyQt6 import QtWidgets, QtGui, QtCore
 from core import machine
 from PyQt6.QtWidgets import QFileDialog
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
+import theme
 
 log = logging.getLogger(__name__)
 
@@ -123,4 +124,5 @@ class Settings:
         self.editor_window.setWindowTitle("Database Manager")
         self.editor_window.setCentralWidget(navigator)
         self.editor_window.setGeometry(150, 150, 600, 850)
+        theme.fit_dropdown_popups(self.editor_window)
         self.editor_window.show()

@@ -348,4 +348,5 @@ def build(gui, c):
     tg._style_color_button(gui.fill_color_button, tg.current_fill_color)
     tg._style_color_button(gui.outline_color_button, tg.current_outline_color)
     build_theme_switch(gui)
+    theme.fit_dropdown_popups(gui)  # drop-down lists wider than the narrow combo boxes
     return panel

@@ -102,3 +102,22 @@ def test_dropdown_lists_have_an_opaque_background_in_both_modes(app_components):
             assert background.alpha() == 255 and background == theme.color("surface", mode), mode
     finally:
         theme.set_mode("dark", gui)
+
+
+def test_dropdown_lists_are_as_wide_as_their_entries(app_components):
+    """The combo boxes in the panel are narrow; their drop-down lists must show the whole entries."""
+    from PyQt6.QtTest import QTest
+    gui = app_components.gui
+    gui.show()
+    combo = gui.flood_fill_mode_combobox
+    combo.setMaximumWidth(60)                      # narrower than its longest entry
+    QTest.qWait(50)
+    combo.showPopup()
+    QTest.qWait(50)
+    popup = combo.view().window()
+    longest = max(combo.fontMetrics().horizontalAdvance(combo.itemText(i)) for i in range(combo.count()))
+    assert popup.width() > combo.width() and popup.width() >= longest
+    combo.hidePopup()
+    combo.addItem("A very long entry added later that needs a wider list")
+    assert combo.view().minimumWidth() >= combo.fontMetrics().horizontalAdvance(combo.itemText(combo.count() - 1))
+    gui.hide()
