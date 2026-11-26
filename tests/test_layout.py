@@ -329,3 +329,44 @@ def test_p106_font_preview_while_hovering_the_dropdown(app_components):
 def QtGui_family(name):
     from PyQt6 import QtGui
     return QtGui.QFont(name).family()
+
+
+def test_p1210_pinned_sections_stay_visible_in_every_group(app_components):
+    c = app_components
+    gui, panel = c.gui, c.panel_buttons
+    gui.show()
+    panel.select_group("Image")
+    panel.section_buttons["Masks"].setChecked(True)
+    pin = panel.pin_buttons["Masks"]
+    assert pin.parentWidget() is gui.draw_mask_groupbox and pin.isCheckable() and not pin.text()
+    assert pin.x() > gui.draw_mask_groupbox.width() // 2 and pin.y() < 20          # top right
+    pin.click()                                                                     # pin it
+    assert "Masks" in panel.pinned
+    panel.section_buttons["Color"].setChecked(True)                                 # another section of the group
+    assert gui.draw_mask_groupbox.isVisible() and gui.image_color_frame.isVisible()
+    panel.select_group("Hatching")                                                  # another group
+    panel.section_buttons["Hatch"].setChecked(True)
+    assert gui.draw_mask_groupbox.isVisible() and gui.hatch_frame.isVisible()
+    panel.select_group(None)                                                        # even with the panel closed
+    assert gui.draw_mask_groupbox.isVisible()
+    import Preferences
+    assert Preferences.get("panel")["pinned"] == ["Masks"]
+    panel.select_group("Hatching")
+    pin.click()                                                                     # unpinned: closes at once
+    assert not gui.draw_mask_groupbox.isVisible()
+    panel.select_group("Image")
+    panel.section_buttons["Masks"].setChecked(True)
+    pin.click()
+    pin.click()                                                                     # unpinned while active: stays
+    assert gui.draw_mask_groupbox.isVisible()
+    gui.hide()
+
+
+def test_p1210_pin_pictogram_outline_and_filled(app_components):
+    from PyQt6 import QtGui
+    pin = app_components.panel_buttons.pin_buttons["Images"]
+    icon = pin.icon()
+    off = icon.pixmap(16, 16, QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off).toImage()
+    on = icon.pixmap(16, 16, QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.On).toImage()
+    assert off != on
+    assert pin.property("styleClass") == "PinButton"

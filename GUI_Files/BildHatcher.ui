@@ -117,6 +117,7 @@
      PrimaryButton    QPushButton the main action of a section (gold)
      PanelGroup       QToolButton the group strip at the right edge
      SectionTab       QPushButton the (vertical) section tabs next to the panel
+     PinButton        QToolButton the pin at the top right of a section (pictogram only)
    ===================================================================================================== */
 
 /* ---------- base ---------- */
@@ -664,6 +665,14 @@ QToolButton[styleClass="PanelGroup"]:checked {
 	background-color: rgba(208, 167, 111, 0.14);
 	border: 1px solid rgba(208, 167, 111, 0.40);
 	border-right: 3px solid #D0A76F;
+}
+
+/* PinButton: the pin at the top right of a panel section – just the pictogram, no body */
+QToolButton[styleClass="PinButton"], QToolButton[styleClass="PinButton"]:hover,
+QToolButton[styleClass="PinButton"]:checked, QToolButton[styleClass="PinButton"]:pressed {
+	background: transparent;
+	border: none;
+	padding: 0px;
 }
 
 /* SectionTab: the vertical section tabs */

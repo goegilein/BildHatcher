@@ -98,6 +98,7 @@ class MaskTools:
         # List widget to display masks
         self.masks_list_widget = gui.masks_list_widget
         self.masks_list_widget.itemSelectionChanged.connect(self.on_mask_selected)
+        self.update_lift_controls()  # nothing selected / lifted yet: lift and imprint-all buttons off
 
     #Image Masking Functions
     def start_mask_rect(self, event):

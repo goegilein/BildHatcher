@@ -586,6 +586,18 @@ def imprint_overlays():
                letter_t(16, 16, 5, 4.6, INK, 1.7))
 
 
+def pin_icon(filled):
+    """Push pin, tilted (needle to the bottom left): outline = not pinned, filled (gold) = pinned."""
+    origin, angle = (13, 10.5), 45
+    head = place([(-4.5, -9), (4.5, -9), (3.2, -6.5), (-3.2, -6.5)], origin, angle)
+    body = place([(-2.4, -6.5), (2.4, -6.5), (3.2, -1.5), (-3.2, -1.5)], origin, angle)
+    collar = place([(-5.5, -1.5), (5.5, -1.5), (5.5, 0.6), (-5.5, 0.6)], origin, angle)
+    needle = place([(0, 0.6), (0, 9.5)], origin, angle)
+    fill = "#D0A76F" if filled else "none"
+    return svg(line(needle, INK, 1.6), polygon(body, fill, INK, 1.5), polygon(head, fill, INK, 1.5),
+               polygon(collar, fill, INK, 1.5))
+
+
 def mask_lift():
     """Lift off a mask: square dashed mask with a thick arrow pointing up in the middle."""
     arrow_up = polygon([(12, 5.5), (17.5, 11.5), (14.2, 11.5), (14.2, 18), (9.8, 18), (9.8, 11.5), (6.5, 11.5)],
@@ -832,6 +844,8 @@ ICONS = {
     "imprint-colors": imprint_colors,
     "imprint-overlays": imprint_overlays,
     "mask-lift": mask_lift,
+    "pin": lambda: pin_icon(False),
+    "pin-on": lambda: pin_icon(True),
     "imprint-mask": imprint_mask,
     "imprint-masks": imprint_masks,
     "image-restore": image_restore,
