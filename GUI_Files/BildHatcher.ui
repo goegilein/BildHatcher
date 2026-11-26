@@ -1703,129 +1703,149 @@ QPushButton[styleClass="SectionTab"]:checked {
                            </property>
                           </widget>
                          </item>
-                         <item row="1" column="1">
-                          <widget class="QPushButton" name="show_image_center_button">
-                           <property name="checkable">
-                            <bool>true</bool>
-                           </property>
-                           <property name="icon">
-                            <iconset>
-                             <normaloff>icons/center-show.svg</normaloff>
-                             <normalon>icons/center-hide.svg</normalon>
-                            </iconset>
-                           </property>
-                           <property name="iconSize">
-                            <size>
-                             <width>20</width>
-                             <height>20</height>
-                            </size>
-                           </property>
-                           <property name="toolTip">
-                            <string>Show the hatch center</string>
-                           </property>
-                           <property name="text">
-                            <string/>
-                           </property>
-                           <property name="minimumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="maximumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="styleClass" stdset="0">
-                            <string>IconButton</string>
-                           </property>
-                          </widget>
-                         </item>
-                         <item row="1" column="2">
-                          <widget class="QPushButton" name="set_image_center_button">
-                           <property name="checkable">
-                            <bool>true</bool>
-                           </property>
-                           <property name="icon">
-                            <iconset>
-                             <normaloff>icons/center-set.svg</normaloff>
-                             <normalon>icons/center-set.svg</normalon>
-                            </iconset>
-                           </property>
-                           <property name="iconSize">
-                            <size>
-                             <width>20</width>
-                             <height>20</height>
-                            </size>
-                           </property>
-                           <property name="toolTip">
-                            <string>Select the hatch center in the image</string>
-                           </property>
-                           <property name="text">
-                            <string/>
-                           </property>
-                           <property name="minimumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="maximumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="styleClass" stdset="0">
-                            <string>IconButton</string>
-                           </property>
-                          </widget>
-                         </item>
-                         <item row="1" column="3">
-                          <widget class="QPushButton" name="reset_image_center_button">
-                           <property name="icon">
-                            <iconset>
-                             <normaloff>icons/center-reset.svg</normaloff>
-                             <normalon>icons/center-reset.svg</normalon>
-                            </iconset>
-                           </property>
-                           <property name="iconSize">
-                            <size>
-                             <width>20</width>
-                             <height>20</height>
-                            </size>
-                           </property>
-                           <property name="toolTip">
-                            <string>Reset the hatch center</string>
-                           </property>
-                           <property name="text">
-                            <string/>
-                           </property>
-                           <property name="minimumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="maximumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="styleClass" stdset="0">
-                            <string>IconButton</string>
-                           </property>
-                          </widget>
-                         </item>
                          <property name="leftMargin">
                           <number>0</number>
                          </property>
                          <property name="rightMargin">
                           <number>0</number>
                          </property>
+                         <item row="1" column="0" colspan="4">
+                          <layout class="QHBoxLayout" name="center_buttons_row">
+                           <property name="spacing">
+                            <number>4</number>
+                           </property>
+                           <item>
+                            <widget class="QPushButton" name="show_image_center_button">
+                             <property name="checkable">
+                              <bool>true</bool>
+                             </property>
+                             <property name="icon">
+                              <iconset>
+                               <normaloff>icons/center-show.svg</normaloff>
+                               <normalon>icons/center-hide.svg</normalon>
+                              </iconset>
+                             </property>
+                             <property name="iconSize">
+                              <size>
+                               <width>20</width>
+                               <height>20</height>
+                              </size>
+                             </property>
+                             <property name="toolTip">
+                              <string>Show the hatch center</string>
+                             </property>
+                             <property name="text">
+                              <string/>
+                             </property>
+                             <property name="minimumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="maximumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="styleClass" stdset="0">
+                              <string>IconButton</string>
+                             </property>
+                            </widget>
+                           </item>
+                           <item>
+                            <widget class="QPushButton" name="set_image_center_button">
+                             <property name="checkable">
+                              <bool>true</bool>
+                             </property>
+                             <property name="icon">
+                              <iconset>
+                               <normaloff>icons/center-set.svg</normaloff>
+                               <normalon>icons/center-set.svg</normalon>
+                              </iconset>
+                             </property>
+                             <property name="iconSize">
+                              <size>
+                               <width>20</width>
+                               <height>20</height>
+                              </size>
+                             </property>
+                             <property name="toolTip">
+                              <string>Select the hatch center in the image</string>
+                             </property>
+                             <property name="text">
+                              <string/>
+                             </property>
+                             <property name="minimumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="maximumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="styleClass" stdset="0">
+                              <string>IconButton</string>
+                             </property>
+                            </widget>
+                           </item>
+                           <item>
+                            <widget class="QPushButton" name="reset_image_center_button">
+                             <property name="icon">
+                              <iconset>
+                               <normaloff>icons/center-reset.svg</normaloff>
+                               <normalon>icons/center-reset.svg</normalon>
+                              </iconset>
+                             </property>
+                             <property name="iconSize">
+                              <size>
+                               <width>20</width>
+                               <height>20</height>
+                              </size>
+                             </property>
+                             <property name="toolTip">
+                              <string>Reset the hatch center</string>
+                             </property>
+                             <property name="text">
+                              <string/>
+                             </property>
+                             <property name="minimumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="maximumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="styleClass" stdset="0">
+                              <string>IconButton</string>
+                             </property>
+                            </widget>
+                           </item>
+                           <item>
+                            <spacer name="center_buttons_spacer">
+                             <property name="orientation">
+                              <enum>Qt::Horizontal</enum>
+                             </property>
+                             <property name="sizeHint" stdset="0">
+                              <size>
+                               <width>0</width>
+                               <height>0</height>
+                              </size>
+                             </property>
+                            </spacer>
+                           </item>
+                          </layout>
+                         </item>
                         </layout>
                        </widget>
                       </item>
