@@ -370,3 +370,38 @@ def test_p1210_pin_pictogram_outline_and_filled(app_components):
     on = icon.pixmap(16, 16, QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.On).toImage()
     assert off != on
     assert pin.property("styleClass") == "PinButton"
+
+
+def _row_of(widget):
+    """The horizontal layout a widget sits in, and its items as widget / "spacer"."""
+    layout = widget.parentWidget().layout()
+    found = []
+
+    def search(lay):
+        for i in range(lay.count()):
+            child = lay.itemAt(i).layout()
+            if child is not None:
+                if child.indexOf(widget) >= 0:
+                    found.append(child)
+                search(child)
+    if layout.indexOf(widget) >= 0:
+        found.append(layout)
+    search(layout)
+    row = found[0]
+    return row, [row.itemAt(i).widget() or "spacer" for i in range(row.count())]
+
+
+def test_p1211_export_buttons_left_aligned(app_components):
+    gui = app_components.gui
+    row, items = _row_of(gui.export_button)
+    assert isinstance(row, QtWidgets.QHBoxLayout)
+    assert items == [gui.add_process_block_button, gui.remove_process_block_button, gui.export_button, "spacer"]
+
+
+def test_p1211_image_colors_row_order_and_rename(app_components):
+    gui = app_components.gui
+    row, items = _row_of(gui.imprint_color_overlays_button)
+    assert isinstance(row, QtWidgets.QHBoxLayout)
+    assert items == [gui.clean_up_image_colors_button, gui.recolor_from_database_button, "spacer",
+                     gui.imprint_color_overlays_button, gui.restore_uncolored_image_button]
+    assert gui.restore_uncolored_image_button.toolTip().startswith("Delete all active color overlays")
