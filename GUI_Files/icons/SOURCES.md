@@ -102,3 +102,4 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | pin-on | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | delete-color-overlays | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | image-duplicate | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| db-to-settings | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |

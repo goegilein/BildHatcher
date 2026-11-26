@@ -123,6 +123,7 @@ class Settings:
         navigator = DatabaseNavigatorWidget(mode=NavigatorMode.FULL_EDIT)
         self.editor_window.setWindowTitle("Database Manager")
         self.editor_window.setCentralWidget(navigator)
-        self.editor_window.setGeometry(150, 150, 600, 850)
         theme.fit_dropdown_popups(self.editor_window)
+        # as low as the content allows (P12.14)
+        self.editor_window.setGeometry(150, 150, 600, self.editor_window.minimumSizeHint().height())
         self.editor_window.show()

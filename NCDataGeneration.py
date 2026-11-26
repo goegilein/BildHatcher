@@ -72,7 +72,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.cyl_rad_spinbox = gui.cyl_rad_spinbox
         self.hatch_image_button = gui.hatch_image_button
         self.hatch_precision_spinbox = gui.hatch_precision_spinbox
-        self.hatch_progress_label = gui.hatch_progress_label
+
         self.create_contours_button = gui.create_contours_button
         self.contour_source_combobox = gui.contour_source_combobox
 
@@ -90,7 +90,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.hatch_dist_min_spinbox.setValue(300)
         self.hatch_dist_max_spinbox.setValue(700)
         self.cyl_rad_spinbox.setValue(100)
-        self.hatch_precision_spinbox.setValue(0.1)
+        self.hatch_precision_spinbox.setValue(0.01)  # P12.14: 10 um
 
         # Connect signals to methods
         self.hatch_pattern_combobox.currentTextChanged.connect(self.update_angle_entry_state)
@@ -205,7 +205,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self._last_progress = 0
         self._hatch_result = None
         self._hatch_error = None
-        self.hatch_progress_label.setText("Hatching...")
+
 
         self.worker = HatchingWorker(self, settings)
         self.worker.progress.connect(self.progress_dialog.setValue)
@@ -297,7 +297,6 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         if result:
             self.hatch_data = result
             self.set_handler_data()
-            self.hatch_progress_label.setText("Finished")
 
     def _on_worker_done(self):
         self._worker_done = True
@@ -306,7 +305,6 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         if not self.hatching_cancelled:
             self.hatching_finished(self.worker.result)
             if self.worker.result is None:
-                self.hatch_progress_label.setText("Failed")
                 QtWidgets.QMessageBox.warning(self.gui, "Hatching failed", self._hatch_error or "Hatching produced no result.")
         if self._wait_loop is not None:
             self._wait_loop.quit()
@@ -318,7 +316,25 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         # keep QThread.finished connected: it closes the dialog and ends the automatic-mode wait loop
         self.worker.progress.disconnect()
         self.worker.wait()
-        self.hatch_progress_label.setText("Cancelled")
+
+    def apply_db_parameters(self, param):
+        """P12.14: the hatch settings of a colour of the colour database (pattern, angle, fixed line distance)."""
+        if self.hatch_pattern_combobox.findText(param["hatch_pattern"]) >= 0:
+            self.hatch_pattern_combobox.setCurrentText(param["hatch_pattern"])
+        self.hatch_angle_spinbox.setValue(float(param["hatch_angle"]))
+        self.hatch_dist_mode_combobox.setCurrentText("Fixed")  # a database colour has one line distance
+        self.hatch_dist_min_spinbox.setValue(int(round(float(param["hatch_distance"]))))
+
+    def load_settings_from_profile(self, profiles):
+        """Choose a colour of the active colour profile and take over its hatch settings."""
+        from ColorProfile import pick_parameter_dialog
+        palette = profiles.require()
+        if palette is None:
+            return None
+        param = pick_parameter_dialog(self.gui, palette)
+        if param is not None:
+            self.apply_db_parameters(param)
+        return param
 
     def hatch_cluster(self, labels, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", hatch_dist_min=300, hatch_dist_max=700, cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, db_color_palette=None, cluster_progress=0, rng=random):
         """Hatch every colour of one cluster. labels: label image from hatching.label_colors, color_list: its colours."""

@@ -687,6 +687,22 @@ def recolor_db():
     return svg(database(1.5, 5, 8, 14), arrow((10.6, 12), (14.4, 12), BLACK, 1.6, 2.8), picture(15, 7.5, 8, 9))
 
 
+def gear(cx, cy, r_out, r_in, teeth=8, fill=GREY):
+    """Settings gear: toothed wheel with a hole."""
+    points = []
+    for i in range(teeth * 2):
+        for half in (-0.28, 0.28):
+            angle = math.pi * (i + 0.5 + half) / teeth
+            r = r_out if i % 2 == 0 else r_in
+            points.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+    return polygon(points, fill, INK, 1.2) + "\n" + circle(cx, cy, r_in * 0.42, PAPER, INK, 1.1)
+
+
+def db_to_settings():
+    """Load the hatch settings of a database colour: colourful database, arrow to a settings gear."""
+    return svg(database(1.5, 5, 8, 14), arrow((10.6, 12), (14.2, 12), BLACK, 1.6, 2.8), gear(18.6, 12, 4.8, 3.4))
+
+
 def pick_db():
     return svg(database(2, 2, 12, 15), hand((14, 11), 0.78))
 
@@ -851,6 +867,7 @@ ICONS = {
     "fill": lambda: svg(bucket()),
     "replace": replace_color,
     "recolor-db": recolor_db,
+    "db-to-settings": db_to_settings,
     "clean-up": clean_up,
     "imprint-colors": imprint_colors,
     "imprint-overlays": imprint_overlays,
