@@ -599,15 +599,13 @@ def sweep_overlays():
 
 
 def pin_icon(filled):
-    """Push pin, tilted (needle to the bottom left): outline = not pinned, filled (gold) = pinned."""
+    """Push pin, tilted (needle to the bottom left), one simple outline: empty = not pinned, gold = pinned."""
     origin, angle = (13, 10.5), 45
-    head = place([(-4.5, -9), (4.5, -9), (3.2, -6.5), (-3.2, -6.5)], origin, angle)
-    body = place([(-2.4, -6.5), (2.4, -6.5), (3.2, -1.5), (-3.2, -1.5)], origin, angle)
-    collar = place([(-5.5, -1.5), (5.5, -1.5), (5.5, 0.6), (-5.5, 0.6)], origin, angle)
+    outline = place([(-4.5, -9), (4.5, -9), (2.6, -6.2), (3.2, -1.6), (5.5, -1.6), (5.5, 0.6), (-5.5, 0.6),
+                     (-5.5, -1.6), (-3.2, -1.6), (-2.6, -6.2)], origin, angle)
     needle = place([(0, 0.6), (0, 9.5)], origin, angle)
     fill = "#D0A76F" if filled else "none"
-    return svg(line(needle, INK, 1.6), polygon(body, fill, INK, 1.5), polygon(head, fill, INK, 1.5),
-               polygon(collar, fill, INK, 1.5))
+    return svg(line(needle, INK, 1.6), polygon(outline, fill, INK, 1.5))
 
 
 def mask_lift():
@@ -807,8 +805,9 @@ def cursor_replace():
 
 ICONS = {
     # --- Images ---
-    "image-add": lambda: svg(picture(2, 3.5, 15, 12.5), PLUS),
-    "image-remove": lambda: svg(picture(2, 3.5, 15, 12.5), MINUS),
+    # two identical pictures, slightly offset and stacked
+    "image-duplicate": lambda: svg(picture(7.5, 9, 14.5, 12), picture(2, 3, 14.5, 12)),
+    "image-remove": lambda: svg(picture(2, 3.5, 15, 12.5), CROSS),
     "set-original": lambda: svg(picture(6.5, 7.5, 11, 9), arc_arrow(12, 12, 9.6, 200, 160)),
     "split-channels": lambda: svg(
         striped_bar(2, 9.5, 9.3, 5.4),

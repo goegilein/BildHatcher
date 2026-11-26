@@ -833,8 +833,8 @@ QPushButton[styleClass="SectionTab"]:checked {
                        <widget class="QPushButton" name="add_image_button">
                         <property name="icon">
                          <iconset>
-                          <normaloff>icons/image-add.svg</normaloff>
-                          <normalon>icons/image-add.svg</normalon>
+                          <normaloff>icons/image-duplicate.svg</normaloff>
+                          <normalon>icons/image-duplicate.svg</normalon>
                          </iconset>
                         </property>
                         <property name="iconSize">
@@ -844,7 +844,7 @@ QPushButton[styleClass="SectionTab"]:checked {
                          </size>
                         </property>
                         <property name="toolTip">
-                         <string>Add image</string>
+                         <string>Duplicate image: a copy of the active image (as it is now) in the list</string>
                         </property>
                         <property name="text">
                          <string/>
