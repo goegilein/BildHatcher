@@ -3,7 +3,8 @@
 The sections, their pictograms, tooltips and sizes come from GUI_Files/BildHatcher.ui (edit them in Qt Designer);
 this module only arranges them. Panel navigation has two levels: an outer strip with one (icon) button per group –
 single select, clicking the active group closes the panel – and an inner strip with the subsections of the active
-group (P10.6: single select as well – one section at a time). The open subsections of every group are remembered (Preferences "panel").
+group (P10.6: single select as well – one section at a time; P12.10: a section can be pinned with the pin at its
+top right – pinned sections stay visible whatever group is active). The open and pinned subsections of every group are remembered (Preferences "panel").
 P10: the panel has one fixed width – the width of the Images section; every section is laid out to fit it.
 """
 from PyQt6 import QtCore, QtWidgets
@@ -143,6 +144,22 @@ class SettingsPanel:
         for section in self.sections.values():
             section.setFixedWidth(self.width)
         self.scroll.setFixedWidth(self.width + self.scroll.verticalScrollBar().sizeHint().width() + 4)
+        # P12.10: a pin at the top right of every section
+        self.pinned = {label for label in state.get("pinned", []) if label in self.sections}
+        self.pin_buttons = {}
+        for label, section in self.sections.items():
+            pin = _styled(QtWidgets.QToolButton(section, objectName=f"pin_button_{label}"), "PinButton")
+            pin.setCheckable(True)
+            pin.setChecked(label in self.pinned)
+            pin.setIcon(icons.toggle_icon("pin", "pin-on"))
+            pin.setIconSize(QtCore.QSize(18, 18))
+            pin.setFixedSize(22, 22)
+            pin.setToolTip("Pin: keep this section visible in every group")
+            pin.move(self.width - 32, 4)
+            pin.raise_()
+            pin.toggled.connect(lambda on, l=label: self._toggle_pin(l, on))
+            self.pin_buttons[label] = pin
+        theme.on_change(lambda: [b.setIcon(icons.toggle_icon("pin", "pin-on")) for b in self.pin_buttons.values()])
         group_layout.addStretch(1)
 
         fixed, maximum, preferred = (QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Maximum,
@@ -186,10 +203,20 @@ class SettingsPanel:
         self._refresh()
         self._remember()
 
+    def _toggle_pin(self, label, pinned):
+        """Pinned: always visible. Unpinned: closes at once unless it is the open section of the active group."""
+        if pinned:
+            self.pinned.add(label)
+        else:
+            self.pinned.discard(label)
+        self._refresh()
+        self._remember()
+
     def _refresh(self):
         any_visible = False
         for label, section in self.sections.items():
-            visible = self.group_of[label] == self.group and label in self.open[self.group_of[label]]
+            active = self.group_of[label] == self.group and label in self.open[self.group_of[label]]
+            visible = active or label in self.pinned
             if section.isVisibleTo(self.widget) and not visible and self.on_hidden is not None:
                 self.on_hidden(label)
             section.setVisible(visible)
@@ -198,7 +225,7 @@ class SettingsPanel:
         self.scroll.setVisible(any_visible)  # fixed width (P10); only the group strip when nothing is open
 
     def _remember(self):
-        Preferences.put("panel", {"group": self.group, "open": self.open})
+        Preferences.put("panel", {"group": self.group, "open": self.open, "pinned": sorted(self.pinned)})
 
 
 def build_panel(gui, on_hidden=None):
@@ -321,4 +348,5 @@ def build(gui, c):
     tg._style_color_button(gui.fill_color_button, tg.current_fill_color)
     tg._style_color_button(gui.outline_color_button, tg.current_outline_color)
     build_theme_switch(gui)
+    theme.fit_dropdown_popups(gui)  # drop-down lists wider than the narrow combo boxes
     return panel

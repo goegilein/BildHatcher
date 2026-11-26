@@ -117,6 +117,7 @@
      PrimaryButton    QPushButton the main action of a section (gold)
      PanelGroup       QToolButton the group strip at the right edge
      SectionTab       QPushButton the (vertical) section tabs next to the panel
+     PinButton        QToolButton the pin at the top right of a section (pictogram only)
    ===================================================================================================== */
 
 /* ---------- base ---------- */
@@ -152,8 +153,13 @@ QGroupBox {
 	color: #F1F5F9;
 	font-weight: 600;
 	border: none;
+	margin-top: 16px;   /* room for the title above the content (style classes set their own) */
+	padding-top: 2px;
 }
 QGroupBox::title {
+	subcontrol-origin: margin;
+	subcontrol-position: top left;
+	padding: 0px 4px;
 	color: #D0A76F;
 }
 
@@ -510,6 +516,11 @@ QGroupBox[styleClass="outsideFrame"] {
 QGroupBox[styleClass="outsideFrame"] QWidget {
 	background-color: transparent;
 }
+/* ... but not the drop-down list of a combo box: the popup is a child of the combo box and would be see-through */
+QGroupBox[styleClass="outsideFrame"] QComboBox QAbstractItemView,
+QGroupBox[styleClass="outsideFrame"] QComboBoxPrivateContainer {
+	background-color: #131822;
+}
 QGroupBox[styleClass="outsideFrame"] QLineEdit, QGroupBox[styleClass="outsideFrame"] QAbstractSpinBox,
 QGroupBox[styleClass="outsideFrame"] QComboBox, QGroupBox[styleClass="outsideFrame"] QPlainTextEdit,
 QGroupBox[styleClass="outsideFrame"] QListWidget {
@@ -654,6 +665,14 @@ QToolButton[styleClass="PanelGroup"]:checked {
 	background-color: rgba(208, 167, 111, 0.14);
 	border: 1px solid rgba(208, 167, 111, 0.40);
 	border-right: 3px solid #D0A76F;
+}
+
+/* PinButton: the pin at the top right of a panel section – just the pictogram, no body */
+QToolButton[styleClass="PinButton"], QToolButton[styleClass="PinButton"]:hover,
+QToolButton[styleClass="PinButton"]:checked, QToolButton[styleClass="PinButton"]:pressed {
+	background: transparent;
+	border: none;
+	padding: 0px;
 }
 
 /* SectionTab: the vertical section tabs */
@@ -814,8 +833,8 @@ QPushButton[styleClass="SectionTab"]:checked {
                        <widget class="QPushButton" name="add_image_button">
                         <property name="icon">
                          <iconset>
-                          <normaloff>icons/image-add.svg</normaloff>
-                          <normalon>icons/image-add.svg</normalon>
+                          <normaloff>icons/image-duplicate.svg</normaloff>
+                          <normalon>icons/image-duplicate.svg</normalon>
                          </iconset>
                         </property>
                         <property name="iconSize">
@@ -825,7 +844,7 @@ QPushButton[styleClass="SectionTab"]:checked {
                          </size>
                         </property>
                         <property name="toolTip">
-                         <string>Add image</string>
+                         <string>Duplicate image: a copy of the active image (as it is now) in the list</string>
                         </property>
                         <property name="text">
                          <string/>
@@ -1703,129 +1722,149 @@ QPushButton[styleClass="SectionTab"]:checked {
                            </property>
                           </widget>
                          </item>
-                         <item row="1" column="1">
-                          <widget class="QPushButton" name="show_image_center_button">
-                           <property name="checkable">
-                            <bool>true</bool>
-                           </property>
-                           <property name="icon">
-                            <iconset>
-                             <normaloff>icons/center-show.svg</normaloff>
-                             <normalon>icons/center-hide.svg</normalon>
-                            </iconset>
-                           </property>
-                           <property name="iconSize">
-                            <size>
-                             <width>20</width>
-                             <height>20</height>
-                            </size>
-                           </property>
-                           <property name="toolTip">
-                            <string>Show the hatch center</string>
-                           </property>
-                           <property name="text">
-                            <string/>
-                           </property>
-                           <property name="minimumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="maximumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="styleClass" stdset="0">
-                            <string>IconButton</string>
-                           </property>
-                          </widget>
-                         </item>
-                         <item row="1" column="2">
-                          <widget class="QPushButton" name="set_image_center_button">
-                           <property name="checkable">
-                            <bool>true</bool>
-                           </property>
-                           <property name="icon">
-                            <iconset>
-                             <normaloff>icons/center-set.svg</normaloff>
-                             <normalon>icons/center-set.svg</normalon>
-                            </iconset>
-                           </property>
-                           <property name="iconSize">
-                            <size>
-                             <width>20</width>
-                             <height>20</height>
-                            </size>
-                           </property>
-                           <property name="toolTip">
-                            <string>Select the hatch center in the image</string>
-                           </property>
-                           <property name="text">
-                            <string/>
-                           </property>
-                           <property name="minimumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="maximumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="styleClass" stdset="0">
-                            <string>IconButton</string>
-                           </property>
-                          </widget>
-                         </item>
-                         <item row="1" column="3">
-                          <widget class="QPushButton" name="reset_image_center_button">
-                           <property name="icon">
-                            <iconset>
-                             <normaloff>icons/center-reset.svg</normaloff>
-                             <normalon>icons/center-reset.svg</normalon>
-                            </iconset>
-                           </property>
-                           <property name="iconSize">
-                            <size>
-                             <width>20</width>
-                             <height>20</height>
-                            </size>
-                           </property>
-                           <property name="toolTip">
-                            <string>Reset the hatch center</string>
-                           </property>
-                           <property name="text">
-                            <string/>
-                           </property>
-                           <property name="minimumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="maximumSize">
-                            <size>
-                             <width>34</width>
-                             <height>30</height>
-                            </size>
-                           </property>
-                           <property name="styleClass" stdset="0">
-                            <string>IconButton</string>
-                           </property>
-                          </widget>
-                         </item>
                          <property name="leftMargin">
                           <number>0</number>
                          </property>
                          <property name="rightMargin">
                           <number>0</number>
                          </property>
+                         <item row="1" column="0" colspan="4">
+                          <layout class="QHBoxLayout" name="center_buttons_row">
+                           <property name="spacing">
+                            <number>4</number>
+                           </property>
+                           <item>
+                            <widget class="QPushButton" name="show_image_center_button">
+                             <property name="checkable">
+                              <bool>true</bool>
+                             </property>
+                             <property name="icon">
+                              <iconset>
+                               <normaloff>icons/center-show.svg</normaloff>
+                               <normalon>icons/center-hide.svg</normalon>
+                              </iconset>
+                             </property>
+                             <property name="iconSize">
+                              <size>
+                               <width>20</width>
+                               <height>20</height>
+                              </size>
+                             </property>
+                             <property name="toolTip">
+                              <string>Show the hatch center</string>
+                             </property>
+                             <property name="text">
+                              <string/>
+                             </property>
+                             <property name="minimumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="maximumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="styleClass" stdset="0">
+                              <string>IconButton</string>
+                             </property>
+                            </widget>
+                           </item>
+                           <item>
+                            <widget class="QPushButton" name="set_image_center_button">
+                             <property name="checkable">
+                              <bool>true</bool>
+                             </property>
+                             <property name="icon">
+                              <iconset>
+                               <normaloff>icons/center-set.svg</normaloff>
+                               <normalon>icons/center-set.svg</normalon>
+                              </iconset>
+                             </property>
+                             <property name="iconSize">
+                              <size>
+                               <width>20</width>
+                               <height>20</height>
+                              </size>
+                             </property>
+                             <property name="toolTip">
+                              <string>Select the hatch center in the image</string>
+                             </property>
+                             <property name="text">
+                              <string/>
+                             </property>
+                             <property name="minimumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="maximumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="styleClass" stdset="0">
+                              <string>IconButton</string>
+                             </property>
+                            </widget>
+                           </item>
+                           <item>
+                            <widget class="QPushButton" name="reset_image_center_button">
+                             <property name="icon">
+                              <iconset>
+                               <normaloff>icons/center-reset.svg</normaloff>
+                               <normalon>icons/center-reset.svg</normalon>
+                              </iconset>
+                             </property>
+                             <property name="iconSize">
+                              <size>
+                               <width>20</width>
+                               <height>20</height>
+                              </size>
+                             </property>
+                             <property name="toolTip">
+                              <string>Reset the hatch center</string>
+                             </property>
+                             <property name="text">
+                              <string/>
+                             </property>
+                             <property name="minimumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="maximumSize">
+                              <size>
+                               <width>34</width>
+                               <height>30</height>
+                              </size>
+                             </property>
+                             <property name="styleClass" stdset="0">
+                              <string>IconButton</string>
+                             </property>
+                            </widget>
+                           </item>
+                           <item>
+                            <spacer name="center_buttons_spacer">
+                             <property name="orientation">
+                              <enum>Qt::Horizontal</enum>
+                             </property>
+                             <property name="sizeHint" stdset="0">
+                              <size>
+                               <width>0</width>
+                               <height>0</height>
+                              </size>
+                             </property>
+                            </spacer>
+                           </item>
+                          </layout>
+                         </item>
                         </layout>
                        </widget>
                       </item>
@@ -3148,14 +3187,54 @@ QPushButton[styleClass="SectionTab"]:checked {
                     <property name="title">
                      <string>Image Colors</string>
                     </property>
-                    <layout class="QGridLayout" name="image_colors_row">
-                     <property name="horizontalSpacing">
+                    <layout class="QHBoxLayout" name="image_colors_row">
+                     <property name="spacing">
                       <number>4</number>
                      </property>
-                     <property name="verticalSpacing">
-                      <number>4</number>
+                     <property name="leftMargin">
+                      <number>0</number>
                      </property>
-                     <item row="0" column="0">
+                     <property name="rightMargin">
+                      <number>0</number>
+                     </property>
+                     <item>
+                      <widget class="QPushButton" name="clean_up_image_colors_button">
+                       <property name="icon">
+                        <iconset>
+                         <normaloff>icons/clean-up.svg</normaloff>
+                         <normalon>icons/clean-up.svg</normalon>
+                        </iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>20</width>
+                         <height>20</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Clean up colors (merge similar colors, remove stray pixels)</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="minimumSize">
+                        <size>
+                         <width>34</width>
+                         <height>30</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>34</width>
+                         <height>30</height>
+                        </size>
+                       </property>
+                       <property name="styleClass" stdset="0">
+                        <string>IconButton</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
                       <widget class="QPushButton" name="recolor_from_database_button">
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
@@ -3198,44 +3277,20 @@ QPushButton[styleClass="SectionTab"]:checked {
                        </property>
                       </widget>
                      </item>
-                     <item row="0" column="1">
-                      <widget class="QPushButton" name="clean_up_image_colors_button">
-                       <property name="icon">
-                        <iconset>
-                         <normaloff>icons/clean-up.svg</normaloff>
-                         <normalon>icons/clean-up.svg</normalon>
-                        </iconset>
+                     <item>
+                      <spacer name="image_colors_spacer">
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
                        </property>
-                       <property name="iconSize">
+                       <property name="sizeHint" stdset="0">
                         <size>
-                         <width>20</width>
-                         <height>20</height>
+                         <width>0</width>
+                         <height>0</height>
                         </size>
                        </property>
-                       <property name="toolTip">
-                        <string>Clean up colors (merge similar colors, remove stray pixels)</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="minimumSize">
-                        <size>
-                         <width>34</width>
-                         <height>30</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>34</width>
-                         <height>30</height>
-                        </size>
-                       </property>
-                       <property name="styleClass" stdset="0">
-                        <string>IconButton</string>
-                       </property>
-                      </widget>
+                      </spacer>
                      </item>
-                     <item row="0" column="2">
+                     <item>
                       <widget class="QPushButton" name="imprint_color_overlays_button">
                        <property name="enabled">
                         <bool>false</bool>
@@ -3281,12 +3336,12 @@ QPushButton[styleClass="SectionTab"]:checked {
                        </property>
                       </widget>
                      </item>
-                     <item row="0" column="3">
+                     <item>
                       <widget class="QPushButton" name="restore_uncolored_image_button">
                        <property name="icon">
                         <iconset>
-                         <normaloff>icons/image-restore.svg</normaloff>
-                         <normalon>icons/image-restore.svg</normalon>
+                         <normaloff>icons/delete-color-overlays.svg</normaloff>
+                         <normalon>icons/delete-color-overlays.svg</normalon>
                         </iconset>
                        </property>
                        <property name="iconSize">
@@ -3296,7 +3351,7 @@ QPushButton[styleClass="SectionTab"]:checked {
                         </size>
                        </property>
                        <property name="toolTip">
-                        <string>Restore the uncolored image</string>
+                        <string>Delete all active color overlays (color edits not imprinted yet)</string>
                        </property>
                        <property name="text">
                         <string/>
@@ -3318,12 +3373,6 @@ QPushButton[styleClass="SectionTab"]:checked {
                        </property>
                       </widget>
                      </item>
-                     <property name="leftMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="rightMargin">
-                      <number>0</number>
-                     </property>
                     </layout>
                    </widget>
                   </item>
@@ -5416,10 +5465,10 @@ QPushButton[styleClass="SectionTab"]:checked {
                      <double>100.000000000000000</double>
                     </property>
                     <property name="singleStep">
-                     <double>0.100000000000000</double>
+                     <double>0.010000000000000</double>
                     </property>
                     <property name="value">
-                     <double>0.100000000000000</double>
+                     <double>0.010000000000000</double>
                     </property>
                     <property name="maximumSize">
                      <size>
@@ -5498,15 +5547,45 @@ QPushButton[styleClass="SectionTab"]:checked {
                    </widget>
                   </item>
                   <item row="6" column="2">
-                   <widget class="QLabel" name="hatch_progress_label">
-                    <property name="alignment">
-                     <set>Qt::AlignCenter</set>
+                   <widget class="QPushButton" name="load_db_hatch_settings_button">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
                     </property>
-                    <property name="text">
-                     <string>Idle</string>
+                    <property name="icon">
+                     <iconset>
+                      <normaloff>icons/db-to-settings.svg</normaloff>
+                      <normalon>icons/db-to-settings.svg</normalon>
+                     </iconset>
+                    </property>
+                    <property name="iconSize">
+                     <size>
+                      <width>20</width>
+                      <height>20</height>
+                     </size>
                     </property>
                     <property name="toolTip">
-                     <string>Hatch state</string>
+                     <string>Load the hatch settings of a color of the active color profile</string>
+                    </property>
+                    <property name="text">
+                     <string/>
+                    </property>
+                    <property name="minimumSize">
+                     <size>
+                      <width>34</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>34</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="styleClass" stdset="0">
+                     <string>IconButton</string>
                     </property>
                    </widget>
                   </item>
@@ -6093,122 +6172,142 @@ QPushButton[styleClass="SectionTab"]:checked {
                     </property>
                    </widget>
                   </item>
-                  <item row="12" column="0">
-                   <widget class="QPushButton" name="add_process_block_button">
-                    <property name="icon">
-                     <iconset>
-                      <normaloff>icons/hatch-add.svg</normaloff>
-                      <normalon>icons/hatch-add.svg</normalon>
-                     </iconset>
+                  <item row="12" column="0" colspan="3">
+                   <layout class="QHBoxLayout" name="export_buttons_row">
+                    <property name="spacing">
+                     <number>6</number>
                     </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>20</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Add the current hatching as a process block</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="minimumSize">
-                     <size>
-                      <width>34</width>
-                      <height>30</height>
-                     </size>
-                    </property>
-                    <property name="maximumSize">
-                     <size>
-                      <width>34</width>
-                      <height>30</height>
-                     </size>
-                    </property>
-                    <property name="styleClass" stdset="0">
-                     <string>IconButton</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="12" column="1">
-                   <widget class="QPushButton" name="remove_process_block_button">
-                    <property name="icon">
-                     <iconset>
-                      <normaloff>icons/hatch-remove.svg</normaloff>
-                      <normalon>icons/hatch-remove.svg</normalon>
-                     </iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>20</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Remove the selected process block</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="minimumSize">
-                     <size>
-                      <width>34</width>
-                      <height>30</height>
-                     </size>
-                    </property>
-                    <property name="maximumSize">
-                     <size>
-                      <width>34</width>
-                      <height>30</height>
-                     </size>
-                    </property>
-                    <property name="styleClass" stdset="0">
-                     <string>IconButton</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="12" column="2">
-                   <widget class="QPushButton" name="export_button">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="icon">
-                     <iconset>
-                      <normaloff>icons/export.svg</normaloff>
-                      <normalon>icons/export.svg</normalon>
-                     </iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>18</width>
-                      <height>18</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Export the process blocks</string>
-                    </property>
-                    <property name="text">
-                     <string>Export</string>
-                    </property>
-                    <property name="minimumSize">
-                     <size>
-                      <width>0</width>
-                      <height>30</height>
-                     </size>
-                    </property>
-                    <property name="maximumSize">
-                     <size>
-                      <width>16777215</width>
-                      <height>30</height>
-                     </size>
-                    </property>
-                    <property name="styleClass" stdset="0">
-                     <string>PrimaryButton</string>
-                    </property>
-                   </widget>
+                    <item>
+                     <widget class="QPushButton" name="add_process_block_button">
+                      <property name="icon">
+                       <iconset>
+                        <normaloff>icons/hatch-add.svg</normaloff>
+                        <normalon>icons/hatch-add.svg</normalon>
+                       </iconset>
+                      </property>
+                      <property name="iconSize">
+                       <size>
+                        <width>20</width>
+                        <height>20</height>
+                       </size>
+                      </property>
+                      <property name="toolTip">
+                       <string>Add the current hatching as a process block</string>
+                      </property>
+                      <property name="text">
+                       <string/>
+                      </property>
+                      <property name="minimumSize">
+                       <size>
+                        <width>34</width>
+                        <height>30</height>
+                       </size>
+                      </property>
+                      <property name="maximumSize">
+                       <size>
+                        <width>34</width>
+                        <height>30</height>
+                       </size>
+                      </property>
+                      <property name="styleClass" stdset="0">
+                       <string>IconButton</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="remove_process_block_button">
+                      <property name="icon">
+                       <iconset>
+                        <normaloff>icons/hatch-remove.svg</normaloff>
+                        <normalon>icons/hatch-remove.svg</normalon>
+                       </iconset>
+                      </property>
+                      <property name="iconSize">
+                       <size>
+                        <width>20</width>
+                        <height>20</height>
+                       </size>
+                      </property>
+                      <property name="toolTip">
+                       <string>Remove the selected process block</string>
+                      </property>
+                      <property name="text">
+                       <string/>
+                      </property>
+                      <property name="minimumSize">
+                       <size>
+                        <width>34</width>
+                        <height>30</height>
+                       </size>
+                      </property>
+                      <property name="maximumSize">
+                       <size>
+                        <width>34</width>
+                        <height>30</height>
+                       </size>
+                      </property>
+                      <property name="styleClass" stdset="0">
+                       <string>IconButton</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="export_button">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="icon">
+                       <iconset>
+                        <normaloff>icons/export.svg</normaloff>
+                        <normalon>icons/export.svg</normalon>
+                       </iconset>
+                      </property>
+                      <property name="iconSize">
+                       <size>
+                        <width>18</width>
+                        <height>18</height>
+                       </size>
+                      </property>
+                      <property name="toolTip">
+                       <string>Export the process blocks</string>
+                      </property>
+                      <property name="text">
+                       <string>Export</string>
+                      </property>
+                      <property name="minimumSize">
+                       <size>
+                        <width>0</width>
+                        <height>30</height>
+                       </size>
+                      </property>
+                      <property name="maximumSize">
+                       <size>
+                        <width>16777215</width>
+                        <height>30</height>
+                       </size>
+                      </property>
+                      <property name="styleClass" stdset="0">
+                       <string>PrimaryButton</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <spacer name="export_buttons_spacer">
+                      <property name="orientation">
+                       <enum>Qt::Horizontal</enum>
+                      </property>
+                      <property name="sizeHint" stdset="0">
+                       <size>
+                        <width>0</width>
+                        <height>0</height>
+                       </size>
+                      </property>
+                     </spacer>
+                    </item>
+                   </layout>
                   </item>
                  </layout>
                 </widget>

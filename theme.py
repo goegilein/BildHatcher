@@ -144,6 +144,32 @@ def refresh_ui_icons(window):
             obj.setPixmap(QtGui.QPixmap(path(off)))
 
 
+# --- drop-down lists ---
+def fit_dropdown_popups(root):
+    """Drop-down lists as wide as their longest entry (the combo boxes themselves stay narrow, e.g. in the fixed
+    width panel). For every QComboBox under `root`; follows later changes of the entries."""
+    for combo in root.findChildren(QtWidgets.QComboBox):
+        if combo.property("popupFitted"):
+            continue
+        combo.setProperty("popupFitted", True)
+
+        def fit(*_, combo=combo):
+            view = combo.view()
+            metrics = view.fontMetrics()
+            widest = 0
+            for row in range(combo.count()):  # measured directly: new rows are not laid out yet
+                width = metrics.horizontalAdvance(combo.itemText(row))
+                if not combo.itemIcon(row).isNull():
+                    width += combo.iconSize().width() + 6
+                widest = max(widest, width)
+            extra = 2 * view.frameWidth() + view.verticalScrollBar().sizeHint().width() + 24  # item padding, margins
+            view.setMinimumWidth(widest + extra)
+        model = combo.model()
+        for signal in (model.rowsInserted, model.rowsRemoved, model.modelReset, model.dataChanged):
+            signal.connect(fit)
+        fit()
+
+
 # --- applying ---
 def on_change(callback):
     """Call `callback()` after every mode switch (code-built icons / colours)."""

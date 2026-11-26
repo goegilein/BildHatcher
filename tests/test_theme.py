@@ -85,3 +85,39 @@ def test_the_app_runs_without_dev_dependencies():
                   if isinstance(node, ast.ImportFrom) and node.module}
         assert not names & dev_only, (path.name, names & dev_only)
     assert theme.ui_icons()  # the .ui is read with the standard library
+
+
+def test_dropdown_lists_have_an_opaque_background_in_both_modes(app_components):
+    """The drop-down list of a combo box inside a panel card was see-through (the card's "transparent children"
+    rule reached the popup, which is a child of the combo box)."""
+    gui = app_components.gui
+    combo = gui.flood_fill_mode_combobox  # in the Color section card
+    try:
+        for mode in ("dark", "light"):
+            theme.set_mode(mode, gui)
+            combo.showPopup()
+            view = combo.view()
+            background = view.palette().color(view.backgroundRole())
+            combo.hidePopup()
+            assert background.alpha() == 255 and background == theme.color("surface", mode), mode
+    finally:
+        theme.set_mode("dark", gui)
+
+
+def test_dropdown_lists_are_as_wide_as_their_entries(app_components):
+    """The combo boxes in the panel are narrow; their drop-down lists must show the whole entries."""
+    from PyQt6.QtTest import QTest
+    gui = app_components.gui
+    gui.show()
+    combo = gui.flood_fill_mode_combobox
+    combo.setMaximumWidth(60)                      # narrower than its longest entry
+    QTest.qWait(50)
+    combo.showPopup()
+    QTest.qWait(50)
+    popup = combo.view().window()
+    longest = max(combo.fontMetrics().horizontalAdvance(combo.itemText(i)) for i in range(combo.count()))
+    assert popup.width() > combo.width() and popup.width() >= longest
+    combo.hidePopup()
+    combo.addItem("A very long entry added later that needs a wider list")
+    assert combo.view().minimumWidth() >= combo.fontMetrics().horizontalAdvance(combo.itemText(combo.count() - 1))
+    gui.hide()

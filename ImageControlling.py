@@ -358,6 +358,7 @@ class BaseFunctions:
             self.gui.zoom_spinbox.setValue(max_zoom)
 
         self.image_resolution_edit.setText(f"{width} x {height}")
+        self.image_resolution_edit.setToolTip(f"{width} x {height} px")  # the field is often too narrow
 
     def reset_image_size(self):
         with self._record_matrix("Reset Image Size"):
@@ -552,9 +553,13 @@ class BaseFunctions:
         
         row_min, row_max = rows.min(), rows.max()
         col_min, col_max = cols.min(), cols.max()
-        
-        # Extract the bounding rectangle from the image
-        image_cropped = image_matrix[row_min:row_max+1, col_min:col_max+1]
+
+        # Extract the bounding rectangle plus one pixel of background all around (outlines / contours need it);
+        # where the content touches the image edge, a transparent pixel is added
+        image_cropped = image_matrix[max(row_min - 1, 0):row_max + 2, max(col_min - 1, 0):col_max + 2]
+        pad = ((1 if row_min == 0 else 0, 1 if row_max == h - 1 else 0),
+               (1 if col_min == 0 else 0, 1 if col_max == w - 1 else 0), (0, 0))
+        image_cropped = np.pad(image_cropped, pad, constant_values=0)  # (0, 0, 0, 0) = transparent
         
         # Create a new image object with the cropped image
         img_obj = ImageDocument(image_cropped, image_cropped, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())

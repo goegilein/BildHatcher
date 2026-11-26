@@ -118,6 +118,8 @@ def create_components(gui):
         c.data_handler.undo_manager.setup_menubar(menubar)
 
     c.image_hatcher = NCDataGeneration.Hatcher(c.data_handler, gui)
+    gui.load_db_hatch_settings_button.clicked.connect(  # P12.14: hatch settings of a database colour
+        lambda: c.image_hatcher.load_settings_from_profile(c.color_profiles))
     c.hatch_line_plotter = Plotting.HatchLinePlotter(c.data_handler, gui)
     c.test_structure = TestStructures.Teststructures(c.data_handler, gui)
     c.parser = Parsing.Parser(c.data_handler, gui)

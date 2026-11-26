@@ -5,7 +5,7 @@ colour pickers. The choice is remembered in USER_DIR/preferences.json and restor
 """
 import logging
 
-from PyQt6 import QtGui, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from Database.database_main import DatabaseManager, DatabaseNavigatorWidget, NavigatorMode
 from HelperClasses import DBColorPalette
@@ -81,6 +81,44 @@ def pick_color_dialog(parent, palette, title="Select Color"):
         grid.addWidget(QtWidgets.QLabel("The active profile has no colors."), 0, 0)
     dialog.exec()
     return chosen.get("rgb")
+
+
+def _swatch(rgb, size=14):
+    pixmap = QtGui.QPixmap(size, size)
+    pixmap.fill(QtGui.QColor(*rgb))
+    return QtGui.QIcon(pixmap)
+
+
+def pick_parameter_dialog(parent, palette, title="Load Settings from Database Color"):
+    """P12.14: choose one colour of the active profile (list with its hatch settings) and confirm.
+    Returns the colour's parameter dict or None."""
+    dialog = QtWidgets.QDialog(parent)
+    dialog.setWindowTitle(f"{title} – {profile_name(palette)}")
+    layout = QtWidgets.QVBoxLayout(dialog)
+    colors = QtWidgets.QListWidget(objectName="db_color_list")
+    for param in palette.color_palette or []:
+        rgb = [int(v) for v in str(param["color_rgb"]).split(",")]
+        text = (f"{param['color_name']}  –  {param['hatch_pattern']}, {param['hatch_angle']}°, "
+                f"{param['hatch_distance']} µm")
+        item = QtWidgets.QListWidgetItem(_swatch(rgb), text)
+        item.setData(QtCore.Qt.ItemDataRole.UserRole, param)
+        colors.addItem(item)
+    if not colors.count():
+        layout.addWidget(QtWidgets.QLabel("The active profile has no colors."))
+    layout.addWidget(colors)
+    buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok |
+                                         QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+    ok = buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Ok)
+    ok.setEnabled(False)
+    colors.currentItemChanged.connect(lambda current, _: ok.setEnabled(current is not None))
+    colors.itemDoubleClicked.connect(lambda _: dialog.accept())
+    buttons.accepted.connect(dialog.accept)
+    buttons.rejected.connect(dialog.reject)
+    layout.addWidget(buttons)
+    dialog.resize(420, 320)
+    if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted or colors.currentItem() is None:
+        return None
+    return colors.currentItem().data(QtCore.Qt.ItemDataRole.UserRole)
 
 
 class ColorProfileController:

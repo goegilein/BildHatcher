@@ -4,6 +4,7 @@ from PyQt6 import QtWidgets, QtGui, QtCore
 from core import machine
 from PyQt6.QtWidgets import QFileDialog
 from Database.database_main import DatabaseNavigatorWidget,NavigatorMode
+import theme
 
 log = logging.getLogger(__name__)
 
@@ -73,8 +74,7 @@ class Settings:
                 break
 
     def load_config(self):
-        options = QFileDialog.Option.DontUseNativeDialog
-        file_path, _ = QFileDialog.getOpenFileName(self.gui, "Load Configuration", "", "JSON Files (*.json)", options=options)
+        file_path, _ = QFileDialog.getOpenFileName(self.gui, "Load Configuration", "", "JSON Files (*.json)")  # native
         if file_path:
             with open(file_path, 'r') as f:
                 self.apply_settings(json.load(f))
@@ -111,8 +111,7 @@ class Settings:
 
     def save_config(self):
         """P8.1: one file with all settings (old _imageconfig / _hatchingconfig files still load)."""
-        options = QFileDialog.Option.DontUseNativeDialog
-        file_path, _ = QFileDialog.getSaveFileName(self.gui, "Save Config", "", "JSON Files (*.json)", options=options)
+        file_path, _ = QFileDialog.getSaveFileName(self.gui, "Save Config", "", "JSON Files (*.json)")  # native
         if file_path:
             if not file_path.lower().endswith('.json'):
                 file_path += '.json'
@@ -124,5 +123,7 @@ class Settings:
         navigator = DatabaseNavigatorWidget(mode=NavigatorMode.FULL_EDIT)
         self.editor_window.setWindowTitle("Database Manager")
         self.editor_window.setCentralWidget(navigator)
-        self.editor_window.setGeometry(150, 150, 600, 850)
+        theme.fit_dropdown_popups(self.editor_window)
+        # as low as the content allows (P12.14)
+        self.editor_window.setGeometry(150, 150, 600, self.editor_window.minimumSizeHint().height())
         self.editor_window.show()

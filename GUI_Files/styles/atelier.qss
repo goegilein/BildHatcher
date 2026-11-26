@@ -101,6 +101,7 @@
      PrimaryButton    QPushButton the main action of a section (gold)
      PanelGroup       QToolButton the group strip at the right edge
      SectionTab       QPushButton the (vertical) section tabs next to the panel
+     PinButton        QToolButton the pin at the top right of a section (pictogram only)
    ===================================================================================================== */
 
 /* ---------- base ---------- */
@@ -136,8 +137,13 @@ QGroupBox {
 	color: @text;
 	font-weight: 600;
 	border: none;
+	margin-top: 16px;   /* room for the title above the content (style classes set their own) */
+	padding-top: 2px;
 }
 QGroupBox::title {
+	subcontrol-origin: margin;
+	subcontrol-position: top left;
+	padding: 0px 4px;
 	color: @accentText;
 }
 
@@ -494,6 +500,11 @@ QGroupBox[styleClass="outsideFrame"] {
 QGroupBox[styleClass="outsideFrame"] QWidget {
 	background-color: transparent;
 }
+/* ... but not the drop-down list of a combo box: the popup is a child of the combo box and would be see-through */
+QGroupBox[styleClass="outsideFrame"] QComboBox QAbstractItemView,
+QGroupBox[styleClass="outsideFrame"] QComboBoxPrivateContainer {
+	background-color: @surface;
+}
 QGroupBox[styleClass="outsideFrame"] QLineEdit, QGroupBox[styleClass="outsideFrame"] QAbstractSpinBox,
 QGroupBox[styleClass="outsideFrame"] QComboBox, QGroupBox[styleClass="outsideFrame"] QPlainTextEdit,
 QGroupBox[styleClass="outsideFrame"] QListWidget {
@@ -638,6 +649,14 @@ QToolButton[styleClass="PanelGroup"]:checked {
 	background-color: @accentSoft;
 	border: 1px solid @accentLine;
 	border-right: 3px solid @accent;
+}
+
+/* PinButton: the pin at the top right of a panel section – just the pictogram, no body */
+QToolButton[styleClass="PinButton"], QToolButton[styleClass="PinButton"]:hover,
+QToolButton[styleClass="PinButton"]:checked, QToolButton[styleClass="PinButton"]:pressed {
+	background: transparent;
+	border: none;
+	padding: 0px;
 }
 
 /* SectionTab: the vertical section tabs */

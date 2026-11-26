@@ -514,10 +514,6 @@ def mask_save():
                picture(16.5, 8, 6.5, 7))
 
 
-def image_restore():
-    return svg(picture(6.5, 8, 11, 8.5), sparkle(17.2, 7.4, 2.6), sparkle(6.6, 16.6, 1.8), reset_arrow())
-
-
 def recenter():
     return svg(circle(12, 12, 2.2, RED, "none", 0),
                arrow((12, 1.8), (12, 8.2)), arrow((12, 22.2), (12, 15.8)),
@@ -584,6 +580,32 @@ def imprint_overlays():
     """Stamp with a "T" in a square at the bottom right."""
     return svg(stamp(-2.5), rect(14, 13.5, 9, 9, HALO, HALO, 2.6, 1.2), rect(14, 13.5, 9, 9, PAPER, INK, 1.4, 1.2),
                letter_t(16, 16, 5, 4.6, INK, 1.7))
+
+
+def sweep_overlays():
+    """Delete all active colour overlays: a broom sweeping over a picture with red / green / blue scribbles."""
+    frame = rect(2, 6.5, 15.5, 14, PAPER, INK, 1.5, 1.5)
+    scribbles = [path("M 4.5 10.5 Q 6.5 8.2 8.5 10.5 T 12.5 10.5", "none", RED, 1.6),
+                 path("M 4.5 14.2 Q 6.8 11.8 9 14.2 T 13 13.6", "none", GREEN, 1.6),
+                 path("M 4.8 18 Q 7 15.8 9.2 18", "none", BLUE, 1.6)]
+    origin, angle = (16, 15.5), 35  # broom: handle up to the top right, bristles at the bottom left
+    handle = place([(0, -2), (0, -15)], origin, angle)
+    bristles = place([(-3.6, 5.2), (3.6, 5.2), (2.2, -1.2), (-2.2, -1.2)], origin, angle)
+    band = place([(-2.6, -2.4), (2.6, -2.4), (2.6, -0.6), (-2.6, -0.6)], origin, angle)
+    strokes = [line(place([(x, 0.5), (x * 1.5, 5)], origin, angle), "#B7791F", 0.9) for x in (-1.6, 0, 1.6)]
+    sweep = [line([(1.5, 21.5), (6, 22.3)], INK, 1.1), line([(3, 23), (7.5, 23.4)], INK, 1.1)]
+    return svg(frame, *scribbles, line(handle, WOOD, 2.4), polygon(bristles, "#F6C453", INK, 1.2), *strokes,
+               polygon(band, RED, INK, 1.0), *sweep)
+
+
+def pin_icon(filled):
+    """Push pin, tilted (needle to the bottom left), one simple outline: empty = not pinned, gold = pinned."""
+    origin, angle = (13, 10.5), 45
+    outline = place([(-4.5, -9), (4.5, -9), (2.6, -6.2), (3.2, -1.6), (5.5, -1.6), (5.5, 0.6), (-5.5, 0.6),
+                     (-5.5, -1.6), (-3.2, -1.6), (-2.6, -6.2)], origin, angle)
+    needle = place([(0, 0.6), (0, 9.5)], origin, angle)
+    fill = "#D0A76F" if filled else "none"
+    return svg(line(needle, INK, 1.6), polygon(outline, fill, INK, 1.5))
 
 
 def mask_lift():
@@ -663,6 +685,22 @@ def replace_color():
 
 def recolor_db():
     return svg(database(1.5, 5, 8, 14), arrow((10.6, 12), (14.4, 12), BLACK, 1.6, 2.8), picture(15, 7.5, 8, 9))
+
+
+def gear(cx, cy, r_out, r_in, teeth=8, fill=GREY):
+    """Settings gear: toothed wheel with a hole."""
+    points = []
+    for i in range(teeth * 2):
+        for half in (-0.28, 0.28):
+            angle = math.pi * (i + 0.5 + half) / teeth
+            r = r_out if i % 2 == 0 else r_in
+            points.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+    return polygon(points, fill, INK, 1.2) + "\n" + circle(cx, cy, r_in * 0.42, PAPER, INK, 1.1)
+
+
+def db_to_settings():
+    """Load the hatch settings of a database colour: colourful database, arrow to a settings gear."""
+    return svg(database(1.5, 5, 8, 14), arrow((10.6, 12), (14.2, 12), BLACK, 1.6, 2.8), gear(18.6, 12, 4.8, 3.4))
 
 
 def pick_db():
@@ -783,8 +821,9 @@ def cursor_replace():
 
 ICONS = {
     # --- Images ---
-    "image-add": lambda: svg(picture(2, 3.5, 15, 12.5), PLUS),
-    "image-remove": lambda: svg(picture(2, 3.5, 15, 12.5), MINUS),
+    # two identical pictures, slightly offset and stacked
+    "image-duplicate": lambda: svg(picture(7.5, 9, 14.5, 12), picture(2, 3, 14.5, 12)),
+    "image-remove": lambda: svg(picture(2, 3.5, 15, 12.5), CROSS),
     "set-original": lambda: svg(picture(6.5, 7.5, 11, 9), arc_arrow(12, 12, 9.6, 200, 160)),
     "split-channels": lambda: svg(
         striped_bar(2, 9.5, 9.3, 5.4),
@@ -828,13 +867,16 @@ ICONS = {
     "fill": lambda: svg(bucket()),
     "replace": replace_color,
     "recolor-db": recolor_db,
+    "db-to-settings": db_to_settings,
     "clean-up": clean_up,
     "imprint-colors": imprint_colors,
     "imprint-overlays": imprint_overlays,
     "mask-lift": mask_lift,
+    "delete-color-overlays": sweep_overlays,
+    "pin": lambda: pin_icon(False),
+    "pin-on": lambda: pin_icon(True),
     "imprint-mask": imprint_mask,
     "imprint-masks": imprint_masks,
-    "image-restore": image_restore,
     "contours": lambda: svg(contour_lines()),
     "contours-hide": lambda: svg(contour_lines(), slash((3, 3), (21, 21))),
     # --- Masks ---

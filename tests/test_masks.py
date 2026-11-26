@@ -299,3 +299,9 @@ def test_a_new_mask_outline_lies_exactly_on_its_pixels(masked):
     for a, b in ((frame.left(), expected.left()), (frame.top(), expected.top()),
                  (frame.right(), expected.right()), (frame.bottom(), expected.bottom())):
         assert a == pytest.approx(b, abs=1e-6)
+
+
+def test_lift_and_imprint_all_are_off_at_start(app_components):
+    gui = app_components.gui
+    assert not gui.imprint_mask_button.isEnabled() and not gui.actionImprint_Masks.isEnabled()
+    assert not gui.move_masked_area_button.isEnabled()  # nothing selected
