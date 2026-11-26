@@ -142,6 +142,9 @@ class DataHandler:
             #update the color count label
             unique_color_count = self.get_unique_color_count()
             self.gui.number_of_colors_label.setText(f"#Colors: {unique_color_count}")
+            toolbar_label = getattr(self.gui, "toolbar_colors_label", None)  # the same, in the tool bar
+            if toolbar_label is not None:
+                toolbar_label.setText(f"{unique_color_count} colors")
 
         except Exception as e:
             log.exception("Error displaying image")
@@ -151,10 +154,7 @@ class DataHandler:
     
     def update_color_ovleray_imprint_button(self):
         # if self.active_color_overlays or self.text_overlays or self.geometry_overlays:
-        if self.active_color_overlays:
-            self.gui.imprint_color_overlays_button.setEnabled(True)
-        else:
-            self.gui.imprint_color_overlays_button.setEnabled(False)
+        self.gui.imprint_color_overlays_button.setEnabled(bool(self.active_color_overlays))
     
     def update_tg_ovleray_imprint_button(self):
         if self.text_overlays or self.geometry_overlays:

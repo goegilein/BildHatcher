@@ -1,10 +1,12 @@
-"""Mask drawing, editing and moving (P8.4: moved out of ImageEditing.ImageColorer).
+"""Mask drawing, editing and lifting (P8.4: moved out of ImageEditing.ImageColorer; P12.4: lift off masks).
 
 MaskTools is a mixin of ImageColorer: the mask tools share the colorer's tool toggles (one active tool at a time),
 the canvas event routing and the colour-overlay/imprint system, so they work on the same object.
 Masks live in data_handler.masks_list (uint8 0/1 matrices), mask_info (shape + image coordinates) and
 mask_overlays (dashed outlines in scene coordinates).
 """
+import math
+
 import cv2
 import numpy as np
 from PIL import Image
@@ -12,7 +14,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import QRectF
 from PyQt6.QtGui import QImage, QPixmap
 
-from UndoRedo import ColorOverlayAction
+from UndoRedo import Action, ImageMatrixAction
 from core import image_doc
 
 
@@ -36,15 +38,8 @@ def _fill_mask_shape(mask_matrix, shape, x_min, y_min, x_max, y_max):
 class MaskTools:
     def _init_masks(self, gui):
         """Mask state and mask buttons (called from ImageColorer.__init__)."""
-        # Mask Moving functionality
-        self.move_mask_on = False
-        self.detached_mask_index = -1  # Tracks which mask is currently floating
-        self.moving_mask_item = None
-        self.white_cutout_item = None
-        
-        self.mask_drag_start_canvas = None
-        self.moving_item_start_pos = None
-        self.mask_boundary_start_pos = None
+        # Lift off masks (P12.4): mask_info[i]['lift'] holds the floating pixels of a lifted mask
+        self._lift_counter = 0
 
         # Add mask drawing functionality
         self.mask_drawing_on = False
@@ -94,9 +89,11 @@ class MaskTools:
         self.unselect_mask_button = gui.unselect_mask_button
         self.unselect_mask_button.clicked.connect(self.deselect_mask)
 
-        #Button to move masked area
+        # Lift button: lifts the selected mask; for a lifted mask it imprints it (its checked state = lifted)
         self.move_masked_area_button = gui.move_masked_area_button
-        self.move_masked_area_button.clicked.connect(lambda: self.set_single_toggle_state('move_mask_on'))
+        self.move_masked_area_button.clicked.connect(self.lift_selected_or_imprint)
+        # Imprint all lifted masks
+        gui.imprint_mask_button.clicked.connect(self.imprint_all_masks)
         
         # List widget to display masks
         self.masks_list_widget = gui.masks_list_widget
@@ -137,6 +134,7 @@ class MaskTools:
         pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
         pen.setStyle(QtCore.Qt.PenStyle.DashLine)
         pen.setWidth(2)
+        pen.setCosmetic(True)  # 2 screen pixels at every zoom (P12.5)
         self.current_mask_overlay_item.setPen(pen)
         self.current_mask_overlay_item.setBrush(QtGui.QBrush())
         self.gui.image_scene.addItem(self.current_mask_overlay_item)
@@ -186,7 +184,7 @@ class MaskTools:
             'type': 'rectangle',
             'coords': (x_min, y_min, x_max, y_max)
         })
-        self.update_masks_list_widget()
+        self.add_mask_done()
         
         # Reset
         self.mask_start_point_scene = None
@@ -226,6 +224,7 @@ class MaskTools:
         pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
         pen.setStyle(QtCore.Qt.PenStyle.DashLine)
         pen.setWidth(2)
+        pen.setCosmetic(True)  # 2 screen pixels at every zoom (P12.5)
         self.current_mask_overlay_item.setPen(pen)
         self.current_mask_overlay_item.setBrush(QtGui.QBrush())
         self.gui.image_scene.addItem(self.current_mask_overlay_item)
@@ -275,7 +274,7 @@ class MaskTools:
             'type': 'ellipse',
             'coords': (x_min, y_min, x_max, y_max)
         })
-        self.update_masks_list_widget()
+        self.add_mask_done()
         
         # Reset
         self.mask_start_point_scene = None
@@ -333,6 +332,7 @@ class MaskTools:
         pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
         pen.setStyle(QtCore.Qt.PenStyle.DashLine)
         pen.setWidth(2)
+        pen.setCosmetic(True)  # 2 screen pixels at every zoom (P12.5)
         self.polygon_preview_item.setPen(pen)
         self.polygon_preview_item.setBrush(QtGui.QBrush())
         
@@ -363,6 +363,7 @@ class MaskTools:
         pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
         pen.setStyle(QtCore.Qt.PenStyle.DashLine)
         pen.setWidth(2)
+        pen.setCosmetic(True)  # 2 screen pixels at every zoom (P12.5)
         polygon_item.setPen(pen)
         polygon_item.setBrush(QtGui.QBrush())
         
@@ -385,7 +386,7 @@ class MaskTools:
             'type': 'polygon',
             'coords': self.polygon_points.copy()
         })
-        self.update_masks_list_widget()
+        self.add_mask_done()
         
         # Reset polygon points
         self.polygon_points = []
@@ -407,6 +408,12 @@ class MaskTools:
         self.mask_obj = None
         self.polygon_points = []
 
+    def add_mask_done(self):
+        """A new mask was appended: list it and select it (it is the one the user wants to edit / move next)."""
+        self.refresh_mask_outlines()  # exact outline from the pixel coordinates (the drawing preview is rounded)
+        self.update_masks_list_widget()
+        self.masks_list_widget.setCurrentRow(len(self.data_handler.masks_list) - 1)
+
     def update_masks_list_widget(self):
         """Update the masks list widget display."""
         self.masks_list_widget.clear()
@@ -425,6 +432,8 @@ class MaskTools:
                 overlay.setRect(QtCore.QRectF(to_scene(x_min, y_min), to_scene(x_max + 1, y_max + 1)))  # covers the pixels
             elif info['type'] == 'polygon':
                 overlay.setPolygon(QtGui.QPolygonF([to_scene(x, y) for x, y in info['coords']]))
+        for index in range(len(self.data_handler.mask_overlays)):
+            self._place_frame(index)  # lifted masks: frame at the dragged place
         if self.edit_handles:
             self.clear_edit_handles()
             self.show_edit_handles_for_selected()
@@ -439,32 +448,16 @@ class MaskTools:
             index = self.masks_list_widget.row(selected_items[0])
             self.data_handler.active_mask_index = index
             self.editing_mask_index = index
-            
-            # Update overlay colors: selected mask in red, others in cyan
-            for i, overlay in enumerate(self.data_handler.mask_overlays):
-                pen = QtGui.QPen()
-                pen.setStyle(QtCore.Qt.PenStyle.DashLine)
-                pen.setWidth(2)
-                
-                if i == index:
-                    pen.setColor(QtCore.Qt.GlobalColor.darkCyan)  # Selected mask in red
-                else:
-                    pen.setColor(QtCore.Qt.GlobalColor.cyan)  # Other masks in cyan
-                
-                overlay.setPen(pen)
-            
             # Show edit handles if edit mode is enabled
             self.show_edit_handles_for_selected()
         else:
             self.editing_mask_index = -1
-
-        #ensure to reset mask moving
-        self.disable_move_mask_mode()
+        self.update_lift_controls()  # frame colours, lift / imprint buttons
 
     def show_edit_handles_for_selected(self):
         """Show edit handles for the currently selected mask (if in edit mode)."""
-        if not self.mask_edit_mode or self.editing_mask_index < 0:
-            return
+        if not self.mask_edit_mode or self.editing_mask_index < 0 or self.is_lifted(self.editing_mask_index):
+            return  # a lifted mask is moved, not reshaped
         
         self.clear_edit_handles()
         
@@ -786,23 +779,18 @@ class MaskTools:
         self.editing_mask_index = -1
         
         self.edit_mask_button.setChecked(False)
-        # Update overlay colors to all cyan
-        for overlay in self.data_handler.mask_overlays:
-            pen = QtGui.QPen(QtCore.Qt.GlobalColor.cyan)
-            pen.setStyle(QtCore.Qt.PenStyle.DashLine)
-            pen.setWidth(2)
-            overlay.setPen(pen)
-        
         self.clear_edit_handles()
+        self.update_lift_controls()
 
     def delete_selected_mask(self):
         """Delete the currently selected mask."""
         selected_items = self.masks_list_widget.selectedItems()
         if selected_items:
             index = self.masks_list_widget.row(selected_items[0])
-            if index == self.data_handler.active_mask_index:
-                #ensure deselection and edit mode if delted mask is currently selected
-                self.deselect_mask()
+            if self.is_lifted(index):
+                self.imprint_masks([index], "Imprint Mask")  # its pixels live only in the lift: keep them
+            # the indices of the masks behind it shift: no mask stays selected
+            self.deselect_mask()
             self.data_handler.masks_list.pop(index)
             self.gui.image_scene.removeItem(self.data_handler.mask_overlays[index])
             self.data_handler.mask_overlays.pop(index)
@@ -810,6 +798,7 @@ class MaskTools:
                 self.data_handler.mask_info.pop(index)
             self.clear_edit_handles()
             self.update_masks_list_widget()
+            self.update_lift_controls()
 
     def delete_all_masks(self):
         """Clear all masks."""
@@ -819,6 +808,7 @@ class MaskTools:
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
         )
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            self.imprint_all_masks()  # lifted pixels are not lost
             self.reset_masks()
 
     def reset_masks(self):
@@ -826,7 +816,9 @@ class MaskTools:
         #ensure deselection and edit mode reset first!
         self.deselect_mask()
         self.cancel_mask_drawing()
-        #then delete all masks and overlays
+        #then delete all masks and overlays (after a change of the image size lifted layers no longer fit)
+        for index in range(len(self.data_handler.mask_info)):
+            self._remove_lift_items(index)
         self.data_handler.masks_list.clear()
         self.data_handler.mask_info.clear()
         self.clear_edit_handles()
@@ -835,6 +827,7 @@ class MaskTools:
             if overlay.scene() is not None:
                 self.gui.image_scene.removeItem(overlay)
         self.data_handler.mask_overlays.clear()
+        self.update_lift_controls()
 
     def get_background_mask(self):
         """
@@ -872,150 +865,461 @@ class MaskTools:
 
 
 
-    #MOVE MASK FUNCTIONALITY
-    def _extract_mask_for_moving(self, mask_index):
-        """Creates the overlays and hands them over to the existing imprint system."""
-        mask = self.data_handler.masks_list[mask_index]
+    # LIFT OFF MASKS (P12.4, P12.6)
+    # A lifted mask is a floating layer: its pixels are cut out of the image into a movable overlay (drag & drop)
+    # and its place in the image is transparent right away (P12.6 – so whatever is imprinted there meanwhile
+    # stays). Imprinting the mask paints its pixels at the new place; the mask moves (and turns) along.
+    # Lifted masks have an orange frame. Deleting a lifted mask imprints it first – its pixels are never lost.
+    def is_lifted(self, index):
+        return 0 <= index < len(self.data_handler.mask_info) and 'lift' in self.data_handler.mask_info[index]
+
+    def lifted_indices(self):
+        """Indices of the lifted masks, in the order they were lifted."""
+        found = [i for i in range(len(self.data_handler.mask_info)) if self.is_lifted(i)]
+        return sorted(found, key=lambda i: self.data_handler.mask_info[i]['lift']['order'])
+
+    def can_drag_lifted(self):
+        """Lifted masks are dragged with the plain mouse – not while a tool (draw, fill, mask drawing ...) is on."""
+        return self.active_tool == ""
+
+    def select_mask_at(self, event):
+        """P12.5: a click into the image selects the (not lifted) mask under the mouse – the last drawn one when
+        masks overlap. Clicks on lifted masks, their handles and text / geometry overlays are theirs."""
+        for item in self.gui.image_canvas.items(event.pos()):
+            if isinstance(item, (LiftedMaskItem, RotateHandle)) or \
+                    item.flags() & QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable:
+                return
+        if self.data_handler.image_matrix is None:
+            return
+        x, y = self.data_handler.canvas_to_image_coords(event.position().x(), event.position().y())
+        for index in range(len(self.data_handler.masks_list) - 1, -1, -1):
+            mask = self.data_handler.masks_list[index]
+            if not self.is_lifted(index) and 0 <= y < mask.shape[0] and 0 <= x < mask.shape[1] and mask[y, x] == 1:
+                if self.masks_list_widget.currentRow() != index:
+                    self.masks_list_widget.setCurrentRow(index)
+                return
+
+    def lift_selected_or_imprint(self):
+        """The lift button: lift the selected mask, or imprint it if it is lifted already."""
+        index = self.editing_mask_index
+        if index >= 0:
+            if self.is_lifted(index):
+                self.imprint_masks([index], "Imprint Mask")
+            else:
+                self.lift_mask(index)
+        self.update_lift_controls()
+
+    def lift_mask(self, index):
+        """Cut the masked pixels out into a movable overlay; their place in the image becomes transparent."""
+        if self.is_lifted(index) or self.data_handler.image_matrix is None:
+            return
+        info = self.data_handler.mask_info[index]
+        before = self._mask_snapshot([info])
+        mask = self.data_handler.masks_list[index]
+        ys, xs = np.nonzero(mask == 1)
+        if len(ys) == 0:
+            return
+        x0, y0, x1, y1 = xs.min(), ys.min(), xs.max() + 1, ys.max() + 1
         image = self.data_handler.image_matrix
-        h, w = mask.shape
-        
-        # 1. Create the cutout: the vacated area becomes transparent on imprint
-        temp_white_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-        temp_white_rgba[mask == 1] = self._checker_rgba(h, w)[mask == 1]
-        white_img = QImage(temp_white_rgba.data, w, h, QImage.Format.Format_RGBA8888)
-        self.white_cutout_item = QtWidgets.QGraphicsPixmapItem(QPixmap.fromImage(white_img.copy()), self.gui.image_item)
-        self.white_cutout_item.setZValue(11)
-        self.white_cutout_item.erases = True
+        crop = np.zeros((y1 - y0, x1 - x0, 4), np.uint8)
+        inside = mask[y0:y1, x0:x1] == 1
+        crop[inside] = image[y0:y1, x0:x1][inside]
+        self._lift_counter = getattr(self, "_lift_counter", 0) + 1
+        self._create_lift_items(index, crop, (int(x0), int(y0)), (0, 0), self._lift_counter, 0.0)
+        before_image = image.copy()
+        hole = image.copy()
+        hole[mask == 1] = image_doc.TRANSPARENT  # the place is free as soon as the mask is lifted
+        self.data_handler.image_matrix = hole
+        image_action = self._image_action(before_image, self.data_handler.image_matrix.copy(), "Lift Mask")
+        self._push_mask_action(before, self._mask_snapshot([info]), image_action, "Lift Mask")
+        self.update_lift_controls()
 
-        # 2. Create the Moving Pixels
-        temp_moving_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-        temp_moving_rgba[mask == 1] = image[mask == 1]
-        moving_img = QImage(temp_moving_rgba.data, w, h, QImage.Format.Format_RGBA8888)
-        self.moving_mask_item = QtWidgets.QGraphicsPixmapItem(QPixmap.fromImage(moving_img.copy()), self.gui.image_item)
-        self.moving_mask_item.setZValue(12) 
-        
-        # 3. Add to your existing undo/imprint stack! 
-        # (This automatically triggers your imprint button visibility if you have it linked to this list)
-        self.data_handler.active_color_overlays.append(self.white_cutout_item)
-        self.data_handler.active_color_overlays.append(self.moving_mask_item)
-        
-        self.detached_mask_index = mask_index
+    def imprint_all_masks(self):
+        self.imprint_masks(self.lifted_indices(), "Imprint All Masks")
 
+    def imprint_masks(self, indices, description="Imprint Mask"):
+        """Put lifted masks back into the image at their current place (in lift order): their pixels are painted
+        where they are now (their old place is transparent since the lift), the masks move along."""
+        indices = [i for i in self.lifted_indices() if i in indices]
+        if not indices or self.data_handler.image_matrix is None:
+            return
+        infos = [self.data_handler.mask_info[i] for i in indices]
+        before = self._mask_snapshot(infos)
+        before_image = self.data_handler.image_matrix.copy()
+        image = before_image.copy()
+        h, w = image.shape[:2]
+        for i in indices:
+            info, mask = self.data_handler.mask_info[i], self.data_handler.masks_list[i]
+            lift = info['lift']
+            qy, qx, sy, sx = self._lift_mapping(lift, mask, (h, w))
+            pixels = lift['crop'][sy, sx]
+            opaque = pixels[:, 3] > 0                  # lifted pixels that are not transparent
+            image[qy[opaque], qx[opaque]] = pixels[opaque]
+            new_mask = np.zeros_like(mask)              # the mask moves (and turns) along, pixel for pixel
+            new_mask[qy, qx] = 1
+            self.data_handler.masks_list[i] = new_mask
+            self._transform_mask_info(i, lift)
+            self._remove_lift_items(i)
+        self.data_handler.image_matrix = image
+        self.refresh_mask_outlines()
+        self.update_masks_list_widget_keep_selection(self.editing_mask_index)
+        image_action = self._image_action(before_image, self.data_handler.image_matrix.copy(), description)
+        self._push_mask_action(before, self._mask_snapshot(infos), image_action, description)
+        self.update_lift_controls()
+
+    def lifted_mask_moved(self, item):
+        """A lifted mask is being dragged: its frame follows."""
+        for i, info in enumerate(self.data_handler.mask_info):
+            if info.get('lift', {}).get('pixels') is item:
+                self._place_frame(i)
+                return
+
+    def lifted_mask_pressed(self, item):
+        """Dragging a lifted mask selects it."""
+        for i, info in enumerate(self.data_handler.mask_info):
+            if info.get('lift', {}).get('pixels') is item and self.masks_list_widget.currentRow() != i:
+                self.masks_list_widget.setCurrentRow(i)
+                return
+
+    def lifted_mask_dropped(self, item, start_pos, start_rotation=None):
+        """Drag & drop or turning finished: one undo step."""
+        for info in self.data_handler.mask_info:
+            lift = info.get('lift')
+            if lift and lift['pixels'] is item:
+                after = self._mask_snapshot([info])
+                changes = {'offset': (int(start_pos.x()), int(start_pos.y()))}
+                if start_rotation is not None:
+                    changes['rotation'] = start_rotation
+                before = [(snap[0], snap[1], snap[2], dict(snap[3], **changes), snap[4]) for snap in after]
+                self._push_mask_action(before, after, None,
+                                       "Rotate Lifted Mask" if start_rotation is not None else "Move Lifted Mask")
+                return
+
+    def update_lift_controls(self):
+        """Lift button = "imprint mask" while the selected mask is lifted; imprint-all buttons while any is."""
+        index = self.editing_mask_index
+        button = self.move_masked_area_button
+        lifted = self.is_lifted(index)
+        button.blockSignals(True)
+        button.setChecked(lifted)
+        button.blockSignals(False)
+        button.setEnabled(index >= 0)
+        button.setToolTip("Imprint the lifted mask into the image" if lifted else
+                          "Lift off the selected mask: cut it out as a layer you can drag; imprint puts it back")
+        any_lifted = bool(self.lifted_indices())
+        imprint_all = getattr(self.gui, "imprint_mask_button", None)
+        if imprint_all is not None:
+            imprint_all.setEnabled(any_lifted)
+        self.apply_mask_pens()
+
+    def apply_mask_pens(self):
+        """Dashed frames: cyan, the selected one darker; lifted masks orange (the selected one with its rotation
+        handle)."""
+        for i, overlay in enumerate(self.data_handler.mask_overlays):
+            selected = i == self.editing_mask_index
+            if self.is_lifted(i):
+                self.data_handler.mask_info[i]['lift']['pixels'].show_handle(selected)
+            if self.is_lifted(i):
+                color = QtGui.QColor(LIFT_SELECTED_COLOR if selected else LIFT_COLOR)
+            else:
+                color = QtGui.QColor(QtCore.Qt.GlobalColor.darkCyan if selected else QtCore.Qt.GlobalColor.cyan)
+            pen = QtGui.QPen(color)
+            pen.setStyle(QtCore.Qt.PenStyle.DashLine)
+            pen.setWidth(2)
+            pen.setCosmetic(True)  # 2 screen pixels at every zoom (P12.5)
+            overlay.setPen(pen)
+
+    # --- lift internals ---
+    @staticmethod
+    def _lift_offset(lift):
+        pos = lift['pixels'].pos()
+        return int(round(pos.x())), int(round(pos.y()))
+
+    @staticmethod
+    def _shifted_coords(info, dx, dy):
+        if info['type'] in ('rectangle', 'ellipse'):
+            x1, y1, x2, y2 = info['coords']
+            return (x1 + dx, y1 + dy, x2 + dx, y2 + dy)
+        return [(px + dx, py + dy) for px, py in info['coords']]
+
+    def _create_lift_items(self, index, crop, origin, offset, order, rotation=0.0):
+        info = self.data_handler.mask_info[index]
+        x0, y0 = origin
+        h, w = crop.shape[:2]
+        pixels = LiftedMaskItem(_pixmap(crop), self.gui.image_item, self)
+        pixels.setOffset(x0, y0)
+        pixels.setTransformOriginPoint(QtCore.QPointF(x0 + w / 2, y0 + h / 2))  # turns about the mask centre
+        pixels.setPos(*offset)
+        pixels.setRotation(rotation)
+        info['lift'] = {'crop': crop, 'origin': (x0, y0), 'order': order, 'pixels': pixels}
+        self._place_frame(index)
+
+    def _remove_lift_items(self, index):
+        info = self.data_handler.mask_info[index]
+        lift = info.pop('lift', None)
+        if lift and lift['pixels'].scene() is not None:
+            lift['pixels'].scene().removeItem(lift['pixels'])
+        if index < len(self.data_handler.mask_overlays):
+            frame = self.data_handler.mask_overlays[index]
+            frame.setPos(0, 0)
+            frame.setRotation(0)
+
+    def _place_frame(self, index):
+        """Move the dashed frame of a lifted mask by its lift offset (frames are in scene coordinates)."""
+        if index >= len(self.data_handler.mask_overlays):
+            return
+        frame = self.data_handler.mask_overlays[index]
+        if not self.is_lifted(index):
+            frame.setPos(0, 0)
+            frame.setRotation(0)
+            return
+        pixels = self.data_handler.mask_info[index]['lift']['pixels']
+        dx, dy = self._lift_offset(self.data_handler.mask_info[index]['lift'])
+        item = self.gui.image_item
+        # the frame (scene coordinates) turns about the same mask centre and moves by the same offset
+        frame.setTransformOriginPoint(item.mapToScene(pixels.transformOriginPoint()))
+        frame.setRotation(pixels.rotation())
+        frame.setPos(item.mapToScene(QtCore.QPointF(dx, dy)) - item.mapToScene(QtCore.QPointF(0, 0)))
+
+    @staticmethod
+    def _lift_transform(lift):
+        """(dx, dy, ox, oy, cos, sin) of a lift: offset, turning centre (image px) and rotation (clockwise)."""
+        pixels = lift['pixels']
+        dx, dy = MaskTools._lift_offset(lift)
+        origin = pixels.transformOriginPoint()
+        angle = math.radians(pixels.rotation())
+        return dx, dy, origin.x(), origin.y(), math.cos(angle), math.sin(angle)
+
+    def _lift_mapping(self, lift, mask, shape):
+        """Image pixels the lifted mask covers now and where they come from (nearest neighbour, so no new
+        colours): (dest rows, dest cols, crop rows, crop cols) for every covered pixel of the mask."""
+        h_img, w_img = shape
+        crop = lift['crop']
+        ch, cw = crop.shape[:2]
+        x0, y0 = lift['origin']
+        dx, dy, ox, oy, cos, sin = self._lift_transform(lift)
+        corners = [(x0, y0), (x0 + cw, y0), (x0, y0 + ch), (x0 + cw, y0 + ch)]
+        xs = [dx + ox + cos * (x - ox) - sin * (y - oy) for x, y in corners]
+        ys = [dy + oy + sin * (x - ox) + cos * (y - oy) for x, y in corners]
+        bx0, bx1 = max(0, math.floor(min(xs))), min(w_img, math.ceil(max(xs)))
+        by0, by1 = max(0, math.floor(min(ys))), min(h_img, math.ceil(max(ys)))
+        if bx0 >= bx1 or by0 >= by1:
+            empty = np.zeros(0, int)
+            return empty, empty, empty, empty
+        qy, qx = np.mgrid[by0:by1, bx0:bx1]
+        rx, ry = qx + 0.5 - dx - ox, qy + 0.5 - dy - oy          # destination pixel centre, relative
+        sx = np.floor(ox + cos * rx + sin * ry + 1e-9).astype(int) - x0   # turned back into the crop
+        sy = np.floor(oy - sin * rx + cos * ry + 1e-9).astype(int) - y0
+        ok = (sx >= 0) & (sx < cw) & (sy >= 0) & (sy < ch)
+        ok[ok] = mask[(sy + y0)[ok], (sx + x0)[ok]] == 1         # only pixels of the mask itself
+        return qy[ok], qx[ok], sy[ok], sx[ok]
+
+    def _transform_mask_info(self, index, lift):
+        """Move (and turn) the mask's shape description; a turned rectangle / ellipse becomes a polygon."""
+        info = self.data_handler.mask_info[index]
+        dx, dy, ox, oy, cos, sin = self._lift_transform(lift)
+        if abs(sin) < 1e-9 and cos > 0:  # not turned: keep the shape type, whole pixels
+            info['coords'] = self._shifted_coords(info, dx, dy)
+            return
+
+        def turn(x, y):
+            return (dx + ox + cos * (x - ox) - sin * (y - oy), dy + oy + sin * (x - ox) + cos * (y - oy))
+        if info['type'] == 'rectangle':
+            x1, y1, x2, y2 = info['coords']
+            outline = [(x1, y1), (x2 + 1, y1), (x2 + 1, y2 + 1), (x1, y2 + 1)]
+        elif info['type'] == 'ellipse':
+            x1, y1, x2, y2 = info['coords']
+            cx, cy, rx, ry = (x1 + x2 + 1) / 2, (y1 + y2 + 1) / 2, (x2 - x1 + 1) / 2, (y2 - y1 + 1) / 2
+            outline = [(cx + rx * math.cos(t), cy + ry * math.sin(t))
+                       for t in np.linspace(0, 2 * math.pi, 48, endpoint=False)]
+        else:
+            outline = list(info['coords'])
+        info['type'] = 'polygon'
+        info['coords'] = [tuple(round(v, 2) for v in turn(x, y)) for x, y in outline]
+        self._match_overlay_type(index)
+
+    def _match_overlay_type(self, index):
+        """The frame item must fit the mask type (a turned rectangle / ellipse is drawn as a polygon)."""
+        if index >= len(self.data_handler.mask_overlays):
+            return
+        wanted = {'rectangle': QtWidgets.QGraphicsRectItem, 'ellipse': QtWidgets.QGraphicsEllipseItem,
+                  'polygon': QtWidgets.QGraphicsPolygonItem}[self.data_handler.mask_info[index]['type']]
+        old = self.data_handler.mask_overlays[index]
+        if type(old) is wanted:
+            return
+        new = wanted()
+        new.setPen(old.pen())
+        new.setBrush(QtGui.QBrush())
+        if old.scene() is not None:
+            old.scene().removeItem(old)
+        self.gui.image_scene.addItem(new)
+        self.data_handler.mask_overlays[index] = new
+
+    def _mask_snapshot(self, infos):
+        """State of some masks for undo: (info, mask matrix, coords, lift or None) – infos by identity, so it
+        stays right when other masks are added or deleted in between."""
+        snapshot = []
+        for info in infos:
+            index = next(i for i, other in enumerate(self.data_handler.mask_info) if other is info)
+            lift = info.get('lift')
+            lift_state = None if lift is None else {'crop': lift['crop'], 'origin': lift['origin'],
+                                                     'order': lift['order'], 'offset': self._lift_offset(lift),
+                                                     'rotation': lift['pixels'].rotation()}
+            coords = info['coords'] if info['type'] != 'polygon' else list(info['coords'])
+            snapshot.append((info, self.data_handler.masks_list[index].copy(), coords, lift_state, info['type']))
+        return snapshot
+
+    def _restore_mask_snapshot(self, snapshot):
+        for info, mask, coords, lift_state, mask_type in snapshot:
+            index = next((i for i, other in enumerate(self.data_handler.mask_info) if other is info), None)
+            if index is None:  # the mask was deleted meanwhile
+                continue
+            self._remove_lift_items(index)
+            self.data_handler.masks_list[index] = mask.copy()
+            info['type'] = mask_type
+            info['coords'] = coords if mask_type != 'polygon' else list(coords)
+            self._match_overlay_type(index)
+            if lift_state is not None:
+                self._create_lift_items(index, lift_state['crop'], lift_state['origin'], lift_state['offset'],
+                                        lift_state['order'], lift_state['rotation'])
+        self.refresh_mask_outlines()
+        self.update_masks_list_widget_keep_selection(self.editing_mask_index)
+        self.update_lift_controls()
+
+    def _image_action(self, before, after, description):
+        controller = getattr(self.undo_manager, "image_controller", None) if self.undo_manager else None
+        item = getattr(controller, "active_image_item", None)
+        if item is None and hasattr(self.gui, "images_ListWidget"):
+            item = self.gui.images_ListWidget.currentItem()
+        ppm = self.data_handler.pixel_per_mm
+        return ImageMatrixAction(self.data_handler, self.gui, controller, before, after, ppm, ppm,
+                                 image_item=item, description=description)
+
+    def _push_mask_action(self, before, after, image_action, description):
         if self.undo_manager:
-            def undo_mask_move():
-                if self.detached_mask_index >= 0 and self.detached_mask_index < len(self.data_handler.mask_overlays):
-                    self.data_handler.mask_overlays[self.detached_mask_index].setPos(0, 0)
-                self.detached_mask_index = -1
-                self.moving_mask_item = None
-                self.white_cutout_item = None
+            self.undo_manager.push_action(MaskLiftAction(self, before, after, image_action, description))
 
-            action = ColorOverlayAction(
-                [self.white_cutout_item, self.moving_mask_item],
-                self.gui.image_scene,
-                self.data_handler.active_color_overlays,
-                description="Move Mask",
-                extra_undo=undo_mask_move
-            )
-            self.undo_manager.push_action(action)
 
-    def on_move_mask_press(self, event):
-        """Prepares for dragging. Detaches mask if it hasn't been detached yet."""
-        idx = self.data_handler.active_mask_index
-        if idx < 0:
-            return 
-            
-        if self.detached_mask_index != idx:
-            self._extract_mask_for_moving(idx)
-        
-        # Record starting coordinates for smooth delta calculation
-        self.mask_drag_start_canvas = event.pos()
-        self.moving_item_start_pos = self.moving_mask_item.pos()
-        self.mask_boundary_start_pos = self.data_handler.mask_overlays[idx].pos()
+LIFT_COLOR = "#FF6D00"           # lifted masks: bright orange frame
+LIFT_SELECTED_COLOR = "#C43C00"  # the selected lifted mask: darker
 
-    def on_move_mask_drag(self, event):
-        """Updates the visual position of the pixel overlay and dashed boundary."""
-        idx = self.data_handler.active_mask_index
-        if idx < 0:
-            return 
-        if self.moving_mask_item is None or self.detached_mask_index < 0:
+
+def _pixmap(rgba):
+    h, w = rgba.shape[:2]
+    data = np.ascontiguousarray(rgba)
+    return QPixmap.fromImage(QImage(data.data, w, h, 4 * w, QImage.Format.Format_RGBA8888).copy())
+
+
+class LiftedMaskItem(QtWidgets.QGraphicsPixmapItem):
+    """The pixels of a lifted mask: dragged with the mouse (whole image pixels) while no tool is on."""
+
+    def __init__(self, pixmap, parent, owner):
+        super().__init__(pixmap, parent)
+        self.owner = owner
+        self.setZValue(12)
+        self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+        self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
+        self._press_pos = None
+        self.handle = RotateHandle(self)
+
+    def show_handle(self, visible):
+        self.handle.place()
+        self.handle.setVisible(visible)
+        self.handle.stem.setVisible(visible)
+
+    def mousePressEvent(self, event):
+        if event.button() != QtCore.Qt.MouseButton.LeftButton or not self.owner.can_drag_lifted():
+            event.ignore()
             return
-            
-        idx = self.detached_mask_index
-        start_x = self.mask_drag_start_canvas.x()
-        start_y = self.mask_drag_start_canvas.y()
-        curr_x = event.position().x()
-        curr_y = event.position().y()
-        
-        # Calculate Image-space delta (for the Pixmap)
-        start_img = self.data_handler.canvas_to_image_coords(start_x, start_y)
-        curr_img = self.data_handler.canvas_to_image_coords(curr_x, curr_y)
-        dx_img = curr_img[0] - start_img[0]
-        dy_img = curr_img[1] - start_img[1]
-        
-        # Calculate Scene-space delta (for the dashed boundary)
-        start_scene = self.data_handler.canvas_to_scene_coords(start_x, start_y)
-        curr_scene = self.data_handler.canvas_to_scene_coords(curr_x, curr_y)
-        dx_scene = curr_scene[0] - start_scene[0]
-        dy_scene = curr_scene[1] - start_scene[1]
-        
-        # Move items
-        self.moving_mask_item.setPos(self.moving_item_start_pos.x() + dx_img, self.moving_item_start_pos.y() + dy_img)
-        self.data_handler.mask_overlays[idx].setPos(self.mask_boundary_start_pos.x() + dx_scene, self.mask_boundary_start_pos.y() + dy_scene)
+        self._press_pos = self.pos()
+        self.owner.lifted_mask_pressed(self)
+        super().mousePressEvent(event)
 
-    def on_move_mask_release(self, event):
-        """Clears drag variables. Items stay exactly where left."""
-        self.mask_drag_start_canvas = None
-        self.moving_item_start_pos = None
-        self.mask_boundary_start_pos = None
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        if self._press_pos is not None and self.pos() != self._press_pos:
+            self.owner.lifted_mask_dropped(self, self._press_pos)
+        self._press_pos = None
 
-    def update_logical_mask_matrices(self):
-        """Shifts the logical mask array to match the visual item before imprinting."""
-        if self.detached_mask_index < 0 or self.moving_mask_item is None:
+    def itemChange(self, change, value):
+        Change = QtWidgets.QGraphicsItem.GraphicsItemChange
+        if change == Change.ItemPositionChange:
+            return QtCore.QPointF(round(value.x()), round(value.y()))
+        if change in (Change.ItemPositionHasChanged, Change.ItemRotationHasChanged):
+            self.owner.lifted_mask_moved(self)  # the frame follows
+        return super().itemChange(change, value)
+
+
+class RotateHandle(QtWidgets.QGraphicsEllipseItem):
+    """P12.5: the handle above a selected lifted mask; dragging it turns the mask (Shift: 15 degree steps).
+    A child of the lifted pixels, so it moves and turns with them; constant size on screen."""
+
+    RADIUS = 6
+
+    def __init__(self, lifted):
+        r = self.RADIUS
+        super().__init__(-r, -r, 2 * r, 2 * r, lifted)
+        self.lifted = lifted
+        self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+        self.setPen(QtGui.QPen(QtGui.QColor("white"), 1.5))
+        self.setBrush(QtGui.QColor(LIFT_COLOR))
+        self.setZValue(2)
+        self.setToolTip("Drag to turn the lifted mask (Shift: 15 degree steps)")
+        self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+        self.stem = QtWidgets.QGraphicsLineItem(lifted)
+        pen = QtGui.QPen(QtGui.QColor(LIFT_COLOR), 1.5)
+        pen.setCosmetic(True)
+        self.stem.setPen(pen)
+        self.setVisible(False)
+        self.stem.setVisible(False)
+        self._start_rotation = None
+        self.place()
+
+    def place(self):
+        """Above the middle of the mask's top edge (in the lifted item's own, unturned coordinates)."""
+        rect = self.lifted.boundingRect()
+        gap = max(3.0, rect.height() * 0.15)
+        top = QtCore.QPointF(rect.center().x(), rect.top())
+        self.setPos(top.x(), top.y() - gap)
+        self.stem.setLine(top.x(), top.y(), top.x(), top.y() - gap)
+
+    def mousePressEvent(self, event):
+        if event.button() != QtCore.Qt.MouseButton.LeftButton or not self.lifted.owner.can_drag_lifted():
+            event.ignore()
             return
-            
-        idx = self.detached_mask_index
-        dx_img = int(self.moving_mask_item.pos().x())
-        dy_img = int(self.moving_mask_item.pos().y())
-        
-        if dx_img != 0 or dy_img != 0:
-            mask = self.data_handler.masks_list[idx]
-            h, w = mask.shape
-            
-            # Calculate new valid coordinates
-            y, x = np.where(mask == 1)
-            ny, nx = y + dy_img, x + dx_img
-            valid = (ny >= 0) & (ny < h) & (nx >= 0) & (nx < w)
+        self._start_rotation = self.lifted.rotation()
+        event.accept()
 
-            # Generate and save new mask array
-            new_mask = np.zeros_like(mask)
-            new_mask[ny[valid], nx[valid]] = 1
-            self.data_handler.masks_list[idx] = new_mask
+    def mouseMoveEvent(self, event):
+        if self._start_rotation is None:
+            return
+        centre = self.lifted.mapToScene(self.lifted.transformOriginPoint())
+        point = event.scenePos()
+        angle = math.degrees(math.atan2(point.y() - centre.y(), point.x() - centre.x())) + 90  # handle is on top
+        if event.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier:
+            angle = round(angle / 15) * 15
+        self.lifted.setRotation(angle % 360)
+        self.lifted.owner.lifted_mask_moved(self.lifted)
 
-            # Update internal mask_info coordinate tracking
-            info = self.data_handler.mask_info[idx]
-            if info['type'] in ['rectangle', 'ellipse']:
-                x1, y1, x2, y2 = info['coords']
-                info['coords'] = (x1 + dx_img, y1 + dy_img, x2 + dx_img, y2 + dy_img)
-            elif info['type'] == 'polygon':
-                info['coords'] = [(px + dx_img, py + dy_img) for px, py in info['coords']]
-                
-            # Permanently translate the dashed boundary overlay's geometry so its pos can be reset to 0,0
-            boundary_item = self.data_handler.mask_overlays[idx]
-            dx_scene = boundary_item.pos().x()
-            dy_scene = boundary_item.pos().y()
-            boundary_item.setPos(0, 0)
-            if isinstance(boundary_item, (QtWidgets.QGraphicsRectItem, QtWidgets.QGraphicsEllipseItem)):
-                boundary_item.setRect(boundary_item.rect().translated(dx_scene, dy_scene))
-            elif isinstance(boundary_item, QtWidgets.QGraphicsPolygonItem):
-                boundary_item.setPolygon(boundary_item.polygon().translated(dx_scene, dy_scene))
+    def mouseReleaseEvent(self, event):
+        if self._start_rotation is not None and self.lifted.rotation() != self._start_rotation:
+            self.lifted.owner.lifted_mask_dropped(self.lifted, self.lifted.pos(), self._start_rotation)
+        self._start_rotation = None
 
-        # Reset state tracking
-        self.detached_mask_index = -1
-        self.moving_mask_item = None
-        self.white_cutout_item = None
-    
-    def disable_move_mask_mode(self):
-        #disable move mask mode and reset state
-        self.move_masked_area_button.setChecked(False)
-        self.move_mask_on = False
-        self._notify_state()
+
+class MaskLiftAction(Action):
+    """Undo / redo of lifting, moving and imprinting masks (mask state + the image for imprints)."""
+
+    def __init__(self, owner, before, after, image_action=None, description="Lift Mask"):
+        super().__init__(description)
+        self.owner, self.before, self.after, self.image_action = owner, before, after, image_action
+
+    def undo(self):
+        if self.image_action is not None:
+            self.image_action.undo()
+        self.owner._restore_mask_snapshot(self.before)
+
+    def redo(self):
+        if self.image_action is not None:
+            self.image_action.redo()
+        self.owner._restore_mask_snapshot(self.after)

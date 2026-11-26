@@ -501,12 +501,6 @@ def mask_edit():
                pencil((13.2, 10.8), -45, 13.5, 4.0))
 
 
-def mask_move():
-    return svg(dashed_rect(8, 8, 8, 8),
-               arrow((12, 6.6), (12, 1.6)), arrow((12, 17.4), (12, 22.4)),
-               arrow((6.6, 12), (1.6, 12)), arrow((17.4, 12), (22.4, 12)))
-
-
 def delete_all():
     return svg(rect(2.5, 3, 9, 8, MASK_FILL, MASK, 1.4, 0.6, DASH),
                ellipse(14.5, 7.5, 6.5, 5, MASK_FILL, MASK, 1.4, DASH),
@@ -590,6 +584,29 @@ def imprint_overlays():
     """Stamp with a "T" in a square at the bottom right."""
     return svg(stamp(-2.5), rect(14, 13.5, 9, 9, HALO, HALO, 2.6, 1.2), rect(14, 13.5, 9, 9, PAPER, INK, 1.4, 1.2),
                letter_t(16, 16, 5, 4.6, INK, 1.7))
+
+
+def mask_lift():
+    """Lift off a mask: square dashed mask with a thick arrow pointing up in the middle."""
+    arrow_up = polygon([(12, 5.5), (17.5, 11.5), (14.2, 11.5), (14.2, 18), (9.8, 18), (9.8, 11.5), (6.5, 11.5)],
+                       BLUE, INK, 1.2)
+    return svg(dashed_rect(3, 3, 18, 18), arrow_up)
+
+
+def imprint_mask():
+    """Stamp with a dashed square (a mask) at the bottom right: imprint a lifted mask."""
+    return svg(stamp(-2.5), rect(13.5, 13, 9.5, 9.5, HALO, HALO, 3.0, 0.8),
+               rect(14, 13.5, 8.5, 8.5, MASK_FILL, MASK, 1.5, 0.6, "2 1.6"))
+
+
+def imprint_masks():
+    """Stamp with overlapping dashed square, circle and triangle at the bottom right: imprint all lifted masks."""
+    halo = [rect(9.6, 9.6, 14.2, 14.2, HALO, HALO, 1.6, 2)]
+    dash = "2 1.5"
+    shapes = [rect(10.6, 10.6, 6.6, 6.6, MASK_FILL, MASK, 1.3, 0.4, dash),
+              circle(19.2, 14.2, 3.6, MASK_FILL, MASK, 1.3, dash),
+              polygon([(15.8, 15.6), (21.4, 22.6), (10.2, 22.6)], MASK_FILL, MASK, 1.3, dash)]
+    return svg(stamp(-3.5), *halo, *shapes)
 
 
 def rotate_icon():
@@ -814,6 +831,9 @@ ICONS = {
     "clean-up": clean_up,
     "imprint-colors": imprint_colors,
     "imprint-overlays": imprint_overlays,
+    "mask-lift": mask_lift,
+    "imprint-mask": imprint_mask,
+    "imprint-masks": imprint_masks,
     "image-restore": image_restore,
     "contours": lambda: svg(contour_lines()),
     "contours-hide": lambda: svg(contour_lines(), slash((3, 3), (21, 21))),
@@ -822,7 +842,6 @@ ICONS = {
     "mask-rect": lambda: svg(dashed_rect(3, 4, 18, 16)),
     "mask-polygon": lambda: svg(mask_polygon()),
     "mask-edit": mask_edit,
-    "mask-move": mask_move,
     "mask-unselect": lambda: svg(dashed_rect(3, 4, 18, 16), slash((3.5, 3.5), (20.5, 20.5))),
     "delete": lambda: svg(dashed_rect(2.5, 3, 16, 13), CROSS),
     "delete-all": delete_all,

@@ -111,6 +111,9 @@
      insideFrame      QGroupBox   the section's content; its title is the section title (gold, mono)
      verticalSubFrame QGroupBox   a sub group inside a section: hairline on top, small muted title
      IconButton       QPushButton square button with a pictogram
+     ImprintButton    QPushButton pictogram button, highlighted while enabled (edits waiting to be imprinted)
+     ImprintAction    QToolButton the same for a tool bar button
+     ToolbarInfo      QLabel      a value in the tool bar (gold, mono)
      PrimaryButton    QPushButton the main action of a section (gold)
      PanelGroup       QToolButton the group strip at the right edge
      SectionTab       QPushButton the (vertical) section tabs next to the panel
@@ -580,6 +583,38 @@ QPushButton[styleClass="IconButton"]:disabled {
 	border-color: rgba(255, 255, 255, 0.05);
 }
 
+/* ImprintButton: a pictogram tile that is only enabled while edits wait to be imprinted – then highlighted */
+QPushButton[styleClass="ImprintButton"] {
+	background-color: #1E2738;
+	border: 1px solid rgba(255, 255, 255, 0.13);
+	border-radius: 8px;
+	padding: 2px;
+}
+QPushButton[styleClass="ImprintButton"]:enabled {
+	background-color: rgba(208, 167, 111, 0.26);
+	border: 2px solid #D0A76F;
+}
+QPushButton[styleClass="ImprintButton"]:hover {
+	background-color: rgba(208, 167, 111, 0.14);
+	border-color: rgba(208, 167, 111, 0.40);
+}
+QPushButton[styleClass="ImprintButton"]:disabled {
+	background-color: rgba(255, 255, 255, 0.03);
+	border: 1px solid rgba(255, 255, 255, 0.05);
+}
+QToolButton[styleClass="ImprintAction"]:enabled {
+	background-color: rgba(208, 167, 111, 0.26);
+	border: 1px solid #D0A76F;
+}
+
+/* ToolbarInfo: a value shown in the tool bar (e.g. the number of colours) */
+QLabel[styleClass="ToolbarInfo"] {
+	color: #D0A76F;
+	font-family: "Space Mono";
+	font-weight: bold;
+	padding: 0px 8px;
+}
+
 /* PrimaryButton: gold, dark mono label */
 QPushButton[styleClass="PrimaryButton"], QGroupBox[styleClass="outsideFrame"] QPushButton[styleClass="PrimaryButton"] {
 	background-color: #D0A76F;
@@ -761,10 +796,16 @@ QPushButton[styleClass="SectionTab"]:checked {
                         <property name="selectionMode">
                          <enum>QAbstractItemView::ExtendedSelection</enum>
                         </property>
+                        <property name="minimumSize">
+                         <size>
+                          <width>0</width>
+                          <height>220</height>
+                         </size>
+                        </property>
                         <property name="maximumSize">
                          <size>
                           <width>16777215</width>
-                          <height>160</height>
+                          <height>340</height>
                          </size>
                         </property>
                        </widget>
@@ -3236,7 +3277,7 @@ QPushButton[styleClass="SectionTab"]:checked {
                         </size>
                        </property>
                        <property name="styleClass" stdset="0">
-                        <string>IconButton</string>
+                        <string>ImprintButton</string>
                        </property>
                       </widget>
                      </item>
@@ -3709,8 +3750,8 @@ QPushButton[styleClass="SectionTab"]:checked {
                     </property>
                     <property name="icon">
                      <iconset>
-                      <normaloff>icons/mask-move.svg</normaloff>
-                      <normalon>icons/mask-move.svg</normalon>
+                      <normaloff>icons/mask-lift.svg</normaloff>
+                      <normalon>icons/imprint-mask.svg</normalon>
                      </iconset>
                     </property>
                     <property name="iconSize">
@@ -3720,7 +3761,7 @@ QPushButton[styleClass="SectionTab"]:checked {
                      </size>
                     </property>
                     <property name="toolTip">
-                     <string>Move the masked area</string>
+                     <string>Lift off the selected mask: cut it out as a layer you can drag; imprint puts it back</string>
                     </property>
                     <property name="text">
                      <string/>
@@ -3744,10 +3785,16 @@ QPushButton[styleClass="SectionTab"]:checked {
                   </item>
                   <item row="1" column="0" colspan="5">
                    <widget class="QListWidget" name="masks_list_widget">
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>200</height>
+                     </size>
+                    </property>
                     <property name="maximumSize">
                      <size>
                       <width>16777215</width>
-                      <height>120</height>
+                      <height>320</height>
                      </size>
                     </property>
                    </widget>
@@ -3897,6 +3944,43 @@ QPushButton[styleClass="SectionTab"]:checked {
                     </property>
                     <property name="styleClass" stdset="0">
                      <string>IconButton</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="2" column="4">
+                   <widget class="QPushButton" name="imprint_mask_button">
+                    <property name="icon">
+                     <iconset>
+                      <normaloff>icons/imprint-masks.svg</normaloff>
+                      <normalon>icons/imprint-masks.svg</normalon>
+                     </iconset>
+                    </property>
+                    <property name="iconSize">
+                     <size>
+                      <width>20</width>
+                      <height>20</height>
+                     </size>
+                    </property>
+                    <property name="toolTip">
+                     <string>Imprint all lifted masks into the image</string>
+                    </property>
+                    <property name="text">
+                     <string/>
+                    </property>
+                    <property name="minimumSize">
+                     <size>
+                      <width>34</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>34</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="styleClass" stdset="0">
+                     <string>ImprintButton</string>
                     </property>
                    </widget>
                   </item>
@@ -4742,7 +4826,7 @@ QPushButton[styleClass="SectionTab"]:checked {
                         </size>
                        </property>
                        <property name="styleClass" stdset="0">
-                        <string>IconButton</string>
+                        <string>ImprintButton</string>
                        </property>
                       </widget>
                      </item>
@@ -6487,6 +6571,19 @@ QPushButton[styleClass="SectionTab"]:checked {
    </property>
    <property name="toolTip">
     <string>Imprint the colored overlays into the image</string>
+   </property>
+  </action>
+  <action name="actionImprint_Masks">
+   <property name="icon">
+    <iconset>
+     <normaloff>icons/imprint-masks.svg</normaloff>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>Imprint All Masks</string>
+   </property>
+   <property name="toolTip">
+    <string>Imprint all lifted masks into the image</string>
    </property>
   </action>
   <action name="actionImprint_Overlays">
