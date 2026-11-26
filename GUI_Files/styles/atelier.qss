@@ -136,8 +136,13 @@ QGroupBox {
 	color: @text;
 	font-weight: 600;
 	border: none;
+	margin-top: 16px;   /* room for the title above the content (style classes set their own) */
+	padding-top: 2px;
 }
 QGroupBox::title {
+	subcontrol-origin: margin;
+	subcontrol-position: top left;
+	padding: 0px 4px;
 	color: @accentText;
 }
 

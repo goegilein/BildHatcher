@@ -73,8 +73,7 @@ class Settings:
                 break
 
     def load_config(self):
-        options = QFileDialog.Option.DontUseNativeDialog
-        file_path, _ = QFileDialog.getOpenFileName(self.gui, "Load Configuration", "", "JSON Files (*.json)", options=options)
+        file_path, _ = QFileDialog.getOpenFileName(self.gui, "Load Configuration", "", "JSON Files (*.json)")  # native
         if file_path:
             with open(file_path, 'r') as f:
                 self.apply_settings(json.load(f))
@@ -111,8 +110,7 @@ class Settings:
 
     def save_config(self):
         """P8.1: one file with all settings (old _imageconfig / _hatchingconfig files still load)."""
-        options = QFileDialog.Option.DontUseNativeDialog
-        file_path, _ = QFileDialog.getSaveFileName(self.gui, "Save Config", "", "JSON Files (*.json)", options=options)
+        file_path, _ = QFileDialog.getSaveFileName(self.gui, "Save Config", "", "JSON Files (*.json)")  # native
         if file_path:
             if not file_path.lower().endswith('.json'):
                 file_path += '.json'

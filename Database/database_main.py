@@ -524,4 +524,11 @@ if __name__ == '__main__':
         db = DatabaseManager()
         l_id=db.add_laser("CO2");m_id=db.add_material("Wood");t_id=db.add_material_type(m_id,"Plywood")
         p_id=db.get_or_create_palette(l_id,t_id);db.add_parameter(p_id,"Engrave","0,0,0",0.2,"FixedMeander",0,80,500);db.close()
-    app=QApplication(sys.argv);window=MainWindow();window.show();sys.exit(app.exec())
+    app=QApplication(sys.argv)
+    try:  # the Atelier style of the app (P12.9), also when started on its own
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+        import theme
+        theme.apply(app)
+    except ImportError:
+        pass
+    window=MainWindow();window.show();sys.exit(app.exec())
