@@ -110,10 +110,10 @@ def ui_icons():
     """[(object name, "icon" | "pixmap", off file name, on file name)] of the pictograms set in the .ui."""
     global _ui_icons
     if _ui_icons is None:
-        from lxml import etree
-        root = etree.parse(str(UI_FILE)).getroot()
+        from xml.etree import ElementTree  # standard library: the app itself needs no lxml
+        root = ElementTree.parse(str(UI_FILE)).getroot()
         found = []
-        for element in root.iter("widget", "action"):
+        for element in (e for e in root.iter() if e.tag in ("widget", "action")):
             for prop in element.findall("property"):
                 if prop.get("name") == "icon" and prop.find("iconset") is not None:
                     iconset = prop.find("iconset")

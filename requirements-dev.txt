@@ -1,3 +1,4 @@
 -r requirements.txt
 pytest>=8
 pyinstaller==6.21.0
+lxml>=5  # tools/apply_style.py and tests (editing the .ui); the app itself does not need it

@@ -6,7 +6,8 @@ for a laser machine (flat or wrapped around a cylinder).
 
 ## Setup
 
-Python 3.14 (Windows). Install the dependencies:
+Python 3.14 (Windows). Install the dependencies – `requirements.txt` for running the app, `requirements-dev.txt`
+additionally for the tests, the tools in `tools/` and building the executable:
 
 ```
 python -m pip install -r requirements-dev.txt

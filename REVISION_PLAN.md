@@ -414,3 +414,4 @@ Found by the user while testing v2.0; the mask bugs already existed before the r
 | 2026-11-24 | P12.5 | Click a mask in the image to select it; turn lifted masks with a handle (nearest-neighbour, mask turns along, undo); exact thin mask frames. 121 tests. |
 | 2026-11-24 | P12.6 | Lifting frees the mask's place at once; imprints onto it stay complete; deleting a lifted mask imprints it. 122 tests. |
 | 2026-11-26 | Phase 12 | Accepted by the user after testing; ready for the PR into main. |
+| 2026-11-26 | – | Mode switch failed on a fresh install (`No module named 'lxml'`): theme.py reads the .ui with the standard library now; lxml (tools / tests only) added to requirements-dev.txt; test that the app imports no dev-only modules. 123 tests. |

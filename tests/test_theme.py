@@ -69,3 +69,19 @@ def test_bright_mode_switches_style_and_pictograms(app_components, qapp):
         action.setChecked(False)
     assert theme.MODE == "dark" and qapp.styleSheet() == theme.render("dark")
     assert gui.add_image_button.icon().pixmap(20, 20).toImage() != light_icon  # dark pictograms again
+
+
+def test_the_app_runs_without_dev_dependencies():
+    """Only requirements.txt is needed to run the app: no lxml (dev only) in the modules the app imports."""
+    import ast
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    dev_only = {"lxml", "pytest"}
+    for path in root.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names = {alias.name.split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.Import)
+                 for alias in node.names}
+        names |= {node.module.split(".")[0] for node in ast.walk(tree)
+                  if isinstance(node, ast.ImportFrom) and node.module}
+        assert not names & dev_only, (path.name, names & dev_only)
+    assert theme.ui_icons()  # the .ui is read with the standard library
