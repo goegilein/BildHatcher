@@ -1,5 +1,25 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 
+
+class WheelBlocker(QtCore.QObject):
+    """App-wide event filter: the mouse wheel never changes spin boxes, drop-downs or sliders.
+    The wheel event goes to the parent widget instead, so a scrollable panel under the cursor still scrolls."""
+    BLOCKED = (QtWidgets.QAbstractSpinBox, QtWidgets.QComboBox, QtWidgets.QSlider, QtWidgets.QDial)
+
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.Type.Wheel and isinstance(obj, self.BLOCKED):
+            parent = obj.parentWidget()
+            if parent is not None:
+                QtCore.QCoreApplication.sendEvent(parent, event)
+            return True
+        return False
+
+    @classmethod
+    def install(cls, app):
+        app._wheel_blocker = cls(app)  # keep a reference for the app lifetime
+        app.installEventFilter(app._wheel_blocker)
+        return app._wheel_blocker
+
 class NoScrollGraphicsView(QtWidgets.QGraphicsView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

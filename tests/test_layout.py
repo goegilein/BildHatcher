@@ -405,3 +405,27 @@ def test_p1211_image_colors_row_order_and_rename(app_components):
     assert items == [gui.clean_up_image_colors_button, gui.recolor_from_database_button, "spacer",
                      gui.imprint_color_overlays_button, gui.restore_uncolored_image_button]
     assert gui.restore_uncolored_image_button.toolTip().startswith("Delete all active color overlays")
+
+
+def test_grid_distance_allows_400_mm(app_components):
+    spin = app_components.gui.grid_distance_spinbox
+    spin.setValue(400)
+    assert spin.maximum() >= 400 and spin.value() == 400
+
+
+def test_wheel_never_changes_spinboxes_or_dropdowns(qapp):
+    from PyQt6 import QtCore, QtGui, QtWidgets
+    from CustomUiElements import WheelBlocker
+    WheelBlocker.install(qapp)
+    panel = QtWidgets.QWidget()
+    spin, combo = QtWidgets.QSpinBox(panel), QtWidgets.QComboBox(panel)
+    spin.setValue(5)
+    combo.addItems(["a", "b", "c"])
+    combo.setCurrentIndex(1)
+    for widget in (spin, combo):
+        for delta in (120, 120):  # one direction: without the blocker the value would move
+            event = QtGui.QWheelEvent(QtCore.QPointF(2, 2), QtCore.QPointF(2, 2), QtCore.QPoint(), QtCore.QPoint(0, delta),
+                                      QtCore.Qt.MouseButton.NoButton, QtCore.Qt.KeyboardModifier.NoModifier,
+                                      QtCore.Qt.ScrollPhase.NoScrollPhase, False)
+            QtWidgets.QApplication.sendEvent(widget, event)
+    assert spin.value() == 5 and combo.currentIndex() == 1

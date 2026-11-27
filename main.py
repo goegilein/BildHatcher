@@ -132,6 +132,7 @@ def main():
     setup_logging()
     sys.excepthook = show_unhandled_exception
     app = QtWidgets.QApplication(sys.argv)
+    CustomUiElements.WheelBlocker.install(app)  # scrolling must never change a setting
     theme.apply(app, Preferences.get("theme", "dark"))  # Atelier look (P11.3: dark / bright, remembered)
 
     gui = create_main_window()

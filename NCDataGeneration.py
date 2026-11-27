@@ -8,6 +8,7 @@ import random
 import dataclasses
 from HelperClasses import HatchData, HatchCluster
 from core import hatching
+from core import contours as contour_tools
 from core.toolpath import Layer, polyline, X, Y, MOVE, MOVE_TRAVEL, MOVE_BURN
 import ezdxf
 from ezdxf import path as dxf_path
@@ -57,6 +58,7 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.hatch_data = HatchData([], "")
         self.clusters = None
         self.image_matrix = None
+        self.open_contours = []  # core.contours.find_open_contours of the last contour toolpath
         self.pixel_per_mm = None
         self.hatching_cancelled = False
         self._last_progress = 0
@@ -434,9 +436,8 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         height = self.image_matrix.shape[0]
         center = self.center_for_hatch
         polylines = []
-        for contour in self.contours_list:
-            if type(contour[0])==int: #single point detected. skip it
-                continue
+        valid = [contour for contour in self.contours_list if type(contour[0]) != int]  # skip single points
+        for contour in valid:
             pixels = np.asarray(contour + contour[:1], dtype=np.float64)  # always close contours
             moves = np.full(len(pixels), MOVE_BURN)
             moves[0] = MOVE_TRAVEL
@@ -449,6 +450,24 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         cluster = HatchCluster([Layer((0, 0, 0), polylines)], self.image_matrix, ref_position=[0,0,0,0], cluster_center_for_hatch=self.center_for_hatch, cylinder_radius=0)
         self.hatch_data = HatchData([cluster], "Contours")
         self.set_handler_data()
+        self.open_contours = contour_tools.find_open_contours(valid)
+        if self.open_contours:
+            self.warn_open_contours(len(valid), height, center)
+
+    def warn_open_contours(self, n_contours, height, center):
+        """A contour that does not enclose an area is an open line traced twice: the cut would leave a gap."""
+        gaps = [(x, y) for _, points in self.open_contours for x, y in points]
+        lines = [f"X {(x - center[0]) / self.pixel_per_mm:.2f} / Y {((height - y - 1) - center[1]) / self.pixel_per_mm:.2f} mm"
+                 for x, y in gaps[:8]]
+        if len(gaps) > 8:
+            lines.append(f"... and {len(gaps) - 8} more")
+        text = (f"{len(self.open_contours)} of {n_contours} contours are not closed. The toolpath runs along these lines "
+                "and back again and leaves the gap uncut.\n\n"
+                "Use the contour mode \"shapes\" (always closed) or fix the image at the marked spots.")
+        if lines:
+            text += "\n\nGap ends:\n" + "\n".join(lines)
+        log.warning("Open contours: %d of %d, gaps %s", len(self.open_contours), n_contours, gaps)
+        QtWidgets.QMessageBox.warning(self.gui, "Open contours", text)
     
     def contour_from_dxf(self):
         """Import the outlines of a DXF file as one layer of polylines, shifted so the lower left corner is (0, 0).

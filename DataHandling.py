@@ -26,6 +26,7 @@ class DataHandler:
         self.default_pixel_per_mm = 96/25.4  # Default pixel per mm value (96 DPI / 25.4 mm/inch)
         self.center_for_hatch = None
         self.contours_list=[]
+        self.open_contours = []  # core.contours.find_open_contours of the last found contours
         self.scale_factor = 1.0  # Scale factor between image and canvas display
         # overlay items from color editing and drawable overlays are tracked here
         self.active_color_overlays = ObservableList(on_change=self.update_color_ovleray_imprint_button)
@@ -164,6 +165,7 @@ class DataHandler:
     
     def reset_edits(self):
         self.contours_list = []
+        self.open_contours = []
     
     def get_unique_color_count(self):
         """Get the number of unique colors in the image matrix efficiently.

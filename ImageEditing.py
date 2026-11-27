@@ -11,6 +11,7 @@ from HelperClasses import DBColorPalette
 import random
 from UndoRedo import ColorOverlayAction, ImprintColorOverlaysAction, ImageMatrixAction
 from core import fill, image_doc, palette
+from core import contours as contour_tools
 import ColorProfile
 from Masks import MaskTools
 import logging
@@ -349,6 +350,7 @@ class ImageColorer(MaskTools, QtCore.QObject):
         self.contours_list = []
         self.contour_mask = None  # bool (H, W): pixels of the last found contours
         self.contour_overlay_item = None
+        self.contour_warning_item = None  # red marks of open contours (never imprinted)
 
         # toggle flags for coloring and masking
         self.flood_fill_color_on = False
@@ -433,6 +435,11 @@ class ImageColorer(MaskTools, QtCore.QObject):
 
         #Add combobox for contour mode
         self.contouring_mode_combobox = gui.contouring_mode_combobox
+        # Contour fix: "shapes" outlines the filled shapes (closed by construction) and is the default for cutting
+        self.contouring_mode_combobox.insertItem(0, "shapes")
+        self.contouring_mode_combobox.setItemData(0, "Outline of the filled shapes; always closed (recommended for cutting)",
+                                                  QtCore.Qt.ItemDataRole.ToolTipRole)
+        self.contouring_mode_combobox.setCurrentIndex(0)
         self.contouring_mode_combobox.addItem("color regions")  # P6.7
         self.contouring_mode_combobox.currentTextChanged.connect(self.find_image_contours)
 
@@ -1230,6 +1237,7 @@ class ImageColorer(MaskTools, QtCore.QObject):
         #ensure to reset contours
         self.contours_visible = False
         self.contour_overlay_item = None
+        self._remove_contour_warnings()
         self.draw_contour_button.setChecked(False)
 
 
@@ -1343,6 +1351,8 @@ class ImageColorer(MaskTools, QtCore.QObject):
                 self.contour_overlay_item.hide()
                 if self.contour_overlay_item in self.data_handler.active_color_overlays:
                     self.data_handler.active_color_overlays.remove(self.contour_overlay_item) # Remove from undo stack when hidden
+            if self.contour_warning_item is not None:
+                self.contour_warning_item.hide()
 
     def find_image_contours(self):
         """Find contours and create an overlay for display."""
@@ -1353,34 +1363,21 @@ class ImageColorer(MaskTools, QtCore.QObject):
                 if self.contour_overlay_item in self.data_handler.active_color_overlays:
                     self.data_handler.active_color_overlays.remove(self.contour_overlay_item)
                 self.contour_overlay_item = None
-            
-            
+            self._remove_contour_warnings()
 
             # Get the current image data
+            mode = self.contouring_mode_combobox.currentText()
             image_matrix = image_doc.rgb_filled(self.data_handler.image_matrix)
             height, width = image_matrix.shape[:2]
 
-            # Only apply edge detection to the masked region if there is one, otherwise to the whole image
-            threshold1 = self.contour_sensitivity_spinbox.value()
-            threshold2 = threshold1*3
-            if self.data_handler.active_mask_index != -1:
-                active_mask = self.data_handler.masks_list[self.data_handler.active_mask_index]
-                # Use original image for edge detection, but only inside the mask
-                edges = cv2.Canny(image_matrix, threshold1=threshold1, threshold2=threshold2)
-                # Zero out edges outside the mask
-                edges[active_mask == 0] = 0
-            else:
-                edges = cv2.Canny(image_matrix, threshold1=threshold1, threshold2=threshold2)
-
-            # threshold1: Lower = more edges detected (more sensitive)
-            # threshold2: Should be 2-3x threshold1
-
-            # Make edges "wider" by dilation
-            kernel = np.ones((self.contour_space_spinbox.value(), self.contour_space_spinbox.value()), np.uint8)
-            edges = cv2.dilate(edges, kernel, iterations=1)
-
-            # Find contours from the edges
-            if self.contouring_mode_combobox.currentText() == "color regions":
+            # Find contours
+            if mode == "shapes":
+                region = None
+                if self.data_handler.active_mask_index != -1:
+                    region = self.data_handler.masks_list[self.data_handler.active_mask_index] == 1
+                contours = contour_tools.shape_contours(contour_tools.shape_mask(
+                    self.data_handler.image_matrix, region, tolerance=self.contour_sensitivity_spinbox.value()))
+            elif mode == "color regions":
                 # P6.7: exact outline of every area of one colour (no edge detection, independent of sensitivity)
                 rgba = self.data_handler.image_matrix
                 packed = np.ascontiguousarray(rgba).view(np.uint32)[..., 0]
@@ -1391,10 +1388,10 @@ class ImageColorer(MaskTools, QtCore.QObject):
                 for color in np.unique(packed[(rgba[..., 3] > 0) & region]):
                     color_mask = ((packed == color) & region).astype(np.uint8)
                     contours.extend(cv2.findContours(color_mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)[0])
-            elif self.contouring_mode_combobox.currentText() == "only external":
-                contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            elif self.contouring_mode_combobox.currentText() == "all":
-                contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+            elif mode == "only external":
+                contours, _ = cv2.findContours(self._contour_edges(image_matrix), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            elif mode == "all":
+                contours, _ = cv2.findContours(self._contour_edges(image_matrix), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
             
             # cv2.RETR_EXTERNAL - Only extremnp.outerer contours (current, fastest)
             # cv2.RETR_LIST - All contours, no hierarchy
@@ -1431,8 +1428,61 @@ class ImageColorer(MaskTools, QtCore.QObject):
                 self.contours_list.append(polyline)
             self.data_handler.contours_list = self.contours_list
 
+            # Flag contours that do not close (they would leave an uncut gap in the toolpath)
+            open_contours = contour_tools.find_open_contours(contours)
+            self.data_handler.open_contours = open_contours
+            if open_contours:
+                log.warning("%d of %d contours are not closed", len(open_contours), len(contours))
+                self._show_contour_warnings(contours, open_contours, height, width)
+
         except Exception:
             log.exception("Error finding image outlines")
+
+    def _contour_edges(self, image_matrix):
+        """Canny edges (inside the active mask) with small gaps bridged and widened by the contour space."""
+        # Only apply edge detection to the masked region if there is one, otherwise to the whole image
+        threshold1 = self.contour_sensitivity_spinbox.value()
+        threshold2 = threshold1*3
+        if self.data_handler.active_mask_index != -1:
+            active_mask = self.data_handler.masks_list[self.data_handler.active_mask_index]
+            # Use original image for edge detection, but only inside the mask
+            edges = cv2.Canny(image_matrix, threshold1=threshold1, threshold2=threshold2)
+            # Zero out edges outside the mask
+            edges[active_mask == 0] = 0
+        else:
+            edges = cv2.Canny(image_matrix, threshold1=threshold1, threshold2=threshold2)
+
+        # threshold1: Lower = more edges detected (more sensitive)
+        # threshold2: Should be 2-3x threshold1
+
+        # Canny loses a few pixels at sharp / narrow corners: join stroke ends across such small gaps,
+        # otherwise the edge is an open line and its contour (and the toolpath) has a gap there
+        edges, _ = contour_tools.bridge_gaps(edges)
+
+        # Make edges "wider" by dilation
+        kernel = np.ones((self.contour_space_spinbox.value(), self.contour_space_spinbox.value()), np.uint8)
+        edges = cv2.dilate(edges, kernel, iterations=1)
+        return edges
+
+    def _remove_contour_warnings(self):
+        if self.contour_warning_item is not None:
+            if self.contour_warning_item.scene() is not None:
+                self.contour_warning_item.scene().removeItem(self.contour_warning_item)
+            self.contour_warning_item = None
+
+    def _show_contour_warnings(self, contours, open_contours, height, width):
+        """Red overlay of the open contours with a circle around every gap end (display only, never imprinted)."""
+        marks = np.zeros((height, width, 4), np.uint8)
+        red = (230, 30, 30, 255)
+        cv2.drawContours(marks, [contours[i] for i, _ in open_contours], -1, red, thickness=1)
+        for _, gaps in open_contours:
+            for point in gaps:
+                cv2.circle(marks, point, 4, red, thickness=1)
+        image = QImage(marks.data, width, height, QImage.Format.Format_RGBA8888)
+        self.contour_warning_item = QGraphicsPixmapItem(QPixmap.fromImage(image), self.gui.image_item)
+        self.contour_warning_item.setZValue(11)  # above the contour overlay
+        self.contour_warning_item.setVisible(self.contours_visible)
+
     def clean_up_image_colors(self):
         """P8.3: reduce the image to a few clear colour areas without anti-aliasing traces (see core/palette.py)."""
         if self.data_handler.image_matrix is None:
