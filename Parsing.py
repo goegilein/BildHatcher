@@ -246,6 +246,25 @@ class Parser:
             if combobox.findText(current) >= 0:
                 combobox.setCurrentText(current)
 
+    def apply_db_parameters(self, param, palette):
+        """Build NC Data settings of a database colour: its constant laser power and speed ("max" format, as in the
+        automatic mode) and the post processing / laser / air assist / power mode of its profile (material type).
+        Options the active machine profile does not offer are left unchanged."""
+        for spinbox in (self.min_power_spinbox, self.max_power_spinbox):
+            spinbox.setValue(int(round(float(param["laser_power"]))))
+        for spinbox in (self.min_speed_spinbox, self.max_speed_spinbox):
+            spinbox.setValue(int(round(float(param["speed"]))))
+        self.power_format_combobox.setCurrentText("max")
+        self.speed_format_combobox.setCurrentText("max")
+        for combobox, value in ((self.post_processing_combobox, palette.post_processing),
+                                (self.laser_mode_combobox, palette.laser_mode),
+                                (self.air_assist_combobox, palette.air_assist),
+                                (self.power_mode_combobox, palette.power_mode)):
+            if combobox.findText(str(value)) >= 0:
+                combobox.setCurrentText(str(value))
+            else:
+                log.warning("%s '%s' of the colour profile is not available here", combobox.objectName(), value)
+
     def add_process_block(self,iterations=1):
         '''Creates a process block from the active hatch data and puts it into the processListWidget'''
         post_processing = self.post_processing_combobox.currentText()

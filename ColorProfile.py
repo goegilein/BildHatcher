@@ -91,7 +91,7 @@ def _swatch(rgb, size=14):
 
 def pick_parameter_dialog(parent, palette, title="Load Settings from Database Color"):
     """P12.14: choose one colour of the active profile (list with its hatch settings) and confirm.
-    Returns the colour's parameter dict or None."""
+    Returns (the colour's parameter dict, whether the Build NC Data settings should be set too) or (None, False)."""
     dialog = QtWidgets.QDialog(parent)
     dialog.setWindowTitle(f"{title} – {profile_name(palette)}")
     layout = QtWidgets.QVBoxLayout(dialog)
@@ -106,6 +106,12 @@ def pick_parameter_dialog(parent, palette, title="Load Settings from Database Co
     if not colors.count():
         layout.addWidget(QtWidgets.QLabel("The active profile has no colors."))
     layout.addWidget(colors)
+    apply_nc = QtWidgets.QCheckBox("Also set the Build NC Data settings (power, speed, modes)",
+                                   objectName="apply_nc_checkbox")
+    apply_nc.setToolTip("Laser power and speed of the colour, post processing, laser mode, air assist and power mode "
+                        "of the profile")
+    apply_nc.setChecked(True)
+    layout.addWidget(apply_nc)
     buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok |
                                          QtWidgets.QDialogButtonBox.StandardButton.Cancel)
     ok = buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Ok)
@@ -117,8 +123,8 @@ def pick_parameter_dialog(parent, palette, title="Load Settings from Database Co
     layout.addWidget(buttons)
     dialog.resize(420, 320)
     if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted or colors.currentItem() is None:
-        return None
-    return colors.currentItem().data(QtCore.Qt.ItemDataRole.UserRole)
+        return None, False
+    return colors.currentItem().data(QtCore.Qt.ItemDataRole.UserRole), apply_nc.isChecked()
 
 
 class ColorProfileController:

@@ -508,6 +508,30 @@ def delete_all():
                CROSS)
 
 
+# --- Cutting: drawn laser paths = solid black outlines without fill ---
+def cut_outlines(scale=1.0, dx=0.0, dy=0.0, width=1.4):
+    """Rectangle, ellipse and polygon outlines (the shapes of delete-all, solid and unfilled)."""
+    def t(points):
+        return [(dx + x * scale, dy + y * scale) for x, y in points]
+    x0, y0 = t([(2.5, 3)])[0]
+    ex, ey = t([(14.5, 7.5)])[0]
+    return "\n".join([rect(x0, y0, 9 * scale, 8 * scale, "none", BLACK, width, 0.6),
+                      ellipse(ex, ey, 6.5 * scale, 5 * scale, "none", BLACK, width),
+                      polygon(t([(3, 15), (8.5, 11.5), (13.5, 14.5), (11.5, 21), (4.5, 20.5)]), "none", BLACK, width)])
+
+
+def cut_to_hatch():
+    return svg(cut_outlines(0.55, 0, 3.4, 1.3), arrow((11.6, 12), (16.4, 12), BLACK, 1.6, 2.6),
+               rect(16.8, 8.3, 6.2, 7.4, PAPER, INK, 1.2, 0.8), hatch_lines(17.1, 8.6, 5.6, 2.2, INK, 1.1))
+
+
+def cut_export():
+    # curved blue arrow from the middle of the outlines up to the right (like the usual export pictogram)
+    d = "M 10 13.5 Q 12 6.2 18.2 5.4"
+    return svg(cut_outlines(0.86, 0, 2.2, 1.3), path(d, "none", HALO, 4.2), path(d, "none", BLUE, 2.2),
+               head((22, 4.8), (1, -0.18), BLUE, 3.8))
+
+
 def mask_save():
     return svg(dashed_rect(1.5, 6.5, 10, 10), floppy(3.8, 8.8, 5.4),
                arrow((12.6, 11.5), (16, 11.5), BLACK, 1.6, 2.6),
@@ -887,6 +911,13 @@ ICONS = {
     "mask-unselect": lambda: svg(dashed_rect(3, 4, 18, 16), slash((3.5, 3.5), (20.5, 20.5))),
     "delete": lambda: svg(dashed_rect(2.5, 3, 16, 13), CROSS),
     "delete-all": delete_all,
+    # --- Cutting ---
+    "cut-delete": lambda: svg(rect(2.5, 3, 16, 13, "none", BLACK, 1.6, 0.8), CROSS),
+    "cut-delete-all": lambda: svg(cut_outlines(), CROSS),
+    "cut-to-hatch": cut_to_hatch,
+    "cut-export": cut_export,
+    "geo-hexagon": lambda: svg(polygon([(2.5, 12), (7.25, 3.8), (16.75, 3.8), (21.5, 12), (16.75, 20.2),
+                                         (7.25, 20.2)], "none", INK, 2)),
     "mask-save": mask_save,
     # --- Text ---
     "add-text": add_text,

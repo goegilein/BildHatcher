@@ -1,5 +1,5 @@
 import math
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets, sip
 from PyQt6.QtGui import QPainterPath, QPen, QBrush, QColor, QFont, QFontDatabase
 from PyQt6.QtWidgets import QGraphicsItem
 from UndoRedo import TGAddOverlayAction, TGDeleteOverlayAction, TGTransformOverlayAction, TGImprintOverlaysAction
@@ -42,6 +42,11 @@ class OverlayItem(QtWidgets.QGraphicsItem):
 
     def update_transform_origin(self):
         self.setTransformOriginPoint(self._rect.center())
+
+    def overlay_manager(self):
+        """The manager that owns this overlay (UI sync, undo); subclasses of other editors override it."""
+        scene = self.scene()
+        return getattr(scene, "tg_manager", None) if scene is not None else None
 
     def boundingRect(self) -> QtCore.QRectF:
         extra = self.HANDLE_RADIUS + self.outline_width
@@ -122,6 +127,9 @@ class OverlayItem(QtWidgets.QGraphicsItem):
                 event.accept()
                 return
             else:
+                if getattr(self, "fixed", False):  # Cutting: a fixed overlay is never moved
+                    event.accept()
+                    return
                 # Body click on an already selected item!
                 # We start moving all selected items manually to prevent QGraphicsScene from clearing the selection.
                 self._moving_items = True
@@ -134,16 +142,13 @@ class OverlayItem(QtWidgets.QGraphicsItem):
                 if self.scene() is not None:
                     selected = self.scene().selectedItems()
                     for item in selected:
-                        if isinstance(item, OverlayItem):
+                        if isinstance(item, OverlayItem) and not getattr(item, "fixed", False):
                             self._drag_start_item_positions[item] = item.pos()
                 event.accept()
                 return
 
-        scene = self.scene()
-        if scene and hasattr(scene, 'tg_manager') and scene.tg_manager:
-            self._start_transform_state = scene.tg_manager._get_item_state(self)
-        else:
-            self._start_transform_state = None
+        manager = self.overlay_manager()
+        self._start_transform_state = manager._get_item_state(self) if manager else None
 
         super().mousePressEvent(event)
 
@@ -178,18 +183,18 @@ class OverlayItem(QtWidgets.QGraphicsItem):
         super().mouseReleaseEvent(event)
 
         # Trigger a full UI update on release to ensure everything is perfectly synced
-        scene = self.scene()
-        if scene and hasattr(scene, 'tg_manager') and scene.tg_manager:
-            scene.tg_manager._update_ui_from_selected()
-            undo_mgr = getattr(scene.tg_manager, "undo_manager", None)
+        manager = self.overlay_manager()
+        if manager:
+            manager._update_ui_from_selected()
+            undo_mgr = getattr(manager, "undo_manager", None)
             if undo_mgr and getattr(self, '_start_transform_state', None):
-                curr_state = scene.tg_manager._get_item_state(self)
+                curr_state = manager._get_item_state(self)
                 start_state = self._start_transform_state
                 self._start_transform_state = None
                 if (curr_state["pos"] != start_state["pos"] or
                     curr_state["rect"] != start_state["rect"] or
                     curr_state["rotation"] != start_state["rotation"]):
-                    undo_mgr.push_action(TGTransformOverlayAction(scene.tg_manager, self, start_state, curr_state, "Transform Overlay"))
+                    undo_mgr.push_action(TGTransformOverlayAction(manager, self, start_state, curr_state, "Transform Overlay"))
 
     def do_rotate(self, pos: QtCore.QPointF):
         center = self._rect.center()
@@ -221,9 +226,9 @@ class OverlayItem(QtWidgets.QGraphicsItem):
         self.update()
 
         # Update the UI spinboxes in real time while dragging
-        scene = self.scene()
-        if scene and hasattr(scene, 'tg_manager') and scene.tg_manager:
-            scene.tg_manager._update_ui_dimensions_only(self)
+        manager = self.overlay_manager()
+        if manager:
+            manager._update_ui_dimensions_only(self)
 
     def paint_to_painter(self, painter: QtGui.QPainter):
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, False)
@@ -800,6 +805,8 @@ class TextGeometryOverlayManager:
                         self.overlay_store.select_item(item)
                         self._update_ui_from_selected()
                         return
+            if any(isinstance(item, OverlayItem) for item in items):
+                return  # an overlay of another editor (Cutting): its own selection handling
             # If we click on empty canvas, clear selection in the scene
             if not (event.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier) and hasattr(self.gui, "image_scene"):
                 self.gui.image_scene.clearSelection()
@@ -1357,6 +1364,8 @@ class TextGeometryOverlayManager:
     def _on_scene_selection_changed(self):
         """Handle overlay selection from scene (Canvas -> List)."""
         if self.tg_overlay_list_widget is None or self._updating_selection or not hasattr(self.gui, "image_scene"):
+            return
+        if sip.isdeleted(self.tg_overlay_list_widget):  # the window is being destroyed (the scene goes last)
             return
 
         self._updating_selection = True

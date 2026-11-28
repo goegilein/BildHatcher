@@ -22,6 +22,7 @@ import Preferences
 import AutomatedProcessing
 import EventHandling
 import TextandGeometries
+import Cutting
 from PathManager import get_gui_file_path, get_base_dir, USER_DIR
 import CustomUiElements  # noqa: F401  # this import is necessary to register custom ui elements for compilation
 
@@ -81,7 +82,7 @@ def create_main_window():
         gui.setStyleSheet("")  # the app-wide theme (theme.apply) already has the .ui's stylesheet: style once
 
     # create the image canvas. has to be done programmatically as there is no QtDesigner element for it
-    gui.image_scene = QtWidgets.QGraphicsScene()
+    gui.image_scene = QtWidgets.QGraphicsScene(gui)  # owned by the window: no signals after it is closed
     gui.image_canvas.setScene(gui.image_scene)
     gui.image_item = QtWidgets.QGraphicsPixmapItem()
     gui.image_scene.addItem(gui.image_item)
@@ -119,7 +120,9 @@ def create_components(gui):
 
     c.image_hatcher = NCDataGeneration.Hatcher(c.data_handler, gui)
     gui.load_db_hatch_settings_button.clicked.connect(  # P12.14: hatch settings of a database colour
-        lambda: c.image_hatcher.load_settings_from_profile(c.color_profiles))
+        lambda: c.image_hatcher.load_settings_from_profile(c.color_profiles, c.parser))
+    Cutting.build_section(gui)  # code-built section (Hatching group), placed by MainLayout
+    c.cutting = Cutting.CuttingManager(c.data_handler, gui, c.event_handler, c.image_hatcher)
     c.hatch_line_plotter = Plotting.HatchLinePlotter(c.data_handler, gui)
     c.test_structure = TestStructures.Teststructures(c.data_handler, gui)
     c.parser = Parsing.Parser(c.data_handler, gui)

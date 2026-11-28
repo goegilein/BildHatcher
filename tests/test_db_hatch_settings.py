@@ -19,8 +19,13 @@ class _Profiles:
         return self.palette
 
 
-def _answer_dialog(row, accept=True):
-    """Pick `row` in the open colour dialog and confirm (or cancel) as soon as it shows."""
+SETTINGS = {"post_processing": "Maximize Lines", "laser_mode": "variable", "enclosure_fan": 40, "air_assist": "on",
+            "power_mode": "full"}
+
+
+def _answer_dialog(row, accept=True, apply_nc=None):
+    """Pick `row` in the open colour dialog and confirm (or cancel) as soon as it shows.
+    apply_nc: set the "Build NC Data settings" tick box (None: leave the default)."""
     def act():
         dialog = QtWidgets.QApplication.activeModalWidget()
         if dialog is None:
@@ -28,6 +33,8 @@ def _answer_dialog(row, accept=True):
             return
         colors = dialog.findChild(QtWidgets.QListWidget, "db_color_list")
         colors.setCurrentRow(row)
+        if apply_nc is not None:
+            dialog.findChild(QtWidgets.QCheckBox, "apply_nc_checkbox").setChecked(apply_nc)
         buttons = dialog.findChild(QtWidgets.QDialogButtonBox)
         role = QtWidgets.QDialogButtonBox.StandardButton.Ok if accept else QtWidgets.QDialogButtonBox.StandardButton.Cancel
         buttons.button(role).click()
@@ -65,3 +72,30 @@ def test_database_window_opens_as_low_as_possible(app_components):
     QtWidgets.QApplication.processEvents()
     assert window.height() <= window.minimumSizeHint().height() + 2
     window.close()
+
+
+def _nc_state(gui):
+    return (gui.min_power_spinbox.value(), gui.max_power_spinbox.value(), gui.power_format_combobox.currentText(),
+            gui.min_speed_spinbox.value(), gui.max_speed_spinbox.value(), gui.speed_format_combobox.currentText(),
+            gui.post_processing_combobox.currentText(), gui.laser_mode_combobox.currentText(),
+            gui.air_assist_combobox.currentText(), gui.power_mode_combobox.currentText())
+
+
+def test_nc_settings_are_taken_over_by_default(app_components):
+    c = app_components
+    gui = c.gui
+    profiles = _Profiles(DBColorPalette(PARAMS, SETTINGS))
+    _answer_dialog(1)  # tick box left at its default (on)
+    c.image_hatcher.load_settings_from_profile(profiles, c.parser)
+    assert _nc_state(gui) == (70, 70, "max", 800, 800, "max", "Maximize Lines", "variable", "on", "full")
+    assert gui.hatch_pattern_combobox.currentText() == "Radial"  # hatch settings as before
+
+
+def test_nc_settings_unchanged_without_tick(app_components):
+    c = app_components
+    gui = c.gui
+    before = _nc_state(gui)
+    _answer_dialog(1, apply_nc=False)
+    c.image_hatcher.load_settings_from_profile(_Profiles(DBColorPalette(PARAMS, SETTINGS)), c.parser)
+    assert _nc_state(gui) == before
+    assert gui.hatch_pattern_combobox.currentText() == "Radial"  # the hatch settings are still taken over

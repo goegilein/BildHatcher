@@ -26,6 +26,7 @@ GROUPS = {
     "Text": ("group-text", [("Text", "Text and geometries", "tg_frame")]),
     "Hatching": ("group-hatching", [
         ("Hatch", "Image hatching and contours / outlines", "hatch_frame"),
+        ("Cutting", "Cutting: draw single laser paths (lines, shapes) and use them as hatch", "cutting_frame"),
         ("Tests", "Test structures", "testStruc_frame"),
         ("Export", "Build NC data: process blocks and export", "export_frame"),
     ]),

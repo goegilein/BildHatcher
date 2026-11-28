@@ -327,15 +327,18 @@ class Hatcher(QObject):  # QObject so worker signals are delivered on the GUI th
         self.hatch_dist_mode_combobox.setCurrentText("Fixed")  # a database colour has one line distance
         self.hatch_dist_min_spinbox.setValue(int(round(float(param["hatch_distance"]))))
 
-    def load_settings_from_profile(self, profiles):
-        """Choose a colour of the active colour profile and take over its hatch settings."""
+    def load_settings_from_profile(self, profiles, parser=None):
+        """Choose a colour of the active colour profile and take over its hatch settings; if the user leaves the
+        dialog's tick box on, `parser` (Parsing.Parser) also takes over its Build NC Data settings."""
         from ColorProfile import pick_parameter_dialog
         palette = profiles.require()
         if palette is None:
             return None
-        param = pick_parameter_dialog(self.gui, palette)
+        param, apply_nc = pick_parameter_dialog(self.gui, palette)
         if param is not None:
             self.apply_db_parameters(param)
+            if apply_nc and parser is not None:
+                parser.apply_db_parameters(param, palette)
         return param
 
     def hatch_cluster(self, labels, cluster_center_for_hatch, mode="manual", color_list=None, hatch_pattern="RandomMeander", hatch_angle=90, hatch_dist_mode="ColorRanged", hatch_dist_min=300, hatch_dist_max=700, cyl_rad_mm = 100, hatch_mode = "Flat", stepsize_mm = 0.1, db_color_palette=None, cluster_progress=0, rng=random):
