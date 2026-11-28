@@ -98,6 +98,7 @@
      ImprintButton    QPushButton pictogram button, highlighted while enabled (edits waiting to be imprinted)
      ImprintAction    QToolButton the same for a tool bar button
      ToolbarInfo      QLabel      a value in the tool bar (gold, mono)
+     ToolbarName      QLabel      a name in the tool bar (the active image)
      PrimaryButton    QPushButton the main action of a section (gold)
      PanelGroup       QToolButton the group strip at the right edge
      SectionTab       QPushButton the (vertical) section tabs next to the panel
@@ -600,6 +601,12 @@ QPushButton[styleClass="ImprintButton"]:disabled {
 QToolButton[styleClass="ImprintAction"]:enabled {
 	background-color: @accentPress;
 	border: 1px solid @accent;
+}
+
+/* ToolbarName: a name shown in the tool bar (the active image) */
+QLabel[styleClass="ToolbarName"] {
+	color: @text;
+	padding: 0px 2px 0px 6px;
 }
 
 /* ToolbarInfo: a value shown in the tool bar (e.g. the number of colours) */

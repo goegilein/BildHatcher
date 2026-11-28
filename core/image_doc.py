@@ -5,6 +5,7 @@ Images are uint8 RGBA arrays (H, W, 4) with a binary alpha: 255 = opaque (hatche
 compared as one value. `normalize` establishes this invariant and is applied whenever an image is stored.
 """
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 
@@ -69,8 +70,32 @@ class ImageDocument:
     original_image_matrix: np.ndarray  # state for "restore", set on load / keep changes
     pixel_per_mm: float
     pixel_per_mm_original: float
+    center: Optional[list] = None          # hatch centre (x, y) in image pixels; None: the middle of the image
+    center_shape: Optional[tuple] = None   # (H, W) of the image the centre was set for
 
     def __post_init__(self):
         # normalize() copies, so edits can never leak into the restore state
         self.image_matrix = normalize(self.image_matrix)
         self.original_image_matrix = normalize(self.original_image_matrix)
+
+    def default_center(self):
+        h, w = self.image_matrix.shape[:2]
+        return [(w - 1) / 2, (h - 1) / 2]
+
+    def hatch_center(self):
+        """The hatch centre (x, y) in image pixels. Set for another pixel size of the image: scaled along when the
+        image was only scaled (upscaling), else the middle of the image."""
+        h, w = self.image_matrix.shape[:2]
+        if self.center is None or self.center_shape is None:
+            return self.default_center()
+        h0, w0 = self.center_shape
+        if (h0, w0) == (h, w):
+            return [float(self.center[0]), float(self.center[1])]
+        kx, ky = w / w0, h / h0
+        if abs(kx - ky) <= 0.01 * kx:
+            return [(self.center[0] + 0.5) * kx - 0.5, (self.center[1] + 0.5) * ky - 0.5]
+        return self.default_center()
+
+    def set_center(self, x, y):
+        self.center = [float(x), float(y)]
+        self.center_shape = tuple(self.image_matrix.shape[:2])

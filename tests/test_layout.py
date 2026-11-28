@@ -17,13 +17,13 @@ def test_panel_groups_and_sections_single_select(app_components):
     assert set(panel.group_buttons) == set(MainLayout.GROUPS)
     assert set(panel.sections) == {e[0] for _, entries in MainLayout.GROUPS.values() for e in entries}
     gui.show()
-    panel.select_group("Image")
-    assert panel.group_buttons["Image"].isChecked()
-    assert all(panel.section_buttons[e[0]].isVisible() for e in MainLayout.GROUPS["Image"][1])
+    panel.select_group("Image Editing")
+    assert panel.group_buttons["Image Editing"].isChecked()
+    assert all(panel.section_buttons[e[0]].isVisible() for e in MainLayout.GROUPS["Image Editing"][1])
     assert not panel.section_buttons["Hatch"].isVisible()
 
     panel.group_buttons["Hatching"].click()  # single select between groups
-    assert not panel.group_buttons["Image"].isChecked() and panel.group_buttons["Hatching"].isChecked()
+    assert not panel.group_buttons["Image Editing"].isChecked() and panel.group_buttons["Hatching"].isChecked()
     assert not gui.draw_mask_groupbox.isVisible()
     panel.section_buttons["Hatch"].setChecked(True)
     panel.section_buttons["Export"].setChecked(True)  # P10.6: one section at a time
@@ -46,7 +46,7 @@ def test_hiding_masks_section_resets_mask_tools(app_components):
     calls = []
     c.image_colorer.set_single_toggle_state = lambda name: calls.append(name)
     c.gui.show()
-    panel.select_group("Image")
+    panel.select_group("Image Editing")
     panel.section_buttons["Masks"].setChecked(True)
     panel.section_buttons["Masks"].setChecked(False)
     assert calls == ['']
@@ -61,7 +61,7 @@ def test_toolbar_has_profiles_and_view_controls(app_components):
     gui = app_components.gui
     bar = gui.toolBar
     texts = [a.text() for a in bar.actions()]
-    assert {"Load Image", "Save Image", "Reset Zoom", "Re-center", "Grid"} <= set(texts)
+    assert {"Load Image", "Save Image", "Reset Zoom", "Re-Center Image", "Grid"} <= set(texts)
     assert any(t.startswith("Color Profile") for t in texts)
     assert not any(w.toolTip() == "Image operations" for w in bar.findChildren(QtWidgets.QToolButton))  # P9.6
     assert gui.machine_profile_combobox.parentWidget() is bar
@@ -89,7 +89,7 @@ def test_p97_color_section_compact_and_stable(app_components):
     c = app_components
     gui, panel = c.gui, c.panel_buttons
     gui.show()
-    panel.select_group("Image")
+    panel.select_group("Image Editing")
     panel.section_buttons["Color"].setChecked(True)
     section = gui.image_color_frame
     sizes = set()
@@ -112,7 +112,8 @@ def test_p97_color_section_compact_and_stable(app_components):
 def test_p98_text_section_properties_on_top_and_style_toggles(app_components):
     gui, panel = app_components.gui, app_components.panel_buttons
     gui.show()
-    panel.select_group("Text")
+    panel.select_group("Image Editing")
+    panel.section_buttons["Text and Shapes"].setChecked(True)
     assert gui.groupBox_11.y() < gui.groupBox_12.y()  # properties above the overlay list
     for name in ("text_bold_checkbox", "text_italic_checkbox", "text_underline_checkbox", "text_strike_checkbox"):
         button = getattr(gui, name)
@@ -142,8 +143,8 @@ def test_p98_color_buttons_keep_a_visible_icon(app_components):
 def test_p10_panel_has_one_fixed_width_and_every_section_fits(app_components):
     gui, panel = app_components.gui, app_components.panel_buttons
     gui.show()
-    width = panel.sections[MainLayout.WIDTH_SECTION].width()
-    assert width == panel.width
+    width = panel.width
+    assert width == getattr(gui, MainLayout.WIDTH_SOURCE).sizeHint().width()
     widths = set()
     for group, (_, entries) in MainLayout.GROUPS.items():
         panel.select_group(group)
@@ -170,7 +171,7 @@ def test_p10_no_section_is_wider_than_images_with_real_fonts():
                          cwd=Path(__file__).parents[1])
     assert out.returncode == 0, out.stderr[-2000:]
     result = json.loads(out.stdout.strip().splitlines()[-1])
-    images = result["Images"]
+    images = result.pop("_images")
     too_wide = {label: width for label, width in result.items() if width > images}
     assert not too_wide, f"sections wider than Images ({images}px): {too_wide}"
 
@@ -250,7 +251,7 @@ def test_p106_spin_box_arrow_click_steps_the_value(app_components):
     gui = app_components.gui
     box = gui.pen_width_spinbox
     gui.show()
-    app_components.panel_buttons.select_group("Image")
+    app_components.panel_buttons.select_group("Image Editing")
     app_components.panel_buttons.section_buttons["Color"].setChecked(True)
     QtWidgets.QApplication.processEvents()
     box.setEnabled(True)
@@ -335,7 +336,7 @@ def test_p1210_pinned_sections_stay_visible_in_every_group(app_components):
     c = app_components
     gui, panel = c.gui, c.panel_buttons
     gui.show()
-    panel.select_group("Image")
+    panel.select_group("Image Editing")
     panel.section_buttons["Masks"].setChecked(True)
     pin = panel.pin_buttons["Masks"]
     assert pin.parentWidget() is gui.draw_mask_groupbox and pin.isCheckable() and not pin.text()
@@ -354,7 +355,7 @@ def test_p1210_pinned_sections_stay_visible_in_every_group(app_components):
     panel.select_group("Hatching")
     pin.click()                                                                     # unpinned: closes at once
     assert not gui.draw_mask_groupbox.isVisible()
-    panel.select_group("Image")
+    panel.select_group("Image Editing")
     panel.section_buttons["Masks"].setChecked(True)
     pin.click()
     pin.click()                                                                     # unpinned while active: stays
@@ -364,7 +365,7 @@ def test_p1210_pinned_sections_stay_visible_in_every_group(app_components):
 
 def test_p1210_pin_pictogram_outline_and_filled(app_components):
     from PyQt6 import QtGui
-    pin = app_components.panel_buttons.pin_buttons["Images"]
+    pin = app_components.panel_buttons.pin_buttons["Adjust"]
     icon = pin.icon()
     off = icon.pixmap(16, 16, QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off).toImage()
     on = icon.pixmap(16, 16, QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.On).toImage()

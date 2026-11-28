@@ -285,7 +285,7 @@ def test_masks_and_images_sections_have_taller_lists_and_imprint_buttons(app_com
     assert gui.imprint_mask_button.property("styleClass") == "ImprintButton"
     assert gui.actionImprint_Masks in gui.toolBar.actions()
     assert gui.imprint_mask_button.parentWidget() is gui.masks_list_widget.parentWidget()
-    assert gui.toolbar_colors_label.parentWidget() is gui.toolBar
+    assert gui.toolbar_colors_label.parentWidget() is gui.image_toolBar
     load_image(app_components, _image())
     assert gui.toolbar_colors_label.text() == gui.number_of_colors_label.text().split(": ")[1] + " colors"
 
@@ -305,3 +305,17 @@ def test_lift_and_imprint_all_are_off_at_start(app_components):
     gui = app_components.gui
     assert not gui.imprint_mask_button.isEnabled() and not gui.actionImprint_Masks.isEnabled()
     assert not gui.move_masked_area_button.isEnabled()  # nothing selected
+
+
+def test_masks_can_be_renamed_and_keep_the_name(masked):
+    c = masked
+    _draw_rect_mask(c, 10, 10, 19, 19)
+    _draw_rect_mask(c, 35, 10, 44, 19)
+    widget = c.gui.masks_list_widget
+    rename = widget._rename
+    assert widget.contextMenuPolicy() == QtCore.Qt.ContextMenuPolicy.CustomContextMenu
+    assert rename.current_name(widget.item(0)) == "rectangle-mask 1"
+    rename.rename(widget.item(0), "Eye")
+    assert widget.item(0).text() == "Eye (100 pixels)"
+    _draw_rect_mask(c, 60, 10, 64, 14)  # the list is rebuilt: the name stays
+    assert widget.item(0).text().startswith("Eye (") and widget.count() == 3

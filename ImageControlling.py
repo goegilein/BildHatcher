@@ -11,6 +11,7 @@ from PyQt6.QtGui import QPen, QColor, QImage, QPainter
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6 import uic
 from PIL import Image
+import math
 import numpy as np
 import io
 from collections import defaultdict
@@ -20,7 +21,13 @@ from core.image_doc import ImageDocument
 
 log = logging.getLogger(__name__)
 from PathManager import get_gui_file_path
+import CustomUiElements
 from ImageUpscaling import ImageUpscaler
+
+
+def image_name(file_path):
+    """The name of an image in the list: the file name without its extension."""
+    return os.path.splitext(os.path.basename(str(file_path)))[0]
 
 
 class BaseFunctions:
@@ -141,6 +148,7 @@ class BaseFunctions:
 
         # Bind event for selection change
         self.images_ListWidget.itemSelectionChanged.connect(self.change_image)
+        CustomUiElements.enable_rename(self.images_ListWidget)  # right click -> Rename
 
     def load_image(self, file_path=None):
         if not file_path or not isinstance(file_path, (str, Path)):
@@ -158,7 +166,7 @@ class BaseFunctions:
             image_matrix, pixel_per_mm = self.read_image_file(file_path, self.action_white_is_background.isChecked())
             self.changeing_image = True
             img_obj = ImageDocument(image_matrix, image_matrix, pixel_per_mm, pixel_per_mm)
-            self.add_listbox_item(img_obj, os.path.basename(file_path), set_selected=True)
+            self.add_listbox_item(img_obj, image_name(file_path), set_selected=True)
             self.changeing_image = False
             self.set_handler_data(new_image=True)
             self.update_dimension_fields()
@@ -259,7 +267,7 @@ class BaseFunctions:
 
         # PNG/SVG keep the transparent background, JPEG/BMP get a white one
         filters = ["PNG Files (*.png)", "SVG Files (*.svg)", "JPEG Files (*.jpg *.jpeg)", "BMP Files (*.bmp)"]
-        base_name = os.path.splitext(self.active_image_item.text())[0]
+        base_name = self.active_image_item.text()  # (names have no file extension)
         default_path = os.path.join(self.last_directory, base_name) if self.last_directory else base_name
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self.gui, "Save Image", default_path, ";;".join(filters), initialFilter=self.last_save_filter
@@ -386,55 +394,63 @@ class BaseFunctions:
         self.changeing_image = True
         image_name = self.active_image_item.text()
         ppm, ppm_original = self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original()
-        self.add_listbox_item(ImageDocument(current_image_matrix, current_image_matrix, ppm, ppm_original), image_name + "_unsplit", set_selected=True)
+        source = self.get_active_img_obj()
+        self.add_listbox_item(self._inherit_center(ImageDocument(current_image_matrix, current_image_matrix, ppm, ppm_original), source), image_name + "_unsplit", set_selected=True)
         for color in colors:
             layer = np.where((packed == color)[..., None], current_image_matrix, 0).astype(np.uint8)
             rgb = tuple(int(v) for v in np.array([color], np.uint32).view(np.uint8)[:3])
-            self.add_listbox_item(ImageDocument(layer, layer, ppm, ppm_original), str(rgb))
+            self.add_listbox_item(self._inherit_center(ImageDocument(layer, layer, ppm, ppm_original), source), str(rgb))
         self.changeing_image = False
 
     def add_image(self):
         image_name = self.active_image_item.text()
         img_obj = ImageDocument(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
-        self.add_listbox_item(img_obj, image_name + "_edited", set_selected=True)
+        self.add_listbox_item(self._inherit_center(img_obj), image_name + "_edited", set_selected=True)
 
     def keep_changes(self):
         with self._record_matrix("Set as Original"):
             img_obj = ImageDocument(self.get_active_image_matrix(), self.get_active_image_matrix(), self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
+            self._inherit_center(img_obj)
             self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
             self.set_handler_data(new_image = True)
     
-    def rot_image_180(self):
-        with self._record_matrix("Rotate 180°"):
-            image_matrix = np.flipud(np.fliplr(self.get_active_image_matrix()))
-            img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-            img_obj.image_matrix = image_matrix.copy()
-            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-            self.set_handler_data(new_image = True)
-    
-    def rot_image_90_clockwise(self):
-        with self._record_matrix("Rotate 90° CW"):
-            image_matrix = np.rot90(self.get_active_image_matrix(), k=-1)  # Rotate 90 degrees clockwise
-            img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-            img_obj.image_matrix = image_matrix.copy()
-            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-            self.set_handler_data(new_image = True)
-    
-    def mirror_image_horizontal(self):
-        with self._record_matrix("Mirror Horizontal"):
-            image_matrix = np.fliplr(self.get_active_image_matrix())
-            img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-            img_obj.image_matrix = image_matrix.copy()
+    def _transform_image(self, description, operation, move_center):
+        """Rotate / mirror the active image; its hatch centre moves along (move_center(x, y, w, h) -> x, y)."""
+        with self._record_matrix(description):
+            img_obj = self.get_active_img_obj()
+            h, w = img_obj.image_matrix.shape[:2]
+            x, y = img_obj.hatch_center()
+            img_obj.image_matrix = operation(img_obj.image_matrix).copy()
+            img_obj.set_center(*move_center(x, y, w, h))
             self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
             self.set_handler_data(new_image = True)
 
+    def rot_image_180(self):
+        self._transform_image("Rotate 180°", lambda m: np.flipud(np.fliplr(m)),
+                              lambda x, y, w, h: (w - 1 - x, h - 1 - y))
+
+    def rot_image_90_clockwise(self):
+        self._transform_image("Rotate 90° CW", lambda m: np.rot90(m, k=-1),  # Rotate 90 degrees clockwise
+                              lambda x, y, w, h: (h - 1 - y, x))
+
+    def mirror_image_horizontal(self):
+        self._transform_image("Mirror Horizontal", np.fliplr, lambda x, y, w, h: (w - 1 - x, y))
+
     def mirror_image_vertical(self):
-        with self._record_matrix("Mirror Vertical"):
-            image_matrix = np.flipud(self.get_active_image_matrix())
-            img_obj = self.active_image_item.data(QtCore.Qt.ItemDataRole.UserRole)
-            img_obj.image_matrix = image_matrix.copy()
-            self.active_image_item.setData(QtCore.Qt.ItemDataRole.UserRole, img_obj)
-            self.set_handler_data(new_image = True)
+        self._transform_image("Mirror Vertical", np.flipud, lambda x, y, w, h: (x, h - 1 - y))
+
+    def _inherit_center(self, img_obj, source=None, offset=None):
+        """A new image made from `source` (default: the active one) keeps its hatch centre; offset (dx, dy): the new
+        image's top left corner in the source's pixels (crops)."""
+        if source is None and self.active_image_item is not None:
+            source = self.get_active_img_obj()
+        if source is None:
+            return img_obj
+        if offset is not None or source.image_matrix.shape[:2] == img_obj.image_matrix.shape[:2]:
+            dx, dy = offset or (0, 0)
+            x, y = source.hatch_center()
+            img_obj.set_center(x - dx, y - dy)
+        return img_obj
 
     def remove_image(self):
         selected_items = self.images_ListWidget.selectedItems()
@@ -497,7 +513,8 @@ class BaseFunctions:
         # B27: read the pixel size before removing, the active item may be one of the removed images
         first_obj = selected_images[0].data(QtCore.Qt.ItemDataRole.UserRole)
         self.remove_image()
-        img_obj = ImageDocument(combined_image, combined_image, first_obj.pixel_per_mm, first_obj.pixel_per_mm_original)
+        img_obj = self._inherit_center(ImageDocument(combined_image, combined_image, first_obj.pixel_per_mm,
+                                                     first_obj.pixel_per_mm_original), first_obj)
         self.add_listbox_item(img_obj, "combined", set_selected=True)
 
     def cut_to_mask(self):
@@ -530,6 +547,7 @@ class BaseFunctions:
 
         image_name = self.active_image_item.text()
         img_obj = ImageDocument(output_image, output_image, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
+        self._inherit_center(img_obj, offset=(col_min, row_min))
         self.add_listbox_item(img_obj, image_name + "_cut", set_selected=True)
 
     def crop_background(self):
@@ -563,6 +581,7 @@ class BaseFunctions:
         
         # Create a new image object with the cropped image
         img_obj = ImageDocument(image_cropped, image_cropped, self.get_active_pixel_per_mm(), self.get_active_pixel_per_mm_original())
+        self._inherit_center(img_obj, offset=(max(col_min - 1, 0) - pad[1][0], max(row_min - 1, 0) - pad[0][0]))
         
         # Add the cropped image to the list
         image_name = self.active_image_item.text()
@@ -582,12 +601,7 @@ class BaseFunctions:
             return
 
         # Get original filename
-        active_name = self.active_image_item.text()
-        if active_name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
-            base, ext = os.path.splitext(active_name)
-            upscaled_name = f"{base}_2x{ext}"
-        else:
-            upscaled_name = f"{active_name}_2x"
+        upscaled_name = f"{self.active_image_item.text()}_2x"
 
         # Initialize progress feedback dialog
         progress_dialog = QtWidgets.QProgressDialog(
@@ -721,6 +735,8 @@ class _UpscaleWorker(QtCore.QThread):
 
 
 class ImageMover(QtCore.QObject):
+    center_changed = QtCore.pyqtSignal()  # the hatch centre (or the image it belongs to) changed
+
     def __init__(self, data_handler, event_handler, gui):
         super().__init__()
         self.data_handler = data_handler
@@ -794,8 +810,18 @@ class ImageMover(QtCore.QObject):
         self.reset_image_center_button.clicked.connect(self.reset_image_center_to_default)
         self.set_image_center_button.clicked.connect(self.toggle_set_image_center)
         self.show_image_center_button.clicked.connect(self.toggle_show_image_center)
+        # the centre can be typed in (mm from the top left corner of the image)
+        self._showing_center_values = False
+        for spin in (self.h_center_spinbox, self.v_center_spinbox):
+            spin.setEnabled(True)
+            spin.setDecimals(2)
+            spin.setKeyboardTracking(False)  # one change per typed value, not per digit
+            spin.setToolTip("Hatch center (mm from the top left corner of the image)")
+            spin.valueChanged.connect(self.on_center_edited)
 
-        self.data_handler.add_image_changed_callback(self.reset_image_center_to_default)
+        # the centre is a property of every image: switching images brings their own centre back
+        self.data_handler.add_image_changed_callback(self.load_image_center)
+        self.data_handler.image_shape_changed_callback_list.append(self.load_image_center)
         self.data_handler.add_image_resized_callback(self.reset_image_center_to_current)
 
         # Touchscreen support hook
@@ -991,44 +1017,60 @@ class ImageMover(QtCore.QObject):
         self.grid_on = not self.grid_on
         self.update_grid()
 
+    GRID_Z = 1  # grid lines (QGraphicsLineItem with this z value); the centre cross has 2
+    GRID_AXIS_WIDTH = 3  # the two grid lines through the hatch centre (px on the screen)
+    GRID_MAX_LINES = 500  # per direction and side, keeps it light
+
+    def grid_origin(self):
+        """Scene position of the hatch centre (the grid is aligned to it); the scene origin without an image."""
+        if self.current_image_center is None or self.data_handler.image_matrix is None:
+            return 0.0, 0.0
+        return self.data_handler.image_to_scene_coords(*self.current_image_center)
+
     def update_grid(self):
-        # Clear previously added lines
+        """Grid aligned to the hatch centre of the image. The two lines through the centre are clearly thicker: with
+        the grid the centre is always visible (part of the grid, independent of Show Center)."""
         for item in self.image_scene.items():
-            if isinstance(item, QtWidgets.QGraphicsLineItem) and item.zValue() == 1:
+            if isinstance(item, QtWidgets.QGraphicsLineItem) and item.zValue() == self.GRID_Z:
                 self.image_scene.removeItem(item)
+        self.grid_axes = []
+        if not (self.grid_on and self.grid_distance_spinbox.value() > 0):
+            return
+        # has to work on the default scaling: the scene shows 1 mm as default_pixel_per_mm scene units
+        step = self.grid_distance_spinbox.value() * self.data_handler.default_pixel_per_mm
+        ox, oy = self.grid_origin()
 
-        if self.grid_on and self.grid_distance_spinbox.value() > 0:
-            grid_distance_mm = self.grid_distance_spinbox.value()
-            default_pixel_per_mm = self.data_handler.default_pixel_per_mm  # has to work on original image scaling to account for changes in pixel size
-            grid_distance_px = grid_distance_mm * default_pixel_per_mm #* self.data_handler.image_scaling
+        # cover the image plus one view size around it (also when zoomed out)
+        viewport_size = self.image_canvas.viewport().size()
+        zoom = self.image_canvas.transform().m11() or 1
+        margin_x, margin_y = viewport_size.width() / zoom, viewport_size.height() / zoom
+        image_rect = self.image_item.sceneBoundingRect()
+        limit = self.GRID_MAX_LINES * step
+        left = max(min(image_rect.left() - margin_x, ox), ox - limit)
+        right = min(max(image_rect.right() + margin_x, ox), ox + limit)
+        top = max(min(image_rect.top() - margin_y, oy), oy - limit)
+        bottom = min(max(image_rect.bottom() + margin_y, oy), oy + limit)
 
-            # cover the image plus one view size around it (also when zoomed out)
-            viewport_size = self.image_canvas.viewport().size()
-            zoom = self.image_canvas.transform().m11() or 1
-            image_rect = self.image_item.sceneBoundingRect()
-            width = image_rect.right() + viewport_size.width() / zoom
-            height = image_rect.bottom() + viewport_size.height() / zoom
-            width, height = min(width, 500 * grid_distance_px), min(height, 500 * grid_distance_px)  # keep it light
+        color = QtGui.QColor(QtCore.Qt.GlobalColor.gray)
+        thin = QtGui.QPen(color, 0)  # cosmetic: 1 px at every zoom
+        thick = QtGui.QPen(color, self.GRID_AXIS_WIDTH)
+        thick.setCosmetic(True)
 
-            # Draw vertical grid lines and always start from the middle
-            x = 0
-            while x < width:
-                line = self.image_scene.addLine(x, -height, x, height, QtGui.QPen(QtCore.Qt.GlobalColor.gray))
-                line.setZValue(1)  # Ensure the grid lines are in front of the image
-                if not x==0:
-                    line = self.image_scene.addLine(-x, -height, -x, height, QtGui.QPen(QtCore.Qt.GlobalColor.gray))
-                    line.setZValue(1)  # Ensure the grid lines are in front of the image
-                x += grid_distance_px
+        def add(x1, y1, x2, y2, pen):
+            line = self.image_scene.addLine(x1, y1, x2, y2, pen)
+            line.setZValue(self.GRID_Z)  # in front of the image
+            return line
 
-            # Draw horizontal grid lines
-            y = 0
-            while y < height:
-                line = self.image_scene.addLine(-width, y, width, y, QtGui.QPen(QtCore.Qt.GlobalColor.gray))
-                line.setZValue(1)  # Ensure the grid lines are in front of the image
-                if not y==0:
-                    line = self.image_scene.addLine(-width, -y, width, -y, QtGui.QPen(QtCore.Qt.GlobalColor.gray))
-                    line.setZValue(1)  # Ensure the grid lines are in front of the image
-                y += grid_distance_px
+        def positions(origin, low, high):  # every step from the centre on, inside [low, high], without the centre
+            first = math.ceil((low - origin) / step - 1e-9)
+            last = math.floor((high - origin) / step + 1e-9)
+            return [origin + i * step for i in range(first, last + 1) if i != 0]
+
+        for x in positions(ox, left, right):
+            add(x, top, x, bottom, thin)
+        for y in positions(oy, top, bottom):
+            add(left, y, right, y, thin)
+        self.grid_axes = [add(ox, top, ox, bottom, thick), add(left, oy, right, oy, thick)]  # the centre
 
     def toggle_set_image_center(self):
         if self.set_image_center_button.isChecked():
@@ -1042,8 +1084,6 @@ class ImageMover(QtCore.QObject):
             y_canvas = event.position().y()
 
             new_x, new_y = self.data_handler.canvas_to_image_coords(x_canvas, y_canvas)
-            #we have to flip the y coordinate as the image coordinates are flipped in y direction compared to the canvas coordinates
-            # new_y = self.data_handler.image_matrix.shape[0] - new_y
             self.current_image_center = [new_x, new_y]
 
             self.update_image_center()
@@ -1052,37 +1092,75 @@ class ImageMover(QtCore.QObject):
             self.set_image_center_button.setChecked(False)
             self.setting_image_center = False
 
+    def set_image_center_mm(self, x_mm, y_mm):
+        """Hatch centre in mm from the top left corner of the image."""
+        pixel_per_mm = self.data_handler.pixel_per_mm
+        if self.data_handler.image_matrix is None or not pixel_per_mm:
+            return
+        self.current_image_center = [x_mm * pixel_per_mm, y_mm * pixel_per_mm]
+        self.update_image_center()
+
+    def on_center_edited(self, *_):
+        if not self._showing_center_values:
+            self.set_image_center_mm(self.h_center_spinbox.value(), self.v_center_spinbox.value())
+
+    def image_center_mm(self):
+        """(x, y) of the hatch centre in mm from the top left corner of the image, None without an image."""
+        pixel_per_mm = self.data_handler.pixel_per_mm
+        if self.current_image_center is None or self.data_handler.image_matrix is None or not pixel_per_mm:
+            return None
+        return self.current_image_center[0] / pixel_per_mm, self.current_image_center[1] / pixel_per_mm
+
+    def load_image_center(self):
+        """Take the centre of the (new) active image (it is remembered with every image)."""
+        document = self.data_handler.active_document
+        if document is None or self.data_handler.image_matrix is None:
+            self.current_image_center = None
+            self.data_handler.center_for_hatch = None
+            self.update_grid()
+            self.redraw_center_cross()
+            self.center_changed.emit()
+            return
+        self.current_image_center = document.hatch_center()
+        self.update_image_center()
+
     def reset_image_center_to_default(self):
-        image_matrix = self.data_handler.image_matrix
-        if image_matrix is None or self.data_handler.image_matrix_original is None:
+        document = self.data_handler.active_document
+        if document is None or self.data_handler.image_matrix is None:
             self.data_handler.center_for_hatch = None
             return
-
         # B15: use the current image (the original is not rotated/cropped)
-        self.current_image_center = [(image_matrix.shape[1]-1)/2, (image_matrix.shape[0]-1)/2]
-        
+        self.current_image_center = document.default_center()
         self.update_image_center()
-    
+
     def reset_image_center_to_current(self):
         if self.current_image_center is None:
-            self.reset_image_center_to_default()
+            self.load_image_center()
         else:
             self.update_image_center()
 
-    
     def update_image_center(self):
-
+        if self.current_image_center is None:
+            return
         self.data_handler.center_for_hatch = self.current_image_center
+        document = self.data_handler.active_document
+        if document is not None:
+            document.set_center(*self.current_image_center)  # remembered with the image
 
         #update gui as well
-        pixel_per_mm = self.data_handler.pixel_per_mm
-        x_mm = self.current_image_center[0] / pixel_per_mm
-        y_mm = self.current_image_center[1] / pixel_per_mm
-        self.gui.h_center_spinbox.setValue(x_mm)
-        self.gui.v_center_spinbox.setValue(y_mm)
+        x_mm, y_mm = self.image_center_mm() or (0.0, 0.0)
+        self._showing_center_values = True
+        try:
+            self.h_center_spinbox.setValue(x_mm)
+            self.v_center_spinbox.setValue(y_mm)
+        finally:
+            self._showing_center_values = False
 
         self.redraw_center_cross()
-    
+        if self.grid_on:
+            self.update_grid()  # the grid is aligned to the centre
+        self.center_changed.emit()
+
     def toggle_show_image_center(self):
         if self.showing_image_center:
             # Remove any existing crosses
@@ -1102,7 +1180,7 @@ class ImageMover(QtCore.QObject):
                 if isinstance(item, QGraphicsLineItem) and item.zValue() == 2:
                     self.image_scene.removeItem(item)
 
-            if not self.showing_image_center:
+            if not self.showing_image_center or self.current_image_center is None:
                 return
 
             #get scene coordinates directly

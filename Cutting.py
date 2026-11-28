@@ -12,6 +12,7 @@ import math
 
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets, sip
+import CustomUiElements
 from PyQt6.QtGui import QColor, QPainterPath, QPen
 
 import icons
@@ -120,29 +121,47 @@ class CutOverlay(OverlayItem):
         pass
 
     # --- interaction ---
+    CORNERS = {"top_left": ("topLeft", "bottomRight"), "top_right": ("topRight", "bottomLeft"),
+               "bottom_left": ("bottomLeft", "topRight"), "bottom_right": ("bottomRight", "topLeft")}
+
+    def mousePressEvent(self, event):
+        super().mousePressEvent(event)
+        if self._active_handle in self.CORNERS:  # a resize starts: remember what stays where it is
+            grabbed, opposite = self.CORNERS[self._active_handle]
+            self._resize_grab = getattr(self._rect, grabbed)() - self._mouse_down_pos  # mouse -> exact corner
+            self._resize_anchor = self.mapToParent(getattr(self._rect, opposite)())  # in image pixels
+            self._resize_mirrored = self.mirrored
+
+    def mouseMoveEvent(self, event):
+        if self._active_handle in self.CORNERS:
+            # event.pos() is mapped with the item's position before the last resize step (the item re-centres on
+            # every step): map the scene position with the current one, else the error adds up step by step
+            self.do_resize(self.mapFromScene(event.scenePos()))
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
     def do_resize(self, pos):
-        """Corner handles: the opposite corner stays (fixed position: the centre stays, symmetric resize)."""
-        start = self._start_rect
+        """Corner handles: the grabbed corner follows the mouse, the opposite corner stays where it was when the
+        drag started (fixed position: the centre stays, symmetric resize)."""
+        corner = pos + getattr(self, "_resize_grab", QtCore.QPointF())
         if self.fixed:
-            w, h = abs(pos.x()) * 2, abs(pos.y()) * 2
+            w, h = abs(corner.x()) * 2, abs(corner.y()) * 2
             new_rect = QtCore.QRectF(-w / 2, -h / 2, w, h)
         else:
-            new_rect = QtCore.QRectF(start)
-            delta = pos - self._mouse_down_pos
-            corner = {"top_left": new_rect.topLeft, "top_right": new_rect.topRight,
-                      "bottom_left": new_rect.bottomLeft, "bottom_right": new_rect.bottomRight}[self._active_handle]()
-            setter = {"top_left": new_rect.setTopLeft, "top_right": new_rect.setTopRight,
-                      "bottom_left": new_rect.setBottomLeft, "bottom_right": new_rect.setBottomRight}
-            setter[self._active_handle](corner + delta)
-            new_rect = new_rect.normalized()
+            anchor = self.mapFromParent(self._resize_anchor)  # (the item moves while resizing: map every time)
+            new_rect = QtCore.QRectF(anchor, corner).normalized()
+            if self.shape_type == "line":  # dragged across the fixed end in one direction only: the diagonal tips
+                grabbed = self.CORNERS[self._active_handle][0]
+                flipped_x = (corner.x() - anchor.x()) * (1 if grabbed.endswith("Right") else -1) < 0
+                flipped_y = (corner.y() - anchor.y()) * (1 if grabbed.startswith("bottom") else -1) < 0
+                self.mirrored = self._resize_mirrored != (flipped_x != flipped_y)
         w, h = max(new_rect.width(), MIN_SIZE_PX), max(new_rect.height(), MIN_SIZE_PX)
         center = new_rect.center()
         self.prepareGeometryChange()
         # keep the local frame centred: move the item by the shift of the centre (rotation included)
         new_pos = self.mapToParent(center)
         self._rect = QtCore.QRectF(-w / 2, -h / 2, w, h)
-        self._start_rect = QtCore.QRectF(self._rect)
-        self._mouse_down_pos = self._mouse_down_pos - center
         self.update_transform_origin()
         self.setPos(new_pos)
         self.update()
@@ -314,6 +333,8 @@ class CuttingManager(QtCore.QObject):
         for shape, button in gui.cut_shape_buttons.items():
             button.toggled.connect(lambda on, s=shape: self.set_draw_shape(s if on else None, from_button=True))
         gui.cut_list_widget.itemSelectionChanged.connect(self._on_list_selection)
+        CustomUiElements.enable_rename(gui.cut_list_widget, self._rename_item,
+                                       lambda entry: entry.text().removesuffix("  (fixed)"))
         gui.image_scene.selectionChanged.connect(self._on_scene_selection)
         gui.cut_width_spinbox.valueChanged.connect(self._on_size_edited)
         gui.cut_height_spinbox.valueChanged.connect(self._on_size_edited)
@@ -327,6 +348,7 @@ class CuttingManager(QtCore.QObject):
         gui.cut_use_as_hatch_button.clicked.connect(self.use_selected_as_hatch)
         for spin in (gui.h_center_spinbox, gui.v_center_spinbox):  # the centre display follows the hatch centre
             spin.valueChanged.connect(self._on_hatch_center_changed)
+        self.on_tool_activated = None  # set by Tools.SingleActiveTool
         event_handler.add_canvas_event_filter(self._canvas_filter)  # while drawing, no other tool sees the mouse
         self._update_ui_from_selected()
 
@@ -356,6 +378,8 @@ class CuttingManager(QtCore.QObject):
     # --- drawing ---
     def set_draw_shape(self, shape, from_button=False):
         self.draw_shape = shape
+        if shape and self.on_tool_activated is not None:
+            self.on_tool_activated()  # Tools.SingleActiveTool: only one canvas tool at a time
         for s, button in self.gui.cut_shape_buttons.items():
             if button.isChecked() != (s == shape):
                 button.blockSignals(True)
@@ -448,6 +472,12 @@ class CuttingManager(QtCore.QObject):
     def _sync_data_handler_lists(self):  # interface of the TG undo actions
         pass
 
+    def _rename_item(self, entry, name):
+        item = entry.data(QtCore.Qt.ItemDataRole.UserRole)
+        if item is not None:
+            item.list_name = name
+        self._update_overlay_list()
+
     def _update_overlay_list(self):
         widget = self.gui.cut_list_widget
         widget.blockSignals(True)
@@ -456,7 +486,8 @@ class CuttingManager(QtCore.QObject):
             counts = {}
             for item in self.store.items:
                 counts[item.shape_type] = counts.get(item.shape_type, 0) + 1
-                name = f"{item.shape_type.upper()} #{counts[item.shape_type]}" + ("  (fixed)" if item.fixed else "")
+                name = (getattr(item, "list_name", None) or f"{item.shape_type.upper()} #{counts[item.shape_type]}") \
+                    + ("  (fixed)" if item.fixed else "")
                 entry = QtWidgets.QListWidgetItem(name)
                 entry.setData(QtCore.Qt.ItemDataRole.UserRole, item)
                 widget.addItem(entry)

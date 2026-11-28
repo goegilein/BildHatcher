@@ -1,4 +1,5 @@
 from PyQt6 import QtWidgets, QtCore
+import CustomUiElements
 from PyQt6.QtWidgets import QFileDialog
 import numpy as np
 import datetime
@@ -39,6 +40,7 @@ class Parser:
         self.add_process_block_button = gui.add_process_block_button
         self.remove_process_block_button = gui.remove_process_block_button
         self.process_listWidget = gui.process_listWidget
+        CustomUiElements.enable_rename(self.process_listWidget)  # right click -> Rename
         self.air_assist_combobox = gui.air_assist_combobox
         self.power_mode_combobox = gui.power_mode_combobox
 
