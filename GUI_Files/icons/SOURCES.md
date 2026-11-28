@@ -108,3 +108,6 @@ Licences: Fluent Emoji Flat © Microsoft, MIT · Flat Color Icons © Icons8, MIT
 | cut-to-hatch | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | cut-export | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
 | geo-hexagon | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| group-image-edit | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| image-size | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |
+| image-center | drawn for BildHatcher (tools/make_icons.py) | BildHatcher |

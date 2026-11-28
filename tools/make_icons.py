@@ -552,6 +552,18 @@ def grid(crossed=False):
     return svg(*lines, eye(16.8, 18, 10.4, crossed))
 
 
+def image_size():
+    """A square with a double arrow below (width) and one on the right (height)."""
+    return svg(rect(2.5, 2.5, 13, 13, SKY, INK, 1.6, 0.8),
+               double_arrow((2.5, 20.5), (15.5, 20.5), BLACK, 1.5, 2.6),
+               double_arrow((20.5, 2.5), (20.5, 15.5), BLACK, 1.5, 2.6))
+
+
+def image_edit():
+    """The picture with a yellow pencil pointing at its middle."""
+    return svg(picture(1.5, 4.5, 18, 15), pencil((10.5, 12), -45, 16, 4.4))
+
+
 def zoom_reset():
     return svg(line([(13.8, 13.8), (16.6, 16.6)], INK, 2.8), circle(10.6, 10.6, 4.2, SKY, INK, 1.6), reset_arrow())
 
@@ -935,6 +947,9 @@ ICONS = {
     "export": export_icon,
     # --- group strip ---
     "group-image": lambda: svg(picture(2, 3.5, 20, 17)),
+    "group-image-edit": image_edit,
+    "image-size": image_size,
+    "image-center": lambda: svg(crosshair(12, 12, 6.2)),
     "group-text": group_text,
     "group-hatching": lambda: svg(hatch_square()),
     "group-automation": robot,

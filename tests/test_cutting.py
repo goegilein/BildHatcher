@@ -221,3 +221,88 @@ def test_cutting_hatch_is_plotted_and_exported(cutting):
     cutting.hatch_line_plotter.plot_data()
     gcode = run_parser(cutting)
     assert gcode.count("G1") >= 4  # the four burnt edges of the rectangle
+
+
+def _drag_handle(cutting, item, handle, steps):
+    """Press on a corner handle of `item` and move the mouse in small steps (image pixels), like the user."""
+    from PyQt6.QtTest import QTest
+    gui = cutting.gui
+    viewport = gui.image_canvas.viewport()
+
+    def view_point(p):
+        return gui.image_canvas.mapFromScene(item.mapToScene(p))
+    start = item.handle_rects()[handle].center()
+    QTest.mousePress(viewport, QtCore.Qt.MouseButton.LeftButton, QtCore.Qt.KeyboardModifier.NoModifier,
+                     view_point(start))
+    image_start = item.mapToParent(start)
+    for dx, dy in steps:
+        target = gui.image_item.mapToScene(image_start + QtCore.QPointF(dx, dy))
+        QTest.mouseMove(viewport, gui.image_canvas.mapFromScene(target))
+    QTest.mouseRelease(viewport, QtCore.Qt.MouseButton.LeftButton, QtCore.Qt.KeyboardModifier.NoModifier,
+                       gui.image_canvas.mapFromScene(target))
+
+
+@pytest.fixture
+def zoomed(cutting):
+    gui = cutting.gui
+    gui.resize(1200, 800)
+    gui.show()
+    QtWidgets.QApplication.processEvents()
+    gui.image_canvas.resetTransform()
+    gui.image_canvas.scale(30, 30)  # many screen px per image px: the moves land (almost) exactly
+    gui.image_canvas.centerOn(gui.image_item.mapToScene(QtCore.QPointF(100, 50)))
+    QtWidgets.QApplication.processEvents()
+    yield cutting
+    gui.hide()
+
+
+@pytest.mark.parametrize("rotation", [0, 30])
+def test_resize_by_dragging_a_corner_follows_the_mouse(zoomed, rotation):
+    m = zoomed.cutting
+    item = m.add_overlay("rectangle", (0, 0), 6, 4, rotation=rotation)  # 60 x 40 px around (99.5, 49.5)
+    fixed_corner = item.mapToParent(item._rect.topLeft())
+    _drag_handle(zoomed, item, "bottom_right", [(1, 0), (2, 1), (3, 1), (4, 2), (5, 2)])  # many small moves
+    assert item.mapToParent(item._rect.topLeft()) == pytest.approx(fixed_corner, abs=0.3)  # opposite corner stays
+    # the grabbed corner moved by the mouse movement (5, 2) in image pixels, no more
+    w, h = item.size()
+    if rotation == 0:
+        assert (w, h) == pytest.approx((65, 42), abs=0.6)
+    else:  # the mouse movement in the item's own (rotated) axes
+        a = math.radians(rotation)
+        assert w == pytest.approx(60 + 5 * math.cos(a) + 2 * math.sin(a), abs=0.6)
+        assert h == pytest.approx(40 - 5 * math.sin(a) + 2 * math.cos(a), abs=0.6)
+
+
+def test_resize_fixed_shape_is_symmetric_and_follows_the_mouse(zoomed):
+    m, gui = zoomed.cutting, zoomed.gui
+    item = m.add_overlay("ellipse", (0, 0), 6, 4)
+    gui.cut_fix_checkbox.click()
+    _drag_handle(zoomed, item, "bottom_right", [(1, 1), (2, 1), (3, 2)])
+    assert m.center_mm(item) == pytest.approx((0, 0), abs=0.01)
+    assert item.size() == pytest.approx((66, 44), abs=0.6)
+
+
+def test_dragging_a_line_across_its_fixed_end_tips_it_over(zoomed):
+    m = zoomed.cutting
+    item = m.add_overlay("line", (0, 0), 6, 4)  # top left -> bottom right
+    fixed_end = item.image_outline()[0].copy()
+    _drag_handle(zoomed, item, "bottom_right", [(-20, -10), (-40, -10), (-80, -20)])  # right end goes far left
+    ends = item.image_outline()
+    assert item.mirrored
+    assert any(np.allclose(end, fixed_end, atol=0.6) for end in ends)
+
+
+def test_rename_popups_belong_to_the_window(cutting, monkeypatch):
+    """The section cards are see-through for their children: menu and dialog must not be children of a list."""
+    gui = cutting.gui
+    widget = gui.cut_list_widget
+    cutting.cutting.add_overlay("rectangle", (0, 0), 2, 2)
+    parents = []
+    monkeypatch.setattr(QtWidgets.QMenu, "exec", lambda self, *a: parents.append(self.parent()))
+    monkeypatch.setattr(QtWidgets.QInputDialog, "getText",
+                        lambda parent, *a, **k: (parents.append(parent), ("Cut", True))[1])
+    rename = widget._rename
+    rename.show_menu(widget.visualItemRect(widget.item(0)).center())
+    rename.ask(widget.item(0))
+    assert parents == [gui, gui]
+    assert widget.item(0).text() == "Cut"

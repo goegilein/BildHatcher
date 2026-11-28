@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from PyQt6 import QtCore, QtGui, QtWidgets
+import CustomUiElements
 from PyQt6.QtCore import QRectF
 from PyQt6.QtGui import QImage, QPixmap
 
@@ -98,6 +99,7 @@ class MaskTools:
         # List widget to display masks
         self.masks_list_widget = gui.masks_list_widget
         self.masks_list_widget.itemSelectionChanged.connect(self.on_mask_selected)
+        CustomUiElements.enable_rename(self.masks_list_widget, self.rename_mask, self.mask_name)
         self.update_lift_controls()  # nothing selected / lifted yet: lift and imprint-all buttons off
 
     #Image Masking Functions
@@ -415,13 +417,24 @@ class MaskTools:
         self.update_masks_list_widget()
         self.masks_list_widget.setCurrentRow(len(self.data_handler.masks_list) - 1)
 
+    def mask_name(self, list_item):
+        text = list_item.text()
+        return text.rsplit(" (", 1)[0] if text.endswith(" pixels)") else text
+
+    def rename_mask(self, list_item, name):
+        index = self.masks_list_widget.row(list_item)
+        if 0 <= index < len(self.data_handler.mask_info):
+            self.data_handler.mask_info[index]['name'] = name
+            self.update_masks_list_widget_keep_selection(self.masks_list_widget.currentRow())
+
     def update_masks_list_widget(self):
         """Update the masks list widget display."""
         self.masks_list_widget.clear()
         for idx, mask in enumerate(self.data_handler.masks_list):
             non_nan_count = np.count_nonzero(mask == 1)
             type = self.data_handler.mask_info[idx]['type']
-            item_text = f"{type}-mask {idx + 1} ({non_nan_count} pixels)"
+            name = self.data_handler.mask_info[idx].get('name') or f"{type}-mask {idx + 1}"
+            item_text = f"{name} ({non_nan_count} pixels)"
             self.masks_list_widget.addItem(item_text)
 
     def refresh_mask_outlines(self):
@@ -673,7 +686,8 @@ class MaskTools:
         self.masks_list_widget.clear()
         for idx, mask in enumerate(self.data_handler.masks_list):
             non_nan_count = np.count_nonzero(mask == 1)
-            item_text = f"Mask {idx + 1} ({non_nan_count} pixels)"
+            name = self.data_handler.mask_info[idx].get('name') or f"Mask {idx + 1}"
+            item_text = f"{name} ({non_nan_count} pixels)"
             self.masks_list_widget.addItem(item_text)
         
         # Restore selection

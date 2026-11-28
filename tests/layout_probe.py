@@ -31,5 +31,6 @@ for label, section in panel.sections.items():
     panel.section_buttons[label].setChecked(True)
     app.processEvents()
     result[label] = section.minimumSizeHint().width()
+result["_images"] = gui.images_frame.minimumSizeHint().width()  # the Images drop-down: the width of the panel
 gui.close()
 print(json.dumps(result))

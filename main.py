@@ -96,6 +96,7 @@ def create_main_window():
     gui.image_item.setShapeMode(QtWidgets.QGraphicsPixmapItem.ShapeMode.BoundingRectShape)
     gui.image_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape, True)
     gui.image_canvas.checkerboard_item = gui.image_item  # checkerboard behind transparent pixels
+    theme.refresh_ui_icons(gui)  # the .ui loads the dark pictograms: take those of the current mode (bright start)
     return gui
 
 

@@ -1,5 +1,6 @@
 import math
 from PyQt6 import QtCore, QtGui, QtWidgets, sip
+import CustomUiElements
 from PyQt6.QtGui import QPainterPath, QPen, QBrush, QColor, QFont, QFontDatabase
 from PyQt6.QtWidgets import QGraphicsItem
 from UndoRedo import TGAddOverlayAction, TGDeleteOverlayAction, TGTransformOverlayAction, TGImprintOverlaysAction
@@ -716,6 +717,7 @@ class TextGeometryOverlayManager:
         self.tg_overlay_list_widget = gui.tg_overlay_list_widget
         self.tg_overlay_list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
         self.tg_overlay_list_widget.itemSelectionChanged.connect(self._on_overlay_selected)
+        CustomUiElements.enable_rename(self.tg_overlay_list_widget, self._rename_overlay)
 
         #delete overlay button
         self.delete_tg_overlay_button = gui.delete_tg_overlay_button
@@ -783,6 +785,12 @@ class TextGeometryOverlayManager:
                 self.on_canvas_release(event)
                 return True
 
+    def _image_pos(self, event):
+        """Mouse position of a canvas event in image pixels: the coordinates of the overlays, which are children
+        of the (scaled) image item - scene coordinates put them off towards the top left."""
+        scene = self.gui.image_canvas.mapToScene(event.position().toPoint())
+        return self.gui.image_item.mapFromScene(scene)
+
     def on_canvas_press(self, event):
         """Start drawing a new overlay or select existing one."""
         if self.mode == self.MODE_IDLE:
@@ -814,9 +822,7 @@ class TextGeometryOverlayManager:
         if self.mode == self.MODE_ADD_TEXT:
             if hasattr(self.gui, "image_scene"):
                 self.gui.image_scene.clearSelection()
-            pos_canvas = event.pos()
-            x_scene, y_scene = self.data_handler.canvas_to_scene_coords(pos_canvas.x(), pos_canvas.y())
-            self.drag_start_pos_scene = QtCore.QPointF(x_scene, y_scene)
+            self.drag_start_pos_scene = self._image_pos(event)  # (image pixels: the overlays are children of the image)
             self.drag_item = self.overlay_store.add_text_field(
                 rect=QtCore.QRectF(0, 0, 1, 1),
                 text=self.text_input_lineedit.text() if self.text_input_lineedit else "Text",
@@ -831,9 +837,7 @@ class TextGeometryOverlayManager:
         elif self.mode == self.MODE_ADD_GEOMETRY:
             if hasattr(self.gui, "image_scene"):
                 self.gui.image_scene.clearSelection()
-            pos_canvas = event.pos()
-            x_scene, y_scene = self.data_handler.canvas_to_scene_coords(pos_canvas.x(), pos_canvas.y())
-            self.drag_start_pos_scene = QtCore.QPointF(x_scene, y_scene)
+            self.drag_start_pos_scene = self._image_pos(event)  # (image pixels: the overlays are children of the image)
             self.drag_item = self.overlay_store.add_geometry_item(
                 shape_type=self.current_geometry_type,
                 rect=QtCore.QRectF(0, 0, 1, 1),
@@ -848,8 +852,8 @@ class TextGeometryOverlayManager:
         if self.drag_item is None or self.mode == self.MODE_IDLE:
             return
 
-        pos_canvas = event.pos()
-        x_scene, y_scene = self.data_handler.canvas_to_scene_coords(pos_canvas.x(), pos_canvas.y())
+        point = self._image_pos(event)
+        x_scene, y_scene = point.x(), point.y()  # (image pixels, as the start point)
         
         x_start = self.drag_start_pos_scene.x()
         y_start = self.drag_start_pos_scene.y()
@@ -1201,6 +1205,12 @@ class TextGeometryOverlayManager:
             self.undo_manager.push_action(action)
 
 
+    def _rename_overlay(self, list_item, name):
+        item = list_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if item is not None:
+            item.list_name = name
+        self._update_overlay_list()
+
     def _update_overlay_list(self):
         """Refresh the overlay list widget display."""
         if self.tg_overlay_list_widget is None:
@@ -1221,7 +1231,7 @@ class TextGeometryOverlayManager:
             
             for item in self.overlay_store.text_items:
                 text_count += 1
-                name = f"textbox #{text_count}"
+                name = getattr(item, "list_name", None) or f"textbox #{text_count}"
                 list_item = QtWidgets.QListWidgetItem(name)
                 list_item.setData(QtCore.Qt.ItemDataRole.UserRole, item)
                 self.tg_overlay_list_widget.addItem(list_item)
@@ -1231,7 +1241,7 @@ class TextGeometryOverlayManager:
             for item in self.overlay_store.geometry_items:
                 shape = item.shape_type.upper()  # e.g., RECTANGLE, ELLIPSE, LINE, TRIANGLE
                 geom_counts[shape] = geom_counts.get(shape, 0) + 1
-                name = f"{shape} #{geom_counts[shape]}"
+                name = getattr(item, "list_name", None) or f"{shape} #{geom_counts[shape]}"
                 list_item = QtWidgets.QListWidgetItem(name)
                 list_item.setData(QtCore.Qt.ItemDataRole.UserRole, item)
                 self.tg_overlay_list_widget.addItem(list_item)

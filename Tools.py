@@ -388,3 +388,103 @@ class ToolWheel(QtWidgets.QWidget):
         x = icons.icon("close").pixmap(48, 48)
         painter.drawPixmap(QtCore.QRectF(c.x() - 10, c.y() - 10, 20, 20), x, QtCore.QRectF(x.rect()))
         painter.end()
+
+
+class DeleteHotkey:
+    """Del deletes the selected overlays: text / geometry and cutting overlays selected on the canvas, else the
+    selected mask. Typing in a field keeps Del for the text; the mask list with the focus means the mask."""
+
+    def __init__(self, gui, c):
+        self.gui, self.c = gui, c
+        self.shortcut = QtGui.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key.Key_Delete), gui)
+        self.shortcut.setContext(QtCore.Qt.ShortcutContext.WindowShortcut)  # main window only, not in dialogs
+        self.shortcut.activated.connect(self.delete)
+        for button in (gui.delete_mask_button, gui.delete_tg_overlay_button, gui.cut_delete_button):
+            if "(Del)" not in button.toolTip():
+                button.setToolTip(f"{button.toolTip()} (Del)".strip())
+
+    def delete(self):
+        """Returns what was deleted: "overlays", "mask" or None."""
+        if typing_focus():
+            return None
+        c = self.c
+        mask_list = self.gui.masks_list_widget
+        if QtWidgets.QApplication.focusWidget() is not mask_list:
+            selected = self.gui.image_scene.selectedItems()
+            text_and_shapes = [i for i in selected if i in c.overlay_store.all_items()]
+            cuts = [i for i in selected if i in c.cutting.store.items]
+            if text_and_shapes or cuts:
+                if text_and_shapes:
+                    c.overlay_manager.delete_active_overlay()
+                if cuts:
+                    c.cutting.delete_selected()
+                return "overlays"
+        if mask_list.selectedItems() and self.c.data_handler.active_mask_index >= 0:
+            c.image_colorer.delete_selected_mask()
+            return "mask"
+        return None
+
+
+class SingleActiveTool:
+    """Only one canvas tool at a time. Choosing a tool ends the active one of another kind:
+    colour and mask tools (they already exclude each other), add text, add geometry, cutting shapes, set the hatch
+    centre in the image."""
+
+    COLOR_TOOL_BUTTONS = ("toggle_draw_button", "flood_fill_button", "replace_color_button",
+                          "pick_color_from_image_button", "rectangle_mask_button", "ellipse_mask_button",
+                          "polygon_mask_button", "edit_mask_button")
+
+    def __init__(self, gui, c):
+        self.gui, self.c = gui, c
+        self._switching = False
+        colorer, tg, mover = c.image_colorer, c.overlay_manager, c.image_sizer
+        self.groups = {
+            "color": ([getattr(gui, name) for name in self.COLOR_TOOL_BUTTONS],
+                      lambda: colorer.set_single_toggle_state('')),
+            "text": ([gui.add_text_button], lambda: self._uncheck(gui.add_text_button, tg.set_add_text_mode)),
+            "geometry": ([gui.add_geometry_button],
+                         lambda: self._uncheck(gui.add_geometry_button, tg.set_add_geometry_mode)),
+            "center": ([gui.set_image_center_button],
+                       lambda: self._uncheck(gui.set_image_center_button, lambda on: mover.toggle_set_image_center())),
+            "cutting": (list(gui.cut_shape_buttons.values()), lambda: c.cutting.set_draw_shape(None)),
+        }
+        for name, (buttons, _) in self.groups.items():
+            if name == "cutting":
+                continue  # (its buttons change with blocked signals: it reports itself)
+            for button in buttons:
+                button.toggled.connect(lambda on, n=name: on and self.activated(n))
+        c.cutting.on_tool_activated = lambda: self.activated("cutting")
+
+    @staticmethod
+    def _uncheck(button, set_mode):
+        if button.isChecked():
+            button.setChecked(False)
+        set_mode(False)
+
+    def activated(self, name):
+        """Tool group `name` became active: end every other one."""
+        if self._switching:
+            return
+        self._switching = True
+        try:
+            for other in self.active():  # only what is active (ending a tool resets the cursor)
+                if other != name:
+                    self.groups[other][1]()
+        finally:
+            self._switching = False
+
+    def active(self):
+        """The names of the active tool groups (at most one)."""
+        colorer, tg, c = self.c.image_colorer, self.c.overlay_manager, self.c
+        found = []
+        if any(getattr(self.gui, b).isChecked() for b in self.COLOR_TOOL_BUTTONS):
+            found.append("color")
+        if tg.mode == tg.MODE_ADD_TEXT:
+            found.append("text")
+        if tg.mode == tg.MODE_ADD_GEOMETRY:
+            found.append("geometry")
+        if c.image_sizer.setting_image_center:
+            found.append("center")
+        if c.cutting.draw_shape:
+            found.append("cutting")
+        return found

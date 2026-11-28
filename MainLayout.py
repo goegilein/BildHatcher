@@ -10,20 +10,19 @@ P10: the panel has one fixed width – the width of the Images section; every se
 from PyQt6 import QtCore, QtWidgets
 
 import icons
+import ImageBar
 import Preferences
 import theme
 import Tools
 
 # group: (icon, [(strip label, tooltip / full name, section groupbox in the .ui)])
 GROUPS = {
-    "Image": ("group-image", [
-        ("Images", "Images: list, add / remove, split / combine, rotate, crop, upscale", "images_frame"),
-        ("Size", "Image size and hatch center", "size_frame"),
+    "Image Editing": ("group-image-edit", [
         ("Adjust", "Image adjustments: colors, brightness, contrast, filter", "image_adjustment_frame"),
         ("Color", "Color image: paint, fill, contours, clean up", "image_color_frame"),
         ("Masks", "Mask drawing", "draw_mask_groupbox"),
+        ("Text and Shapes", "Text and geometries", "tg_frame"),
     ]),
-    "Text": ("group-text", [("Text", "Text and geometries", "tg_frame")]),
     "Hatching": ("group-hatching", [
         ("Hatch", "Image hatching and contours / outlines", "hatch_frame"),
         ("Cutting", "Cutting: draw single laser paths (lines, shapes) and use them as hatch", "cutting_frame"),
@@ -33,9 +32,33 @@ GROUPS = {
     "Automation": ("group-automation", [("Automation", "Automatic J-code generation (uses the active color profile)",
                                          "laser_settings_frame")]),
 }
-WIDTH_SECTION = "Images"  # P10: every section gets the width of this one
-DEFAULT_STATE = {"group": "Image", "open": {"Image": ["Images"], "Text": ["Text"], "Hatching": ["Hatch"],
-                                            "Automation": ["Automation"]}}
+# Images, Size and Center are drop-downs of the image tool bar row (ImageBar)
+WIDTH_SOURCE = "images_frame"  # P10: every section gets the width of the Images section
+DEFAULT_STATE = {"group": "Image Editing", "open": {"Image Editing": ["Adjust"], "Hatching": ["Hatch"],
+                                                    "Automation": ["Automation"]}}
+OLD_GROUPS = {"Image": "Image Editing", "Text": "Image Editing"}  # remembered states of older versions
+OLD_SECTIONS = {"Text": "Text and Shapes"}
+
+
+def _state():
+    """The remembered panel state, cleaned: groups and sections that no longer exist are mapped or dropped."""
+    state = Preferences.get("panel") or DEFAULT_STATE
+    group = OLD_GROUPS.get(state.get("group"), state.get("group"))
+    if group not in GROUPS:
+        group = None if state.get("group") is None and "group" in state else DEFAULT_STATE["group"]
+    labels = {group_name: [e[0] for e in entries] for group_name, (_, entries) in GROUPS.items()}
+    open_sections = {}
+    for old_group, sections in (state.get("open") or {}).items():
+        new_group = OLD_GROUPS.get(old_group, old_group)
+        if new_group in GROUPS and not open_sections.get(new_group):
+            valid = [OLD_SECTIONS.get(label, label) for label in sections]
+            open_sections[new_group] = [label for label in valid if label in labels[new_group]]
+    for group_name in GROUPS:
+        if group_name not in open_sections:
+            open_sections[group_name] = list(DEFAULT_STATE["open"][group_name])
+    every = {label for entries in labels.values() for label in entries}
+    pinned = [OLD_SECTIONS.get(label, label) for label in state.get("pinned", [])]
+    return {"group": group, "open": open_sections, "pinned": [label for label in pinned if label in every]}
 
 
 class VerticalButton(QtWidgets.QPushButton):
@@ -80,9 +103,8 @@ class SettingsPanel:
     def __init__(self, gui, on_hidden=None):
         self.gui = gui
         self.on_hidden = on_hidden
-        state = Preferences.get("panel") or DEFAULT_STATE
-        self.open = {group: list(state.get("open", {}).get(group, DEFAULT_STATE["open"][group]))[:1]
-                     for group in GROUPS}  # P10.6: at most one open section per group
+        state = _state()
+        self.open = {group: list(state["open"][group])[:1] for group in GROUPS}  # P10.6: one open section per group
         self.group = None
 
         self.widget = QtWidgets.QWidget(objectName="settings_panel")
@@ -136,11 +158,13 @@ class SettingsPanel:
         theme.on_change(lambda: [b.setIcon(icons.icon(GROUPS[g][0])) for g, b in self.group_buttons.items()])
         self.content_layout.addStretch(1)
         sub_layout.addStretch(1)
-        # P10: one width for every section (and so for the panel): the Images section's, measured with the
-        # stylesheet applied; never narrower than a section needs (tests check that Images is the widest)
+        # P10: one width for every section (and so for the panel): the Images section's (now the Images drop-down),
+        # measured with the stylesheet applied; never narrower than a section needs (tests: Images is the widest)
+        width_source = getattr(gui, WIDTH_SOURCE)
+        width_source.ensurePolished()
         for section in self.sections.values():
             section.ensurePolished()
-        self.width = max([self.sections[WIDTH_SECTION].sizeHint().width()] +
+        self.width = max([width_source.sizeHint().width()] +
                          [section.minimumSizeHint().width() for section in self.sections.values()])
         for section in self.sections.values():
             section.setFixedWidth(self.width)
@@ -273,11 +297,7 @@ def build_toolbar(gui, c):
         _styled(bar.widgetForAction(action), "ImprintAction")  # highlighted while something waits to be imprinted
     bar.addSeparator()
 
-    # the number of colours of the image, more visible than in the Images section
-    gui.toolbar_colors_label = _styled(QtWidgets.QLabel("0 colors", objectName="toolbar_colors_label"), "ToolbarInfo")
-    gui.toolbar_colors_label.setToolTip("Number of colors in the image")
-    bar.addWidget(gui.toolbar_colors_label)
-    bar.addSeparator()
+    # (the number of colours of the image: next to the Images button in the image tool bar row, ImageBar)
 
     # (P9.6: the image operations live in the Images section again)
 
@@ -286,11 +306,12 @@ def build_toolbar(gui, c):
     gui.zoom_slider.hide()  # the zoom field alone is enough in the toolbar (wheel / pinch zoom still work)
     gui.zoom_spinbox.setSuffix(" %")
     gui.zoom_spinbox.setToolTip("Zoom")
-    bar.addWidget(_take(gui.zoom_spinbox))
-    zoom_action = bar.addAction(icons.icon("zoom-reset"), "Reset Zoom")
+    zoom_action = bar.addAction(icons.icon("zoom-reset"), "Reset Zoom")  # reset first, then the zoom level
     zoom_action.triggered.connect(lambda: mover.reset_zoom())
-    center_action = bar.addAction(icons.icon("recenter"), "Re-center")
+    bar.addWidget(_take(gui.zoom_spinbox))
+    center_action = bar.addAction(icons.icon("recenter"), "Re-Center Image")
     center_action.triggered.connect(lambda: mover.recenter_image())
+    bar.addSeparator()  # the grid stands apart
     grid_action = bar.addAction(icons.toggle_icon("grid", "grid-hide"), "Grid")
     grid_action.setCheckable(True)
     grid_action.toggled.connect(lambda checked: mover.toggle_grid() if checked != mover.grid_on else None)
@@ -338,10 +359,13 @@ def build_theme_switch(gui):
 def build(gui, c):
     """Arrange toolbar and settings panel (call after main.create_components)."""
     build_toolbar(gui, c)
+    c.image_bar = ImageBar.build(gui, c)  # second row: Images / Size / Center drop-downs (before the panel)
     # hiding the mask section switches off the mask tools (colour tools stay active: they have hotkeys, P9.10)
     reset_tools = lambda name: c.image_colorer.set_single_toggle_state('') if name == "Masks" else None
     panel = build_panel(gui, on_hidden=reset_tools)
     c.tools = Tools.ToolController(gui, c.image_colorer)  # P9.10: hotkeys D F R P C T + indicator
+    c.single_tool = Tools.SingleActiveTool(gui, c)  # one canvas tool at a time: a new one ends the old one
+    c.delete_key = Tools.DeleteHotkey(gui, c)  # Del: delete the selected overlays / mask
     c.tools.add_indicator(gui.toolBar, before=c.tool_slot)
     c.canvas_cursors = Tools.CanvasCursors(gui, c.image_colorer, c.event_handler)  # P11: tool cursors, pen outline
     c.tool_wheel = Tools.ToolWheel(c.tools, gui.image_canvas.viewport(), c.event_handler)  # P9.11

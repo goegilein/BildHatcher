@@ -40,7 +40,8 @@ def test_hotkeys_ignored_while_typing(app_components):
     c = app_components
     gui = c.gui
     gui.show()
-    c.panel_buttons.select_group("Text")
+    c.panel_buttons.select_group("Image Editing")
+    c.panel_buttons.section_buttons["Text and Shapes"].setChecked(True)
     gui.text_input_lineedit.setEnabled(True)
     gui.text_input_lineedit.setFocus()
     QtWidgets.QApplication.processEvents()
